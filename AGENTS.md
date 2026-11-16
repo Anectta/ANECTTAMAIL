@@ -7,3 +7,7 @@
 - **Entrega ao Usuário:** Ao finalizar a compilação do instalador, informe sempre os links diretos para os artefatos gerados com a nova versão em:
   - `c:\ANECTTA MAIL\release\Anectta MAIL Setup <nova_versão>.exe`
   - `c:\ANECTTA MAIL\release\win-unpacked\Anectta MAIL.exe`
+
+## Commit e Push Obrigatórios no GitHub ao Finalizar Atualizações
+- **Commit Obrigatório no GitHub:** Ao finalizar qualquer atualização no código-fonte, configuração ou versão do sistema, você **DEVE** registrar as alterações com `git add`, criar um `git commit` descritivo (mencionando a nova versão, ex.: `chore: release v1.0.122`) e enviar para o repositório remoto no GitHub (`git push origin <branch>`) antes de concluir a tarefa.
+- **Segurança:** Nunca inclua tokens, credenciais ou arquivos binários pesados ignorados pelo `.gitignore` (como `release/`) no commit. Caso o `git push` falhe por falta de autenticação ou conflito, informe o erro claramente ao usuário.

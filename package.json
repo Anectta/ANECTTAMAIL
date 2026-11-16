@@ -1,6 +1,6 @@
 {
   "name": "anectta-mail",
-  "version": "1.0.118",
+  "version": "1.0.122",
   "description": "Anectta MAIL - High Performance Corporate Desktop Email Client",
   "main": "dist-electron/main/main.js",
   "author": "Anectta Enterprise",
@@ -18,6 +18,7 @@
     "@types/nodemailer": "^8.0.2",
     "clsx": "^2.1.1",
     "dompurify": "^3.4.18",
+    "electron-updater": "^6.8.11",
     "imapflow": "^2.11.0",
     "lucide-react": "^1.16.0",
     "mailparser": "^3.14.2",
@@ -47,6 +48,13 @@
   "build": {
     "appId": "com.anectta.mail",
     "productName": "Anectta MAIL",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Anectta",
+        "repo": "ANECTTAMAIL"
+      }
+    ],
     "directories": {
       "output": "release"
     },

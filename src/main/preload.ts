@@ -416,6 +416,28 @@ const electronAPI = {
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
+  onPrepareClose: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('app:prepare-close', listener);
+    return () => ipcRenderer.removeListener('app:prepare-close', listener);
+  },
+  confirmAppClose: () => ipcRenderer.send('app:confirm-close'),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+
+const updaterAPI = {
+  onUpdateAvailable: (callback: (version: string) => void) => {
+    const listener = (_event: any, version: string) => callback(version);
+    ipcRenderer.on('update-available', listener);
+    return () => ipcRenderer.removeListener('update-available', listener);
+  },
+  onDownloadProgress: (callback: (percent: number) => void) => {
+    const listener = (_event: any, percent: number) => callback(percent);
+    ipcRenderer.on('download-progress', listener);
+    return () => ipcRenderer.removeListener('download-progress', listener);
+  },
+  startDownload: () => ipcRenderer.send('iniciar-download-atualizacao'),
+};
+
+contextBridge.exposeInMainWorld('updaterAPI', updaterAPI);

@@ -24,6 +24,7 @@ import { SkinSelectorModal } from './components/SkinSelectorModal';
 import { AccountSetupWizardView } from './components/AccountSetupWizardView';
 import { RulesModal } from './components/RulesModal';
 import { MotivationalBanner } from './components/MotivationalBanner';
+import { ForceUpdateModal } from './components/ForceUpdateModal';
 import { soundService } from './services/soundService';
 import { saveSettingsLocal, loadSettingsLocal } from './utils/secureSettingsStorage';
 import { themeService } from './services/themeService';
@@ -667,7 +668,10 @@ export const App: React.FC = () => {
     }
   }, []);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isClosingSync, setIsClosingSync] = useState(false);
   const syncInFlightRef = useRef(false);
+  const syncPromiseRef = useRef<Promise<void> | null>(null);
+  const closingInProgressRef = useRef(false);
   const lastFocusSyncRef = useRef(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [accountQuotas, setAccountQuotas] = useState<Record<string, { usedBytes: number; limitBytes: number }>>(() => {
@@ -1190,16 +1194,18 @@ export const App: React.FC = () => {
   );
 
   // Sync with real IMAP server (multi-folder) or POP3 across all configured accounts
-  const handleSyncAll = useCallback(async (opts?: { silent?: boolean }) => {
+  const handleSyncAll = useCallback(async (opts?: { silent?: boolean; background?: boolean }) => {
     const silent = opts?.silent === true;
-    if (syncInFlightRef.current) return;
+    const hideFeedback = silent || opts?.background === true;
+    if (syncInFlightRef.current) return syncPromiseRef.current ?? undefined;
     syncInFlightRef.current = true;
-    if (!silent) setIsSyncing(true);
+    if (!hideFeedback) setIsSyncing(true);
     const allAccounts =
       settings.accounts && settings.accounts.length > 0 ? settings.accounts : [currentAccount];
 
-    if (!silent) showToast(`Sincronizando ${allAccounts.length} conta(s) configurada(s)...`);
+    if (!hideFeedback) showToast(`Sincronizando ${allAccounts.length} conta(s) configurada(s)...`);
 
+    const run = (async () => {
     try {
       let totalSynced = 0;
 
@@ -1374,7 +1380,7 @@ export const App: React.FC = () => {
         }
       }
 
-      if (!silent) {
+      if (!hideFeedback) {
         if (totalSynced > 0) {
           showToast(`✓ Sincronização concluída! ${totalSynced} mensagens atualizadas nas contas.`);
         } else {
@@ -1382,11 +1388,16 @@ export const App: React.FC = () => {
         }
       }
     } catch (err: any) {
-      if (!silent) showToast(`Aviso: ${err.message || 'Verifique as credenciais do servidor'}`);
+      if (!hideFeedback) showToast(`Aviso: ${err.message || 'Verifique as credenciais do servidor'}`);
     } finally {
       syncInFlightRef.current = false;
-      if (!silent) setIsSyncing(false);
+      syncPromiseRef.current = null;
+      if (!hideFeedback) setIsSyncing(false);
     }
+    })();
+
+    syncPromiseRef.current = run;
+    return run;
   }, [settings.accounts, currentAccount, rules]);
 
   const handleSaveRules = (nextRules: MailRule[]) => {
@@ -1410,19 +1421,19 @@ export const App: React.FC = () => {
     }
   };
 
-  // Sincronização automática na inicialização se credenciais estiverem salvas
+  // Sincronização automática silenciosa na inicialização (aproveita o tempo da tela de abertura)
   useEffect(() => {
     const incoming = currentAccount.incomingServer;
     const hasCredentials = Boolean(
       incoming?.host &&
-      (incoming?.password || currentAccount.password)
+      (incoming?.password || currentAccount.password || currentAccount.oauthAccessToken)
     );
 
     if (hasCredentials && (incoming?.checkOnStartup ?? true)) {
       const timer = setTimeout(async () => {
-        await handleSyncAll({ silent: true }); // rápido: só Caixa de Entrada, aparece em segundos
-        handleSyncAll(); // completo: todas as pastas
-      }, 300);
+        await handleSyncAll({ silent: true, background: true }); // rápido: só Caixa de Entrada, invisível
+        void handleSyncAll({ silent: false, background: true }); // completo: todas as pastas em segundo plano
+      }, 50);
       return () => clearTimeout(timer);
     }
   }, [currentAccount.id, handleSyncAll]);
@@ -2372,6 +2383,66 @@ export const App: React.FC = () => {
 
   const dispatchEmailNowRef = useRef(dispatchEmailNow);
   dispatchEmailNowRef.current = dispatchEmailNow;
+  const pendingUndoSendRef = useRef(pendingUndoSend);
+  pendingUndoSendRef.current = pendingUndoSend;
+  const scheduledEmailsRef = useRef(scheduledEmails);
+  scheduledEmailsRef.current = scheduledEmails;
+  const handleSyncAllRef = useRef(handleSyncAll);
+  handleSyncAllRef.current = handleSyncAll;
+
+  // Ao fechar o aplicativo: executa envio e recebimento antes de encerrar totalmente (inclusive da bandeja)
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api?.onPrepareClose) return;
+
+    const off = api.onPrepareClose(async () => {
+      if (closingInProgressRef.current) return;
+      closingInProgressRef.current = true;
+      setIsClosingSync(true);
+
+      const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, 15000));
+
+      const performSendAndReceive = async () => {
+        try {
+          // 1. Dispara imediatamente qualquer e-mail na contagem de "Desfazer Envio"
+          if (pendingUndoSendRef.current) {
+            if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+            const payloadToSend = pendingUndoSendRef.current.payload;
+            setPendingUndoSend(null);
+            await dispatchEmailNowRef.current(payloadToSend).catch(() => {});
+          }
+
+          // 2. Dispara e-mails agendados que já venceram
+          const now = Date.now();
+          const due = scheduledEmailsRef.current.filter((item) => now >= item.scheduledAt);
+          if (due.length > 0) {
+            const dueIds = new Set(due.map((d) => d.id));
+            setScheduledEmails((prev) => prev.filter((item) => !dueIds.has(item.id)));
+            setEmails((prev) => prev.filter((e) => !dueIds.has(e.id)));
+            for (const item of due) {
+              await dispatchEmailNowRef.current(item.payload).catch(() => {});
+            }
+          }
+
+          // 3. Executa envio/recebimento completo das contas
+          if (syncPromiseRef.current) {
+            await syncPromiseRef.current.catch(() => {});
+          } else {
+            await handleSyncAllRef.current({ silent: true });
+          }
+        } catch (err) {
+          console.warn('[APP] Erro durante envio/recebimento ao fechar:', err);
+        }
+      };
+
+      await Promise.race([performSendAndReceive(), timeoutPromise]);
+      api.confirmAppClose?.();
+    });
+
+    return () => {
+      off?.();
+    };
+  }, []);
 
   // Timer do Undo Send (contagem regressiva de 8 segundos)
   useEffect(() => {
@@ -3131,6 +3202,24 @@ export const App: React.FC = () => {
           onClose={handleCloseWizard}
           isFirstRun={isFirstRunSetup}
         />
+      )}
+
+      {/* Modal de Atualização Obrigatória (Auto-Update) */}
+      <ForceUpdateModal />
+
+      {/* Overlay de Envio e Recebimento ao Fechar o Aplicativo */}
+      {isClosingSync && (
+        <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-[#0f1d32] border border-sky-500/30 rounded-2xl px-8 py-6 shadow-2xl flex flex-col items-center text-center max-w-sm">
+            <div className="w-10 h-10 rounded-full border-2 border-sky-400/30 border-t-sky-400 animate-spin mb-4" />
+            <h3 className="text-sm font-semibold text-white">
+              Enviando e recebendo e-mails...
+            </h3>
+            <p className="text-xs text-slate-300 mt-1.5">
+              Sincronizando suas contas antes de encerrar o Anectta MAIL.
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );

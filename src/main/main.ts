@@ -1,4 +1,5 @@
 import { app, safeStorage, BrowserWindow, ipcMain, shell, Menu, globalShortcut, session, dialog, Notification, screen, Tray, nativeImage } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import { pathToFileURL } from 'url';
 import fs from 'fs';
@@ -43,11 +44,16 @@ process.on('unhandledRejection', (reason: any) => {
 });
 
 let mainWindow: BrowserWindow | null = null;
+let splashWindow: BrowserWindow | null = null;
+let splashShownAt = 0;
+const SPLASH_MIN_DURATION_MS = 4800;
 let quickComposeWindow: BrowserWindow | null = null;
 let notifierWindow: BrowserWindow | null = null;
 let notifierTimeout: NodeJS.Timeout | null = null;
 let lastNotifierData: any = null;
 let blockedTrackersCount = 0;
+let isClosingAfterSync = false;
+let closeSafetyTimer: NodeJS.Timeout | null = null;
 
 const MIN_ZOOM_FACTOR = 0.85;
 const MAX_ZOOM_FACTOR = 1.2;
@@ -135,7 +141,7 @@ function createWindow(): void {
     minHeight: 680,
     title: 'Anectta MAIL - Corporate Desktop',
     backgroundColor: '#070d18',
-    show: true,
+    show: false,
     center: true,
     frame: false,
     autoHideMenuBar: true,
@@ -227,12 +233,9 @@ function createWindow(): void {
     console.log(`[RENDERER ${level}] ${message} (${sourceId}:${line})`);
   });
 
-  // Gracefully show window when ready
+  // Gracefully show window when ready (after splash minimum duration if splash is active)
   mainWindow.once('ready-to-show', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    closeSplashAndShowMain();
   });
 
   const indexPath = path.join(app.getAppPath(), 'dist/index.html');
@@ -243,15 +246,131 @@ function createWindow(): void {
   });
 
   mainWindow.on('close', (e) => {
-    if (!isQuitting && minimizeToTray && systemTray) {
+    if (!isQuitting) {
       e.preventDefault();
-      mainWindow?.hide();
+      requestGracefulClose();
     }
   });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+}
+
+function createSplashWindow(): void {
+  if (splashWindow && !splashWindow.isDestroyed()) return;
+
+  const iconCandidate = path.join(process.resourcesPath, 'icon.ico');
+  const iconPath = fs.existsSync(iconCandidate)
+    ? iconCandidate
+    : path.join(__dirname, '../../build/icon.ico');
+
+  splashShownAt = Date.now();
+  splashWindow = new BrowserWindow({
+    width: 540,
+    height: 360,
+    frame: false,
+    resizable: false,
+    center: true,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    show: false,
+    backgroundColor: '#091322',
+    title: 'Anectta MAIL',
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+    },
+  });
+
+  const indexPath = path.join(app.getAppPath(), 'dist/index.html');
+  splashWindow.loadURL(`${pathToFileURL(indexPath).href}#splash`).catch(() => {
+    splashWindow?.loadURL('http://localhost:5173#splash');
+  });
+
+  configureZoomProtection(splashWindow, false);
+
+  splashWindow.once('ready-to-show', () => {
+    splashShownAt = Date.now();
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.show();
+    }
+  });
+
+  splashWindow.on('closed', () => {
+    splashWindow = null;
+  });
+}
+
+function closeSplashAndShowMain(): void {
+  const revealMain = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+      splashWindow = null;
+    }
+  };
+
+  if (!splashWindow || splashWindow.isDestroyed()) {
+    revealMain();
+    return;
+  }
+
+  const elapsed = Date.now() - splashShownAt;
+  const remaining = Math.max(0, SPLASH_MIN_DURATION_MS - elapsed);
+  setTimeout(revealMain, remaining);
+}
+
+function finalizeQuit(): void {
+  if (closeSafetyTimer) {
+    clearTimeout(closeSafetyTimer);
+    closeSafetyTimer = null;
+  }
+  isQuitting = true;
+  isClosingAfterSync = true;
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.destroy();
+    splashWindow = null;
+  }
+  if (quickComposeWindow && !quickComposeWindow.isDestroyed()) {
+    quickComposeWindow.destroy();
+    quickComposeWindow = null;
+  }
+  if (notifierWindow && !notifierWindow.isDestroyed()) {
+    notifierWindow.destroy();
+    notifierWindow = null;
+  }
+  if (systemTray && !systemTray.isDestroyed()) {
+    systemTray.destroy();
+    systemTray = null;
+  }
+  app.quit();
+}
+
+function requestGracefulClose(): void {
+  if (isQuitting || isClosingAfterSync) return;
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    finalizeQuit();
+    return;
+  }
+  isClosingAfterSync = true;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+  mainWindow.webContents.send('app:prepare-close');
+
+  if (closeSafetyTimer) clearTimeout(closeSafetyTimer);
+  closeSafetyTimer = setTimeout(() => {
+    console.warn('[MAIN] Timeout ao aguardar envio/recebimento no fechamento. Encerrando...');
+    finalizeQuit();
+  }, 20000);
 }
 
 let systemTray: Tray | null = null;
@@ -282,7 +401,7 @@ function createSystemTray(): void {
     const restoreMainWindow = () => {
       if (!mainWindow || mainWindow.isDestroyed()) {
         createSystemTray();
-  createWindow();
+        createWindow();
         return;
       }
       if (mainWindow.isMinimized()) mainWindow.restore();
@@ -303,8 +422,7 @@ function createSystemTray(): void {
       {
         label: 'Sair do Anectta MAIL',
         click: () => {
-          isQuitting = true;
-          app.quit();
+          requestGracefulClose();
         },
       },
     ]);
@@ -522,6 +640,10 @@ ipcMain.on('window:maximize', () => {
 
 ipcMain.on('window:close', () => {
   mainWindow?.close();
+});
+
+ipcMain.on('app:confirm-close', () => {
+  finalizeQuit();
 });
 
 ipcMain.handle('app:version', () => {
@@ -2380,8 +2502,62 @@ if (!gotTheLock) {
     console.warn('[MAIN] Falha ao configurar sessão persist:whatsapp:', err.message);
   }
 
+  isClosingAfterSync = false;
+  createSplashWindow();
   createSystemTray();
   createWindow();
+
+  // Auto-Updater (Atualização Obrigatória via GitHub Releases)
+  autoUpdater.autoDownload = false;
+
+  let pendingUpdateVersion: string | null = null;
+
+  autoUpdater.on('update-available', (info) => {
+    const version = info?.version || '';
+    pendingUpdateVersion = version;
+    console.log('[AUTO-UPDATER] Nova atualização disponível:', version);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-available', version);
+    }
+  });
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    const percent = Math.round(progressObj?.percent || 0);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('download-progress', percent);
+    }
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    console.log('[AUTO-UPDATER] Download concluído. Reiniciando e instalando...');
+    isQuitting = true;
+    autoUpdater.quitAndInstall(false, true);
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.warn('[AUTO-UPDATER] Erro ao verificar/baixar atualização:', err?.message || err);
+  });
+
+  ipcMain.on('iniciar-download-atualizacao', () => {
+    console.log('[AUTO-UPDATER] Iniciando download da atualização obrigatória...');
+    autoUpdater.downloadUpdate().catch((err) => {
+      console.error('[AUTO-UPDATER] Falha ao baixar atualização:', err?.message || err);
+    });
+  });
+
+  if (mainWindow) {
+    mainWindow.webContents.on('did-finish-load', () => {
+      if (pendingUpdateVersion && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update-available', pendingUpdateVersion);
+      }
+    });
+  }
+
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.warn('[AUTO-UPDATER] Falha ao buscar atualizações:', err?.message || err);
+    });
+  }
 
   // Registra o atalho global corporativo: Ctrl+Shift+E ou Cmd+Shift+E para Quick Compose
   try {
@@ -2413,6 +2589,10 @@ app.on('before-quit', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  if (systemTray && !systemTray.isDestroyed()) {
+    systemTray.destroy();
+    systemTray = null;
+  }
 });
 
 app.on('window-all-closed', () => {

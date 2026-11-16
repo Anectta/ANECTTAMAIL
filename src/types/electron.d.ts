@@ -245,11 +245,20 @@ export interface ElectronAPI {
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   closeWindow: () => void;
+  onPrepareClose?: (callback: () => void) => () => void;
+  confirmAppClose?: () => void;
+}
+
+export interface UpdaterAPI {
+  onUpdateAvailable: (callback: (version: string) => void) => (() => void) | void;
+  onDownloadProgress: (callback: (percent: number) => void) => (() => void) | void;
+  startDownload: () => void;
 }
 
 declare global {
   interface Window {
     electronAPI?: ElectronAPI;
+    updaterAPI?: UpdaterAPI;
   }
 
   namespace JSX {
