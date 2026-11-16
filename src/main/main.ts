@@ -54,6 +54,7 @@ let lastNotifierData: any = null;
 let blockedTrackersCount = 0;
 let isClosingAfterSync = false;
 let closeSafetyTimer: NodeJS.Timeout | null = null;
+let pendingUpdateVersion: string | null = null;
 
 const MIN_ZOOM_FACTOR = 0.85;
 const MAX_ZOOM_FACTOR = 1.2;
@@ -312,6 +313,9 @@ function closeSplashAndShowMain(): void {
       mainWindow.maximize();
       mainWindow.show();
       mainWindow.focus();
+      if (pendingUpdateVersion) {
+        mainWindow.webContents.send('update-available', pendingUpdateVersion);
+      }
     }
     if (splashWindow && !splashWindow.isDestroyed()) {
       splashWindow.close();
@@ -2511,7 +2515,7 @@ if (!gotTheLock) {
   // Auto-Updater (Atualização Obrigatória via GitHub Releases)
   autoUpdater.autoDownload = false;
 
-  let pendingUpdateVersion: string | null = null;
+  ipcMain.handle('updater:get-pending', () => pendingUpdateVersion);
 
   autoUpdater.on('update-available', (info) => {
     const version = info?.version || '';
@@ -2536,13 +2540,21 @@ if (!gotTheLock) {
   });
 
   autoUpdater.on('error', (err) => {
-    console.warn('[AUTO-UPDATER] Erro ao verificar/baixar atualização:', err?.message || err);
+    const msg = err?.message || String(err);
+    console.warn('[AUTO-UPDATER] Erro ao verificar/baixar atualização:', msg);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-error', msg);
+    }
   });
 
   ipcMain.on('iniciar-download-atualizacao', () => {
     console.log('[AUTO-UPDATER] Iniciando download da atualização obrigatória...');
     autoUpdater.downloadUpdate().catch((err) => {
-      console.error('[AUTO-UPDATER] Falha ao baixar atualização:', err?.message || err);
+      const msg = err?.message || String(err);
+      console.error('[AUTO-UPDATER] Falha ao baixar atualização:', msg);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update-error', msg);
+      }
     });
   });
 

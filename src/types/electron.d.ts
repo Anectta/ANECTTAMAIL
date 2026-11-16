@@ -252,6 +252,8 @@ export interface ElectronAPI {
 export interface UpdaterAPI {
   onUpdateAvailable: (callback: (version: string) => void) => (() => void) | void;
   onDownloadProgress: (callback: (percent: number) => void) => (() => void) | void;
+  onUpdateError?: (callback: (message: string) => void) => (() => void) | void;
+  getPendingUpdate?: () => Promise<string | null>;
   startDownload: () => void;
 }
 

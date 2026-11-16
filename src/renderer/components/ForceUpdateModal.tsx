@@ -6,24 +6,40 @@ export const ForceUpdateModal: React.FC = () => {
   const [newVersion, setNewVersion] = useState<string>('');
   const [isDownloading, setIsDownloading] = useState(false);
   const [progress, setProgress] = useState<number>(0);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     const updater = window.updaterAPI;
     if (!updater) return;
 
     const cleanupAvailable = updater.onUpdateAvailable((version: string) => {
+      if (!version) return;
       setNewVersion(version);
       setUpdateAvailable(true);
     });
 
     const cleanupProgress = updater.onDownloadProgress((percent: number) => {
       setIsDownloading(true);
+      setErrorMsg(null);
       setProgress(Math.min(100, Math.max(0, Math.round(percent))));
     });
+
+    const cleanupError = updater.onUpdateError?.((message: string) => {
+      setIsDownloading(false);
+      setErrorMsg(message || 'Falha ao baixar atualização.');
+    });
+
+    updater.getPendingUpdate?.().then((version) => {
+      if (version) {
+        setNewVersion(version);
+        setUpdateAvailable(true);
+      }
+    }).catch(() => {});
 
     return () => {
       if (typeof cleanupAvailable === 'function') cleanupAvailable();
       if (typeof cleanupProgress === 'function') cleanupProgress();
+      if (typeof cleanupError === 'function') cleanupError();
     };
   }, []);
 
@@ -32,6 +48,7 @@ export const ForceUpdateModal: React.FC = () => {
   }
 
   const handleStartDownload = () => {
+    setErrorMsg(null);
     setIsDownloading(true);
     window.updaterAPI?.startDownload();
   };
@@ -63,6 +80,12 @@ export const ForceUpdateModal: React.FC = () => {
           ) : null}{' '}
           está disponível. Para continuar utilizando o sistema com segurança e estabilidade, atualize agora.
         </p>
+
+        {errorMsg && (
+          <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+            {errorMsg}
+          </div>
+        )}
 
         {!isDownloading ? (
           <button

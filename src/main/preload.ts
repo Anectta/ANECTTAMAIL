@@ -437,6 +437,12 @@ const updaterAPI = {
     ipcRenderer.on('download-progress', listener);
     return () => ipcRenderer.removeListener('download-progress', listener);
   },
+  onUpdateError: (callback: (message: string) => void) => {
+    const listener = (_event: any, message: string) => callback(message);
+    ipcRenderer.on('update-error', listener);
+    return () => ipcRenderer.removeListener('update-error', listener);
+  },
+  getPendingUpdate: () => ipcRenderer.invoke('updater:get-pending'),
   startDownload: () => ipcRenderer.send('iniciar-download-atualizacao'),
 };
 
