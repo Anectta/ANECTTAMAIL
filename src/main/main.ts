@@ -309,6 +309,7 @@ function createSplashWindow(): void {
 function closeSplashAndShowMain(): void {
   const revealMain = () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.maximize();
       mainWindow.show();
       mainWindow.focus();
     }
