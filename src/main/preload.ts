@@ -443,6 +443,7 @@ const updaterAPI = {
     return () => ipcRenderer.removeListener('update-error', listener);
   },
   getPendingUpdate: () => ipcRenderer.invoke('updater:get-pending'),
+  checkForUpdatesManual: () => ipcRenderer.invoke('updater:check-manual'),
   startDownload: () => ipcRenderer.send('iniciar-download-atualizacao'),
 };
 

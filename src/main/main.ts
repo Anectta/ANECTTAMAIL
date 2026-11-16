@@ -2517,6 +2517,40 @@ if (!gotTheLock) {
 
   ipcMain.handle('updater:get-pending', () => pendingUpdateVersion);
 
+  ipcMain.handle('updater:check-manual', async () => {
+    const currentVersion = app.getVersion();
+    if (!app.isPackaged) {
+      return {
+        status: 'dev',
+        currentVersion,
+        message: 'Verificação automática de atualização disponível apenas no aplicativo instalado.',
+      };
+    }
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      const latestVersion = result?.updateInfo?.version || '';
+      if (latestVersion && latestVersion !== currentVersion) {
+        pendingUpdateVersion = latestVersion;
+        return {
+          status: 'available',
+          currentVersion,
+          latestVersion,
+        };
+      }
+      return {
+        status: 'up-to-date',
+        currentVersion,
+        latestVersion: latestVersion || currentVersion,
+      };
+    } catch (err: any) {
+      return {
+        status: 'error',
+        currentVersion,
+        error: err?.message || 'Erro ao consultar atualizações.',
+      };
+    }
+  });
+
   autoUpdater.on('update-available', (info) => {
     const version = info?.version || '';
     pendingUpdateVersion = version;

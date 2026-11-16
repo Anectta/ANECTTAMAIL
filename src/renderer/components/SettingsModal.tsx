@@ -35,6 +35,7 @@ import {
   Network,
   Check,
   GripVertical,
+  DownloadCloud,
 } from 'lucide-react';
 import { EmailItem } from '@/types/email';
 import { AppSettings, EmailSignature } from '@/types/settings';
@@ -51,6 +52,7 @@ import { SkinGalleryPanel } from './SkinGalleryPanel';
 import { SpellcheckSettingsPanel } from './SpellcheckSettingsPanel';
 import { BackupSettingsPanel } from './BackupSettingsPanel';
 import { StorageSettingsPanel } from './StorageSettingsPanel';
+import { VersionSettingsPanel } from './VersionSettingsPanel';
 import logoImg from '../assets/logo.png';
 
 interface SettingsModalProps {
@@ -80,7 +82,8 @@ interface SettingsModalProps {
     | 'apps'
     | 'security'
     | 'importExport'
-    | 'support';
+    | 'support'
+    | 'version';
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -100,7 +103,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   initialTab,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'account' | 'appearance' | 'spellcheck' | 'backup' | 'storage' | 'signature' | 'quickReplies' | 'notifications' | 'calendar' | 'apps' | 'security' | 'importExport' | 'support'
+    'account' | 'appearance' | 'spellcheck' | 'backup' | 'storage' | 'signature' | 'quickReplies' | 'notifications' | 'calendar' | 'apps' | 'security' | 'importExport' | 'support' | 'version'
   >(initialTab || 'account');
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [quickRepliesList, setQuickRepliesList] = useState<string[]>(() =>
@@ -521,6 +524,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             >
               <LifeBuoy className="w-4 h-4 text-sky-400" />
               <span>Suporte & Ajuda</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('version')}
+              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                activeTab === 'version'
+                  ? 'bg-sky-600/20 text-sky-400 font-semibold border border-sky-500/30'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+              }`}
+            >
+              <DownloadCloud className="w-4 h-4 text-sky-400" />
+              <span>Versão</span>
             </button>
 
             <div className="pt-2 mt-2 border-t border-slate-800/80 flex flex-col space-y-1">
@@ -2115,6 +2130,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 }}
               />
             )}
+
+            {/* ================= TAB: VERSÃO & ATUALIZAÇÕES ================= */}
+            {activeTab === 'version' && <VersionSettingsPanel />}
 
             {/* ================= TAB: IMPORTAR / EXPORTAR ================= */}
             {activeTab === 'importExport' && (() => {

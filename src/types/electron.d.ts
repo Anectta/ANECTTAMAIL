@@ -254,6 +254,13 @@ export interface UpdaterAPI {
   onDownloadProgress: (callback: (percent: number) => void) => (() => void) | void;
   onUpdateError?: (callback: (message: string) => void) => (() => void) | void;
   getPendingUpdate?: () => Promise<string | null>;
+  checkForUpdatesManual?: () => Promise<{
+    status: 'available' | 'up-to-date' | 'error' | 'dev';
+    currentVersion: string;
+    latestVersion?: string;
+    message?: string;
+    error?: string;
+  }>;
   startDownload: () => void;
 }
 
