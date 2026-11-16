@@ -1,0 +1,242 @@
+/* ==========================================================================
+   Anectta MAIL - GPU-Accelerated Animated Vector Icons (SVG + CSS Pure)
+   Zero Layout Shift • 60 FPS Compositing • CSS Custom Properties
+   ========================================================================== */
+
+:root {
+  --mail-anim-primary: #3b82f6;      /* Azul Royal Corporativo */
+  --mail-anim-secondary: #06b6d4;    /* Ciano Acento */
+  --mail-anim-trail: #94a3b8;        /* Rastro Pontilhado */
+  --mail-anim-tray: #64748b;         /* Bandeja da Caixa de Entrada */
+  --mail-anim-stroke: 2px;
+  --mail-anim-duration: 2.4s;
+}
+
+/* Isolamento de camada para garantir aceleração por GPU no Chromium */
+.mail-anim-gpu {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* ==========================================================================
+   1. EMAIL SENDING (ENVIO: ENVELOPE -> MORPHING -> AVIÃO DE PAPEL -> DECOLAGEM)
+   ========================================================================== */
+
+.email-sending-svg {
+  display: block;
+  overflow: visible;
+  background: transparent;
+}
+
+.email-sending-svg.is-paused * {
+  animation-play-state: paused !important;
+}
+
+.email-sending-svg .envelope-box {
+  transform-origin: 32px 32px;
+  will-change: transform, opacity;
+  animation: sendEnvelopeMorph var(--mail-anim-duration) cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.email-sending-svg .plane-box {
+  transform-origin: 32px 32px;
+  will-change: transform, opacity;
+  animation: sendPlaneLaunch var(--mail-anim-duration) cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.email-sending-svg .trail-line {
+  stroke-dasharray: 3 4;
+  will-change: transform, opacity, stroke-dashoffset;
+  animation: sendTrailTrace var(--mail-anim-duration) cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Envelope: repouso -> dobra/encolhimento */
+@keyframes sendEnvelopeMorph {
+  0%, 15% {
+    opacity: 1;
+    transform: translateZ(0) scale(1) translateY(0);
+  }
+  26% {
+    transform: translateZ(0) scale(0.88) translateY(-2px);
+  }
+  36%, 82% {
+    opacity: 0;
+    transform: translateZ(0) scale(0.2) translate(10px, -10px);
+  }
+  90%, 100% {
+    opacity: 1;
+    transform: translateZ(0) scale(1) translateY(0);
+  }
+}
+
+/* Avião de papel: dobra -> aceleração diagonal superior direita */
+@keyframes sendPlaneLaunch {
+  0%, 24% {
+    opacity: 0;
+    transform: translateZ(0) scale(0.3) translate(-8px, 10px) rotate(-15deg);
+  }
+  34% {
+    opacity: 1;
+    transform: translateZ(0) scale(1) translate(0, 0) rotate(0deg);
+  }
+  42% {
+    transform: translateZ(0) scale(1.05) translate(2px, 2px) rotate(-4deg);
+  }
+  68% {
+    opacity: 1;
+    transform: translateZ(0) scale(0.68) translate(38px, -38px) rotate(16deg);
+  }
+  78%, 100% {
+    opacity: 0;
+    transform: translateZ(0) scale(0.4) translate(50px, -50px) rotate(22deg);
+  }
+}
+
+/* Rastro de decolagem pontilhado */
+@keyframes sendTrailTrace {
+  0%, 36% {
+    opacity: 0;
+    stroke-dashoffset: 40;
+  }
+  48% {
+    opacity: 0.85;
+  }
+  64% {
+    stroke-dashoffset: 0;
+    opacity: 0.6;
+  }
+  76%, 100% {
+    opacity: 0;
+    stroke-dashoffset: -20;
+  }
+}
+
+/* ==========================================================================
+   2. EMAIL RECEIVING (RECEBIMENTO: ENVELOPE COM ASAS -> POUSO -> BOUNCE)
+   ========================================================================== */
+
+.email-receiving-svg {
+  display: block;
+  overflow: visible;
+  background: transparent;
+}
+
+.email-receiving-svg.is-paused * {
+  animation-play-state: paused !important;
+}
+
+.email-receiving-svg .tray-box {
+  transform-origin: 32px 50px;
+  will-change: transform;
+  animation: recvTrayReaction var(--mail-anim-duration) ease-out infinite;
+}
+
+.email-receiving-svg .flying-envelope-carrier {
+  transform-origin: 32px 24px;
+  will-change: transform, opacity;
+  animation: recvEnvelopeDescent var(--mail-anim-duration) ease-out infinite;
+}
+
+.email-receiving-svg .wing-l {
+  transform-origin: 22px 22px;
+  will-change: transform;
+  animation: recvWingFlapLeft 0.32s ease-in-out infinite alternate;
+}
+
+.email-receiving-svg .wing-r {
+  transform-origin: 42px 22px;
+  will-change: transform;
+  animation: recvWingFlapRight 0.32s ease-in-out infinite alternate;
+}
+
+.email-receiving-svg .wings-layer {
+  transform-origin: 32px 22px;
+  will-change: transform, opacity;
+  animation: recvWingsFold var(--mail-anim-duration) ease-out infinite;
+}
+
+/* Batimento natural das asas */
+@keyframes recvWingFlapLeft {
+  0% {
+    transform: translateZ(0) rotate(18deg) scaleY(0.9);
+  }
+  100% {
+    transform: translateZ(0) rotate(-22deg) scaleY(1.1);
+  }
+}
+
+@keyframes recvWingFlapRight {
+  0% {
+    transform: translateZ(0) rotate(-18deg) scaleY(0.9);
+  }
+  100% {
+    transform: translateZ(0) rotate(22deg) scaleY(1.1);
+  }
+}
+
+/* Recolhimento das asas ao atingir a bandeja */
+@keyframes recvWingsFold {
+  0%, 48% {
+    opacity: 1;
+    transform: translateZ(0) scale(1);
+  }
+  54%, 86% {
+    opacity: 0;
+    transform: translateZ(0) scale(0.2);
+  }
+  94%, 100% {
+    opacity: 1;
+    transform: translateZ(0) scale(1);
+  }
+}
+
+/* Trajetória de descida e efeito de impacto elástico (bounce) */
+@keyframes recvEnvelopeDescent {
+  0% {
+    opacity: 0;
+    transform: translateZ(0) translate(0, -28px) scale(0.65) rotate(-6deg);
+  }
+  14% {
+    opacity: 1;
+  }
+  48% {
+    transform: translateZ(0) translate(0, 14px) scale(1) rotate(2deg);
+  }
+  54% {
+    /* Impacto suave na bandeja */
+    transform: translateZ(0) translate(0, 18px) scale(1.08, 0.92) rotate(0deg);
+  }
+  64% {
+    /* Rebound elástico superior */
+    transform: translateZ(0) translate(0, 15px) scale(0.96, 1.04) rotate(-1deg);
+  }
+  72% {
+    /* Estabilização perfeita */
+    transform: translateZ(0) translate(0, 18px) scale(1, 1) rotate(0deg);
+  }
+  84% {
+    opacity: 1;
+    transform: translateZ(0) translate(0, 18px) scale(1);
+  }
+  94%, 100% {
+    opacity: 0;
+    transform: translateZ(0) translate(0, 18px) scale(0.85);
+  }
+}
+
+/* Reação física da bandeja ao impacto */
+@keyframes recvTrayReaction {
+  0%, 50% {
+    transform: translateZ(0) scale(1) translateY(0);
+  }
+  54% {
+    transform: translateZ(0) scale(1.04, 0.96) translateY(1.5px);
+  }
+  66% {
+    transform: translateZ(0) scale(0.98, 1.02) translateY(-0.5px);
+  }
+  74%, 100% {
+    transform: translateZ(0) scale(1) translateY(0);
+  }
+}

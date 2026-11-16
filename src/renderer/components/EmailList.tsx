@@ -1,0 +1,1102 @@
+import React, { useRef, useImperativeHandle, forwardRef, useState, useEffect } from 'react';
+import {
+  Search,
+  Star,
+  ChevronDown,
+  ChevronRight,
+  ArrowDown,
+  ArrowUp,
+  Mail,
+  Paperclip,
+  Zap,
+  X,
+  Trash2,
+  AlertOctagon,
+  CheckSquare,
+  Square,
+  UserPlus,
+  Users,
+  Building2,
+  Check,
+  MoreVertical,
+  PanelLeft,
+  PanelTop,
+  Maximize2,
+  AlignJustify,
+  CheckCheck,
+  Clock,
+} from 'lucide-react';
+import { CustomFolder, EmailItem, MailFolder, TimePeriod } from '@/types/email';
+import { SenderAvatar } from './SenderAvatar';
+import { soundService } from '../services/soundService';
+import { filterRealAttachments } from '../utils/attachmentUtils';
+import { getEmailTimestampMs, formatReceivedLabel } from '../utils/dateSortUtils';
+
+export type EmailLayoutMode = 'compact' | 'horizontal' | 'fullscreen';
+
+export interface EmailListRef {
+  focusSearch: () => void;
+}
+
+interface EmailListProps {
+  emails: EmailItem[];
+  selectedEmailId: string | null;
+  onSelectEmail: (id: string) => void;
+  onDoubleClickEmail?: (id: string) => void;
+  onToggleStar: (id: string, e: React.MouseEvent) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  activeAccountEmail?: string;
+  width?: number;
+  selectedIds?: string[];
+  onToggleSelectId?: (id: string) => void;
+  onSelectAllVisible?: (ids: string[]) => void;
+  onClearSelection?: () => void;
+  onDeleteSelected?: (ids: string[]) => void;
+  onMarkSpamSelected?: (ids: string[]) => void;
+  customFolders?: CustomFolder[];
+  onMoveSelectedToFolder?: (ids: string[], targetFolder: MailFolder) => void;
+  onAddContactsFromSelected?: (ids: string[]) => void;
+  peopleOnly?: boolean;
+  onTogglePeopleOnly?: () => void;
+  domainOnly?: boolean;
+  onToggleDomainOnly?: () => void;
+  activeDomain?: string;
+  attachmentsOnly?: boolean;
+  onToggleAttachmentsOnly?: () => void;
+  isUnifiedView?: boolean;
+  savedContactEmails?: string[];
+  accounts?: Array<{ id: string; email: string; color?: string }>;
+  onMarkAllAsRead?: () => void;
+  layoutMode?: EmailLayoutMode;
+  onChangeLayoutMode?: (mode: EmailLayoutMode) => void;
+  isMinimalLayout?: boolean;
+  onToggleMinimalLayout?: () => void;
+}
+
+const AUTOMATED_SENDER_REGEX =
+  /^(no-?reply|donotreply|do-not-reply|mailer-daemon|postmaster|newsletter|notifications?|alerts?|billing|faturamento|automated|bot|support|suporte|marketing|news|updates?|bounce|system)@/i;
+
+function isAutomatedSender(item: EmailItem, savedSet: Set<string>): boolean {
+  const emailAddr = (item.senderEmail || '').trim().toLowerCase();
+  if (emailAddr && savedSet.has(emailAddr)) {
+    return false;
+  }
+  return AUTOMATED_SENDER_REGEX.test(emailAddr);
+}
+
+export const EmailList = forwardRef<EmailListRef, EmailListProps>(
+  (
+    {
+      emails,
+      selectedEmailId,
+      onSelectEmail,
+      onDoubleClickEmail,
+      onToggleStar,
+      searchQuery,
+      onSearchChange,
+      activeAccountEmail,
+      width,
+      selectedIds = [],
+      onToggleSelectId,
+      onClearSelection,
+      onDeleteSelected,
+      onMarkSpamSelected,
+      customFolders = [],
+      onMoveSelectedToFolder,
+      onAddContactsFromSelected,
+      peopleOnly = false,
+      onTogglePeopleOnly,
+      domainOnly = false,
+      onToggleDomainOnly,
+      activeDomain = '',
+      attachmentsOnly = false,
+      onToggleAttachmentsOnly,
+      isUnifiedView = false,
+      savedContactEmails = [],
+      accounts = [],
+      onMarkAllAsRead,
+      layoutMode = 'compact',
+      onChangeLayoutMode,
+      isMinimalLayout = false,
+      onToggleMinimalLayout,
+    },
+    ref
+  ) => {
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const sortMenuRef = useRef<HTMLDivElement>(null);
+    const moreMenuRef = useRef<HTMLDivElement>(null);
+    const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'favorites'>('all');
+    const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>(() => {
+      try {
+        const saved = localStorage.getItem('anectta_email_sort_order');
+        return saved === 'asc' ? 'asc' : 'desc';
+      } catch {
+        return 'desc';
+      }
+    });
+    const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+    const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+    const [collapsedPeriods, setCollapsedPeriods] = useState<Record<string, boolean>>({});
+    const [ftsMatchedIds, setFtsMatchedIds] = useState<string[] | null>(null);
+    const [searchLatencyMs, setSearchLatencyMs] = useState<number | null>(null);
+    const [openTrackingId, setOpenTrackingId] = useState<string | null>(null);
+
+    useEffect(() => {
+      if (!openTrackingId) return;
+      const handleClosePopover = () => setOpenTrackingId(null);
+      window.addEventListener('click', handleClosePopover);
+      return () => window.removeEventListener('click', handleClosePopover);
+    }, [openTrackingId]);
+
+    const handleSelectSortOrder = (order: 'desc' | 'asc') => {
+      soundService.play('pop');
+      setSortOrder(order);
+      try {
+        localStorage.setItem('anectta_email_sort_order', order);
+      } catch {
+        // ignore storage errors
+      }
+      setIsSortMenuOpen(false);
+    };
+
+    useEffect(() => {
+      if (!isSortMenuOpen) return;
+
+      const handleClickOutside = (event: MouseEvent) => {
+        if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
+          setIsSortMenuOpen(false);
+        }
+      };
+
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          setIsSortMenuOpen(false);
+        } else if (event.key.toLowerCase() === 'r') {
+          event.preventDefault();
+          handleSelectSortOrder('desc');
+        } else if (event.key.toLowerCase() === 'm') {
+          event.preventDefault();
+          handleSelectSortOrder('asc');
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }, [isSortMenuOpen]);
+
+    useEffect(() => {
+      if (!isMoreMenuOpen) return;
+
+      const handleClickOutside = (event: MouseEvent) => {
+        if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+          setIsMoreMenuOpen(false);
+        }
+      };
+
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          setIsMoreMenuOpen(false);
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }, [isMoreMenuOpen]);
+
+    useImperativeHandle(ref, () => ({
+      focusSearch: () => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      },
+    }));
+
+    // Dispara busca ultra-rápida FTS5 em SQLite no processo principal quando há termo de busca
+    useEffect(() => {
+      if (!searchQuery.trim()) {
+        setFtsMatchedIds(null);
+        setSearchLatencyMs(null);
+        return;
+      }
+
+      let isMounted = true;
+      if (window.electronAPI?.searchEmailsFts) {
+        window.electronAPI
+          .searchEmailsFts({ query: searchQuery, accountEmail: activeAccountEmail })
+          .then((res) => {
+            if (isMounted) {
+              setFtsMatchedIds(res.results);
+              setSearchLatencyMs(res.durationMs);
+            }
+          })
+          .catch(() => {
+            if (isMounted) setFtsMatchedIds(null);
+          });
+      }
+
+      return () => {
+        isMounted = false;
+      };
+    }, [searchQuery, activeAccountEmail]);
+
+    const togglePeriod = (period: string) => {
+      setCollapsedPeriods((prev) => ({
+        ...prev,
+        [period]: !prev[period],
+      }));
+    };
+
+    const savedContactSet = new Set(savedContactEmails.map((e) => e.trim().toLowerCase()));
+    const normalizedActiveDomain = activeDomain.trim().toLowerCase();
+
+    // Filter pipeline: Prioriza SQLite FTS5 se disponível, com fallback local
+    const filteredEmails = emails.filter((item) => {
+      if (peopleOnly && isAutomatedSender(item, savedContactSet)) {
+        return false;
+      }
+
+      if (domainOnly && normalizedActiveDomain) {
+        const senderClean = (item.senderEmail || '').trim().toLowerCase();
+        const atIdx = senderClean.lastIndexOf('@');
+        const senderDomain = atIdx >= 0 ? senderClean.slice(atIdx + 1) : '';
+        if (senderDomain !== normalizedActiveDomain) {
+          return false;
+        }
+      }
+
+      const realAttachments =
+        item.attachments && item.attachments.length > 0
+          ? filterRealAttachments(item.attachments, item.bodyHtml)
+          : [];
+      const hasAnyAttachment = realAttachments.length > 0 || Boolean(item.hasAttachment);
+
+      if (attachmentsOnly && !hasAnyAttachment) {
+        return false;
+      }
+
+      let matchesSearch = true;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const localMatches = Boolean(
+          (item.subject && item.subject.toLowerCase().includes(q)) ||
+          (item.sender && item.sender.toLowerCase().includes(q)) ||
+          (item.senderEmail && item.senderEmail.toLowerCase().includes(q)) ||
+          (item.snippet && item.snippet.toLowerCase().includes(q)) ||
+          (item.body && item.body.toLowerCase().includes(q)) ||
+          item.tags?.some((t) => t.toLowerCase().includes(q)) ||
+          realAttachments.some((att) => (att.name || '').toLowerCase().includes(q))
+        );
+        matchesSearch = ftsMatchedIds !== null ? (ftsMatchedIds.includes(item.id) || localMatches) : localMatches;
+      }
+
+      const matchesUnread =
+        activeTab === 'unread'
+          ? !item.isRead
+          : activeTab === 'favorites'
+          ? Boolean(item.isStarred)
+          : true;
+
+      return matchesSearch && matchesUnread;
+    });
+
+    // Grouping by Period (Hoje, Ontem, Semana Passada, Mais Antigos)
+    const periodsOrder: { id: TimePeriod; label: string }[] =
+      sortOrder === 'desc'
+        ? [
+            { id: 'today', label: 'Hoje' },
+            { id: 'yesterday', label: 'Ontem' },
+            { id: 'last_week', label: 'Semana Passada' },
+            { id: 'older', label: 'Mais Antigos' },
+          ]
+        : [
+            { id: 'older', label: 'Mais Antigos' },
+            { id: 'last_week', label: 'Semana Passada' },
+            { id: 'yesterday', label: 'Ontem' },
+            { id: 'today', label: 'Hoje' },
+          ];
+
+    // O período é recalculado a partir da data real (dateStr) a cada renderização,
+    // pois o campo `period` persistido fica desatualizado (ex.: "Hoje" de ontem).
+    const resolvePeriod = (e: (typeof filteredEmails)[number]): TimePeriod => {
+      if (!e.dateStr) return e.period;
+      const ms = new Date(e.dateStr).getTime();
+      if (isNaN(ms)) return e.period;
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const DAY = 24 * 60 * 60 * 1000;
+      if (ms >= todayStart) return 'today';
+      if (ms >= todayStart - DAY) return 'yesterday';
+      if (ms >= todayStart - 7 * DAY) return 'last_week';
+      return 'older';
+    };
+
+    const groupedEmails = periodsOrder
+      .map((period) => {
+        const items = filteredEmails.filter((e) => resolvePeriod(e) === period.id);
+        // Ordenação rigorosa por data e hora (mais recente no topo em 'desc')
+        const keyed = items.map((e) => ({ e, t: getEmailTimestampMs(e) }));
+        keyed.sort((a, b) => (sortOrder === 'desc' ? b.t - a.t : a.t - b.t));
+        items.splice(0, items.length, ...keyed.map((k) => k.e));
+        return {
+          ...period,
+          items,
+        };
+      })
+      .filter((group) => group.items.length > 0);
+
+    return (
+      <section
+        style={layoutMode === 'compact' && width ? { width: `${width}px` } : undefined}
+        className={
+          layoutMode === 'horizontal'
+            ? 'w-full h-[42%] min-h-[220px] max-h-[55%] bg-slate-925 border-b border-slate-800/80 flex flex-col shrink-0 select-none text-xs'
+            : layoutMode === 'fullscreen'
+            ? 'w-full flex-1 min-w-0 bg-slate-925 flex flex-col h-full select-none text-xs'
+            : 'w-80 lg:w-[360px] bg-slate-925 border-r border-slate-800/80 flex flex-col shrink-0 h-full select-none text-xs'
+        }
+      >
+        {/* Top Header: Search Bar */}
+        <div className="p-2.5 border-b border-slate-800 space-y-2">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder={
+                activeAccountEmail
+                  ? `Pesquisar em ${activeAccountEmail}...`
+                  : 'Pesquisar mensagens...'
+              }
+              className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-12 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-all"
+            />
+            {searchLatencyMs !== null ? (
+              <span
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded flex items-center space-x-0.5"
+                title="Tempo de resposta da consulta SQLite FTS5"
+              >
+                <Zap className="w-2.5 h-2.5 text-emerald-400" />
+                <span>{searchLatencyMs}ms</span>
+              </span>
+            ) : (
+              <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[9px] font-mono bg-slate-800 text-slate-400 rounded border border-slate-700">
+                /
+              </kbd>
+            )}
+          </div>
+
+          {/* Subheader Tabs (Exact Outlook Style: "Todas", "Não lidos", "Por Data ↓") */}
+          <div className="flex items-center justify-between gap-2 pt-0.5 px-1">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <button
+                onClick={() => setActiveTab('all')}
+                className={`font-semibold pb-1 transition-colors relative ${
+                  activeTab === 'all'
+                    ? 'text-brand-400 border-b-2 border-brand-500'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Todas
+              </button>
+              <button
+                onClick={() => setActiveTab('unread')}
+                className={`font-medium pb-1 transition-colors relative ${
+                  activeTab === 'unread'
+                    ? 'text-brand-400 border-b-2 border-brand-500'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Não lidos
+              </button>
+              <button
+                onClick={() => setActiveTab('favorites')}
+                className={`font-medium pb-1 transition-colors relative ${
+                  activeTab === 'favorites'
+                    ? 'text-brand-400 border-b-2 border-brand-500'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Favoritos
+              </button>
+              {onTogglePeopleOnly && (
+                <button
+                  type="button"
+                  onClick={onTogglePeopleOnly}
+                  title="Filtrar apenas mensagens de pessoas (oculta no-reply, newsletters e alertas automáticos)"
+                  className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors ${
+                    peopleOnly
+                      ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
+                      : 'bg-slate-800/40 text-slate-400 border-slate-700/60 hover:text-slate-200'
+                  }`}
+                >
+                  <Users className="w-3 h-3" />
+                  <span>Pessoas</span>
+                </button>
+              )}
+              {onToggleDomainOnly && activeDomain && (
+                <button
+                  type="button"
+                  onClick={onToggleDomainOnly}
+                  title={`Filtrar apenas e-mails do seu domínio (@${activeDomain})`}
+                  className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors max-w-[130px] ${
+                    domainOnly
+                      ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
+                      : 'bg-slate-800/40 text-slate-400 border-slate-700/60 hover:text-slate-200'
+                  }`}
+                >
+                  <Building2 className="w-3 h-3 shrink-0" />
+                  <span className="truncate">@{activeDomain}</span>
+                </button>
+              )}
+              {onToggleAttachmentsOnly && (
+                <button
+                  type="button"
+                  onClick={onToggleAttachmentsOnly}
+                  title="Busca Dedicada de Anexos: exibe apenas e-mails com anexos e busca pelo nome dos arquivos"
+                  className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors ${
+                    attachmentsOnly
+                      ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
+                      : 'bg-slate-800/40 text-slate-400 border-slate-700/60 hover:text-slate-200'
+                  }`}
+                >
+                  <Paperclip className="w-3 h-3 shrink-0" />
+                  <span>Anexos</span>
+                </button>
+              )}
+            </div>
+
+            <div ref={sortMenuRef} className="relative flex items-center space-x-1">
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={isSortMenuOpen}
+                onClick={() => {
+                  soundService.play('pop');
+                  setIsSortMenuOpen((prev) => !prev);
+                }}
+                className="flex items-center space-x-1 text-[11px] text-slate-400 hover:text-slate-200 transition-colors px-1.5 py-0.5 rounded hover:bg-brand-500/15 cursor-pointer"
+                title={
+                  sortOrder === 'desc'
+                    ? 'Classificar: Mais Recentes na Parte Superior'
+                    : 'Classificar: Mais Antigas na Parte Superior'
+                }
+              >
+                <span>Por Data</span>
+                {sortOrder === 'desc' ? (
+                  <ArrowDown className="w-3 h-3 text-brand-400" />
+                ) : (
+                  <ArrowUp className="w-3 h-3 text-brand-400" />
+                )}
+                <ChevronDown className="w-3 h-3 text-slate-500" />
+              </button>
+
+              {isSortMenuOpen && (
+                <div
+                  role="menu"
+                  aria-label="Classificar"
+                  className="absolute right-0 top-full mt-1 w-60 bg-slate-900 border border-slate-700/90 rounded-lg shadow-2xl py-1.5 z-50 text-xs text-slate-200 select-none"
+                >
+                  <div className="px-3 py-1 text-[11px] font-bold text-slate-100">
+                    Classificar
+                  </div>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={sortOrder === 'desc'}
+                    onClick={() => handleSelectSortOrder('desc')}
+                    className="w-full flex items-center space-x-2 px-3 py-1.5 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
+                  >
+                    <span className="w-4 flex items-center justify-center shrink-0">
+                      {sortOrder === 'desc' && <Check className="w-3.5 h-3.5 text-brand-400" />}
+                    </span>
+                    <span className={sortOrder === 'desc' ? 'font-medium text-slate-100' : 'text-slate-300'}>
+                      Mais <span className="underline">R</span>ecentes na Parte Superior
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={sortOrder === 'asc'}
+                    onClick={() => handleSelectSortOrder('asc')}
+                    className="w-full flex items-center space-x-2 px-3 py-1.5 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
+                  >
+                    <span className="w-4 flex items-center justify-center shrink-0">
+                      {sortOrder === 'asc' && <Check className="w-3.5 h-3.5 text-brand-400" />}
+                    </span>
+                    <span className={sortOrder === 'asc' ? 'font-medium text-slate-100' : 'text-slate-300'}>
+                      <span className="underline">M</span>ais Antigas na Parte Superior
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div ref={moreMenuRef} className="relative flex items-center">
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={isMoreMenuOpen}
+                onClick={() => {
+                  soundService.play('pop');
+                  setIsSortMenuOpen(false);
+                  setIsMoreMenuOpen((prev) => !prev);
+                }}
+                title="Opções da caixa de e-mails e layout"
+                className={`p-1 rounded transition-colors cursor-pointer ${
+                  isMoreMenuOpen
+                    ? 'bg-brand-500/20 text-brand-400'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-brand-500/15'
+                }`}
+              >
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+
+              {isMoreMenuOpen && (
+                <div
+                  role="menu"
+                  aria-label="Opções da caixa de e-mails"
+                  className="absolute right-0 top-full mt-1 w-64 bg-slate-900 border border-slate-700/90 rounded-lg shadow-2xl py-1.5 z-50 text-xs text-slate-200 select-none"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      onMarkAllAsRead?.();
+                    }}
+                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
+                  >
+                    <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span>Marcar tudo como lido</span>
+                  </button>
+
+                  <div className="my-1 border-t border-slate-800" />
+
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={layoutMode === 'compact'}
+                    onClick={() => {
+                      soundService.play('pop');
+                      onChangeLayoutMode?.('compact');
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
+                  >
+                    <span className="flex items-center space-x-2.5">
+                      <PanelLeft className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className={layoutMode === 'compact' ? 'font-medium text-slate-100' : ''}>
+                        Layout compacto
+                      </span>
+                    </span>
+                    {layoutMode === 'compact' && <Check className="w-3.5 h-3.5 text-brand-400 shrink-0" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={layoutMode === 'horizontal'}
+                    onClick={() => {
+                      soundService.play('pop');
+                      onChangeLayoutMode?.('horizontal');
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
+                  >
+                    <span className="flex items-center space-x-2.5">
+                      <PanelTop className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className={layoutMode === 'horizontal' ? 'font-medium text-slate-100' : ''}>
+                        Layout horizontal
+                      </span>
+                    </span>
+                    {layoutMode === 'horizontal' && <Check className="w-3.5 h-3.5 text-brand-400 shrink-0" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={layoutMode === 'fullscreen'}
+                    onClick={() => {
+                      soundService.play('pop');
+                      onChangeLayoutMode?.('fullscreen');
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
+                  >
+                    <span className="flex items-center space-x-2.5">
+                      <Maximize2 className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className={layoutMode === 'fullscreen' ? 'font-medium text-slate-100' : ''}>
+                        Layout de tela cheia
+                      </span>
+                    </span>
+                    {layoutMode === 'fullscreen' && <Check className="w-3.5 h-3.5 text-brand-400 shrink-0" />}
+                  </button>
+
+                  <div className="my-1 border-t border-slate-800" />
+
+                  <button
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={isMinimalLayout}
+                    onClick={() => {
+                      soundService.play('pop');
+                      onToggleMinimalLayout?.();
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
+                  >
+                    <span className="flex items-center space-x-2.5">
+                      <AlignJustify className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className={isMinimalLayout ? 'font-medium text-slate-100' : ''}>
+                        Layout mínimo
+                      </span>
+                    </span>
+                    <span className="flex items-center space-x-1.5 shrink-0">
+                      {isMinimalLayout && <Check className="w-3.5 h-3.5 text-brand-400" />}
+                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-slate-800 text-slate-400 rounded border border-slate-700">
+                        Ctrl+Shift+F
+                      </kbd>
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Barra de ações em lote quando há e-mails selecionados */}
+          {selectedIds.length > 0 && (
+            <div className="px-2.5 py-1.5 bg-slate-900 border border-brand-500/30 rounded-lg flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
+              <span className="font-semibold text-brand-300">
+                {selectedIds.length} selecionado{selectedIds.length > 1 ? 's' : ''}
+              </span>
+              <div className="flex items-center space-x-1.5">
+                {onMoveSelectedToFolder && (
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        onMoveSelectedToFolder(selectedIds, e.target.value as MailFolder);
+                      }
+                    }}
+                    title="Mover selecionados para uma pasta"
+                    className="px-1.5 py-0.5 text-[11px] font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded focus:outline-none focus:border-brand-500 cursor-pointer max-w-[130px]"
+                  >
+                    <option value="" disabled>
+                      Mover para...
+                    </option>
+                    <option value="inbox">Caixa de Entrada</option>
+                    <option value="archive">Arquivados</option>
+                    <option value="junk">Spam / Lixo</option>
+                    {customFolders.map((cf) => (
+                      <option key={cf.id} value={cf.id}>
+                        {cf.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {onClearSelection && (
+                  <button
+                    type="button"
+                    onClick={onClearSelection}
+                    className="px-2 py-0.5 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition-colors"
+                  >
+                    Limpar
+                  </button>
+                )}
+                {onAddContactsFromSelected && (
+                  <button
+                    type="button"
+                    onClick={() => onAddContactsFromSelected(selectedIds)}
+                    title="Incluir remetentes selecionados nos Contatos"
+                    className="flex items-center space-x-1 px-2 py-0.5 bg-brand-500/20 hover:bg-brand-500/30 text-brand-300 border border-brand-500/30 rounded font-medium transition-colors"
+                  >
+                    <UserPlus className="w-3 h-3" />
+                    <span>+ Contatos</span>
+                  </button>
+                )}
+                {onMarkSpamSelected && (
+                  <button
+                    type="button"
+                    onClick={() => onMarkSpamSelected(selectedIds)}
+                    title="Marcar selecionados como Spam e bloquear remetentes"
+                    className="flex items-center space-x-1 px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded font-medium transition-colors"
+                  >
+                    <AlertOctagon className="w-3 h-3" />
+                    <span>Spam</span>
+                  </button>
+                )}
+                {onDeleteSelected && (
+                  <button
+                    type="button"
+                    onClick={() => onDeleteSelected(selectedIds)}
+                    className="flex items-center space-x-1 px-2 py-0.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 rounded font-medium transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Excluir</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Banner de resultado de busca restrito à conta marcada */}
+          {searchQuery.trim() && (
+            <div className="px-2 py-1.5 bg-brand-500/10 border border-brand-500/20 rounded-md flex items-center justify-between text-[11px] text-brand-300">
+              <div className="flex items-center space-x-1.5 truncate">
+                <Search className="w-3 h-3 text-brand-400 shrink-0" />
+                <span className="truncate">
+                  <strong>{filteredEmails.length}</strong> {filteredEmails.length === 1 ? 'e-mail' : 'e-mails'} encontrado(s) na conta marcada
+                </span>
+              </div>
+              <button
+                onClick={() => onSearchChange('')}
+                className="text-slate-400 hover:text-white shrink-0 ml-1.5 p-0.5 rounded hover:bg-slate-800 transition-colors"
+                title="Limpar pesquisa"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Grouped Email Cards by Date Period */}
+        <div className="flex-1 overflow-y-auto custom-scroll">
+          {filteredEmails.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 space-y-2">
+              <Mail className="w-8 h-8 mx-auto text-slate-600" />
+              {searchQuery.trim() ? (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-slate-300">
+                    Nenhum e-mail encontrado para "{searchQuery}"
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    na conta {activeAccountEmail || 'marcada'}
+                  </p>
+                  <button
+                    onClick={() => onSearchChange('')}
+                    className="mt-2 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs transition-colors"
+                  >
+                    Limpar pesquisa
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs font-medium">Nenhuma mensagem nesta pasta</p>
+              )}
+            </div>
+          ) : (
+            groupedEmails.map((group) => {
+              const isCollapsed = collapsedPeriods[group.id];
+              return (
+                <div key={group.id} className="bg-slate-925">
+                  {/* Period Header (ex: ▾ Hoje, ▾ Semana Passada) */}
+                  <div
+                    onClick={() => togglePeriod(group.id)}
+                    className="flex items-center space-x-1 px-3 py-1.5 bg-slate-950/80 text-[11px] font-semibold text-slate-400 hover:text-slate-200 cursor-pointer select-none sticky top-0 z-10 border-b border-slate-900"
+                  >
+                    {isCollapsed ? (
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                    )}
+                    <span>{group.label}</span>
+                    <span className="text-[10px] text-slate-600 font-normal">
+                      ({group.items.length})
+                    </span>
+                  </div>
+
+                  {/* Emails inside period */}
+                  {!isCollapsed && (
+                    <div className="p-2 space-y-2">
+                      {group.items.map((email) => {
+                        const isSelected = selectedEmailId === email.id;
+                        const isChecked = selectedIds.includes(email.id);
+
+                        return (
+                          <div
+                            key={email.id}
+                            onClick={(e) => {
+                              if ((e.ctrlKey || e.metaKey) && onToggleSelectId) {
+                                e.stopPropagation();
+                                onToggleSelectId(email.id);
+                                return;
+                              }
+                              soundService.play('click');
+                              onSelectEmail(email.id);
+                            }}
+                            onDoubleClick={() => {
+                              onDoubleClickEmail?.(email.id);
+                            }}
+                            className={`group/card p-3 cursor-pointer transition-all relative rounded-xl border flex items-start space-x-2.5 ${
+                              isChecked
+                                ? 'bg-brand-600/10 border-brand-500/50 shadow-md'
+                                : isSelected
+                                ? 'bg-slate-850 border-slate-700 border-l-4 border-l-brand-400 shadow-md'
+                                : 'bg-slate-900/70 hover:bg-slate-900 border-slate-800/90 hover:border-slate-700'
+                            }`}
+                          >
+                          {/* Checkbox de seleção múltipla */}
+                          {onToggleSelectId && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleSelectId(email.id);
+                              }}
+                              title={isChecked ? 'Desmarcar e-mail' : 'Selecionar e-mail'}
+                              className={`shrink-0 mt-2 transition-opacity ${
+                                isChecked || selectedIds.length > 0
+                                  ? 'opacity-100'
+                                  : 'opacity-0 group-hover/card:opacity-100'
+                              }`}
+                            >
+                              {isChecked ? (
+                                <CheckSquare className="w-4 h-4 text-brand-400" />
+                              ) : (
+                                <Square className="w-4 h-4 text-slate-500 hover:text-slate-300" />
+                              )}
+                            </button>
+                          )}
+
+                          {/* Sender Avatar */}
+                          <div className="shrink-0 pt-0.5">
+                            <SenderAvatar
+                              name={email.sender}
+                              email={email.senderEmail || email.sender}
+                              avatar={email.avatar}
+                              size={36}
+                            />
+                          </div>
+
+                          {/* Email Content Info */}
+                          <div className="flex-1 min-w-0">
+                            {/* Top Row: Sender & Timestamp */}
+                            <div className="flex items-center justify-between mb-0.5">
+                              <div className="flex items-center space-x-2 min-w-0">
+                                {!email.isRead && (
+                                  <span className="w-2 h-2 rounded-full bg-brand-500 shrink-0" />
+                                )}
+                                <span
+                                  className={`truncate text-xs ${
+                                    !email.isRead
+                                      ? 'font-bold text-white'
+                                      : 'font-semibold text-slate-300'
+                                  }`}
+                                >
+                                  {email.sender}
+                                </span>
+                                {isUnifiedView && email.accountId && (
+                                  (() => {
+                                    const accInfo = accounts.find((a) => a.id === email.accountId);
+                                    if (!accInfo) return null;
+                                    return (
+                                      <span
+                                        className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-800/80 text-slate-300 border border-slate-700/70 truncate max-w-[110px] shrink-0"
+                                        style={accInfo.color ? { borderLeftWidth: 3, borderLeftColor: accInfo.color } : undefined}
+                                        title={accInfo.email}
+                                      >
+                                        {accInfo.email.split('@')[0]}
+                                      </span>
+                                    );
+                                  })()
+                                )}
+                              </div>
+
+                              <div className="flex items-center space-x-1.5 shrink-0">
+                                <span className="text-[11px] font-mono text-slate-400">
+                                  {formatReceivedLabel(email)}
+                                </span>
+                                {((email.attachments && email.attachments.length > 0)
+                                  ? filterRealAttachments(email.attachments, email.bodyHtml).length > 0
+                                  : email.hasAttachment) && (
+                                  <span title="Possui anexo" className="inline-flex items-center">
+                                    <Paperclip className="w-3.5 h-3.5 text-slate-400" />
+                                  </span>
+                                )}
+                                {(email.folder === 'sent' || (email.recipientTracking && email.recipientTracking.length > 0)) && (
+                                  (() => {
+                                    const trackingList =
+                                      email.recipientTracking && email.recipientTracking.length > 0
+                                        ? email.recipientTracking
+                                        : String(email.recipient || '')
+                                            .split(/[;,]/)
+                                            .map((r) => r.trim())
+                                            .filter(Boolean)
+                                            .map((raw) => {
+                                              const emailMatch = raw.match(/<([^>]+)>/) || raw.match(/([^\s<>]+@[^\s<>]+)/);
+                                              const addr = (emailMatch ? emailMatch[1] : raw).trim();
+                                              const cleanName = raw.replace(/<[^>]+>/g, '').replace(/["']/g, '').trim();
+                                              return {
+                                                name: cleanName && cleanName !== addr ? cleanName : addr.split('@')[0] || addr,
+                                                email: addr,
+                                                status: 'delivered' as const,
+                                              };
+                                            });
+                                    if (trackingList.length === 0) return null;
+                                    const openedCount = trackingList.filter((t) => t.status === 'opened').length;
+                                    const isAnyOpened = openedCount > 0;
+                                    const isTrackingPopoverOpen = openTrackingId === email.id;
+
+                                    return (
+                                      <div className="relative inline-flex items-center">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            soundService.play('pop');
+                                            setOpenTrackingId((prev) => (prev === email.id ? null : email.id));
+                                          }}
+                                          title={
+                                            isAnyOpened
+                                              ? `Aberto por ${openedCount}/${trackingList.length} destinatário(s)`
+                                              : 'Entregue — Clique para ver status de abertura'
+                                          }
+                                          className={`p-0.5 rounded-md transition-colors ${
+                                            isTrackingPopoverOpen
+                                              ? 'bg-sky-500/20 text-sky-400'
+                                              : isAnyOpened
+                                              ? 'text-sky-400 hover:bg-sky-500/15'
+                                              : 'text-slate-500 hover:text-slate-300'
+                                          }`}
+                                        >
+                                          <CheckCheck className="w-3.5 h-3.5" />
+                                        </button>
+
+                                        {isTrackingPopoverOpen && (
+                                          <div
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="absolute right-0 top-full mt-1.5 z-40 w-64 rounded-xl bg-slate-900 border border-slate-700/90 shadow-2xl overflow-hidden text-left animate-in fade-in duration-150"
+                                          >
+                                            <div className="px-3 py-2 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between text-[11px] font-bold text-slate-200">
+                                              <span>Destinatários</span>
+                                              <span>Aberto em</span>
+                                            </div>
+                                            <div className="divide-y divide-slate-800/70 max-h-48 overflow-y-auto custom-scroll">
+                                              {trackingList.map((rec, idx) => (
+                                                <div
+                                                  key={`${rec.email}-${idx}`}
+                                                  className="px-3 py-2 flex items-center justify-between gap-2 text-xs"
+                                                >
+                                                  <div className="min-w-0">
+                                                    <div className="font-medium text-slate-200 truncate">
+                                                      {rec.name}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 font-mono truncate">
+                                                      {rec.email}
+                                                    </div>
+                                                  </div>
+                                                  {rec.status === 'opened' ? (
+                                                    <span className="inline-flex items-center space-x-1 text-[11px] font-bold font-mono text-emerald-400 shrink-0">
+                                                      <CheckCheck className="w-3 h-3" />
+                                                      <span>{rec.openedAt || 'Lido'}</span>
+                                                    </span>
+                                                  ) : (
+                                                    <span className="inline-flex items-center space-x-1 text-[10px] font-medium text-slate-400 shrink-0">
+                                                      <Clock className="w-3 h-3 text-slate-500" />
+                                                      <span>Pendente</span>
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()
+                                )}
+                                <button
+                                  onClick={(e) => {
+                                    soundService.play('pop');
+                                    onToggleStar(email.id, e);
+                                  }}
+                                  className="text-slate-600 hover:text-amber-400 p-0.5"
+                                >
+                                  <Star
+                                    className={`w-3.5 h-3.5 ${
+                                      email.isStarred
+                                        ? 'fill-amber-400 text-amber-400'
+                                        : 'text-slate-600'
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Subject Line */}
+                            <div
+                              className={`text-xs mb-1 truncate ${
+                                !email.isRead
+                                  ? 'font-semibold text-slate-100'
+                                  : 'text-slate-300'
+                              }`}
+                            >
+                              {email.subject}
+                            </div>
+
+                            {/* Snippet */}
+                            <p className="text-[11px] text-slate-500 line-clamp-1 leading-relaxed">
+                              {email.snippet}
+                            </p>
+
+                            {/* Chips de Arquivos Anexados no modo Busca Dedicada de Anexos */}
+                            {attachmentsOnly && email.attachments && email.attachments.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {filterRealAttachments(email.attachments, email.bodyHtml)
+                                  .slice(0, 3)
+                                  .map((att, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-brand-500/10 border border-brand-500/25 text-[10px] text-brand-300 font-mono max-w-[160px]"
+                                      title={att.name}
+                                    >
+                                      <Paperclip className="w-2.5 h-2.5 shrink-0" />
+                                      <span className="truncate">{att.name}</span>
+                                    </span>
+                                  ))}
+                              </div>
+                            )}
+
+                            {/* Bottom Badges */}
+                            {(email.category || email.priority === 'high') && (
+                              <div className="flex items-center justify-between mt-1.5 pt-1">
+                                <div className="flex items-center space-x-1.5">
+                                  {email.category && (
+                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60">
+                                      {email.category}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center space-x-1.5 text-slate-500">
+                                  {email.priority === 'high' && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>
+    );
+  }
+);
+
+EmailList.displayName = 'EmailList';

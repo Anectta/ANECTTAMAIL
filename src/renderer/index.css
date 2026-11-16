@@ -1,0 +1,782 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-app: #1d2635;
+    --bg-sidebar: #1d2733;
+    --bg-surface: #26323e;
+    --bg-surface-hover: #2f3d4a;
+    --bg-card: #26323e;
+    --bg-input: #1a2330;
+    --border-subtle: #2f3d4a;
+    --border-highlight: #57c6f0;
+    --text-primary: #f1f5f9;
+    --text-secondary: #9da2ac;
+    --text-muted: #7d8796;
+    --accent-primary: #57c6f0;
+    --accent-hover: #66caed;
+    --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #57c6f0 50%, #66caed 100%);
+    --accent-glow: 0 0 20px rgba(87, 198, 240, 0.3);
+    --badge-bg: rgba(87, 198, 240, 0.16);
+    --badge-text: #57c6f0;
+    --email-anim-primary: #57c6f0;
+    --email-anim-accent: #66caed;
+    --email-anim-trail: #38bdf8;
+    --icon-border-radius: 10px;
+  }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+  }
+}
+
+/* Frameless Window Drag Region */
+.app-drag-region {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Ensure all inputs and textareas have full text selection and interaction */
+input, textarea, select, [contenteditable="true"] {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -webkit-app-region: no-drag !important;
+  cursor: text !important;
+  pointer-events: auto !important;
+}
+
+/* Sleek Corporate Custom Scrollbars */
+.custom-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 9999px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.3);
+}
+
+/* Smooth micro-interactions */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
+}
+
+/* ========================================================
+   Dark Skins (.dark) - Dirigido por variáveis CSS do ThemeService
+   ======================================================== */
+.dark {
+  background-color: var(--bg-app) !important;
+  color: var(--text-primary) !important;
+}
+.dark .bg-slate-950,
+.dark [class*="bg-slate-950"] {
+  background-color: var(--bg-sidebar) !important;
+}
+.dark .bg-slate-925,
+.dark [class*="bg-slate-925"] {
+  background-color: var(--bg-app) !important;
+}
+.dark .bg-slate-900,
+.dark [class*="bg-slate-900"] {
+  background-color: var(--bg-surface) !important;
+}
+.dark .bg-slate-850,
+.dark [class*="bg-slate-850"] {
+  background-color: var(--bg-surface-hover) !important;
+}
+.dark .bg-slate-800,
+.dark [class*="bg-slate-800"] {
+  background-color: var(--bg-surface-hover) !important;
+}
+.dark [class*="border-slate-800"],
+.dark [class*="border-slate-900"],
+.dark [class*="border-slate-700"] {
+  border-color: var(--border-subtle) !important;
+}
+.dark .text-slate-400 {
+  color: var(--text-secondary) !important;
+}
+.dark header:not(.mockup-header) {
+  background-color: var(--bg-surface) !important;
+  border-bottom-color: var(--border-subtle) !important;
+}
+.dark .ribbon-bar {
+  background-color: var(--bg-surface) !important;
+  border-bottom-color: var(--border-subtle) !important;
+}
+.dark .ribbon-bar > div:first-child {
+  background-color: var(--bg-sidebar) !important;
+}
+.dark .app-rail {
+  background-color: var(--bg-sidebar) !important;
+  border-right-color: var(--border-subtle) !important;
+}
+.dark .app-rail button[class*="bg-brand-600/20"] {
+  background-color: var(--badge-bg) !important;
+  color: var(--accent-primary) !important;
+}
+.dark aside:not(.sidebar-navy) {
+  background-color: var(--bg-sidebar) !important;
+  border-right-color: var(--border-subtle) !important;
+}
+aside.sidebar-navy [class*="bg-slate-900"] {
+  background-color: var(--bg-surface) !important;
+  border: 1px solid rgba(148, 163, 184, 0.24) !important;
+}
+aside.sidebar-navy [class*="bg-slate-900"]:hover {
+  background-color: var(--bg-surface-hover) !important;
+  border-color: rgba(148, 163, 184, 0.38) !important;
+}
+aside.sidebar-navy button[class*="bg-slate-800"],
+.dark aside.sidebar-navy button[class*="bg-slate-800"] {
+  background-color: var(--selection-bg, #25364a) !important;
+  border: 1px solid rgba(148, 163, 184, 0.32) !important;
+  border-left: 3px solid var(--selection-border, var(--accent-primary)) !important;
+}
+.dark aside button[class*="bg-slate-800"],
+.dark aside button[class*="bg-brand-600/20"] {
+  background-color: var(--selection-bg, var(--bg-surface-hover)) !important;
+  border-left: 3px solid var(--selection-border, var(--accent-primary)) !important;
+}
+.dark aside span[class*="bg-brand-600/60"],
+.dark aside .text-brand-400 {
+  color: var(--badge-text, var(--accent-primary)) !important;
+}
+.dark aside span[class*="bg-brand-600/60"] {
+  background-color: var(--badge-bg) !important;
+}
+.dark .ribbon-bar button[class*="bg-brand-600"],
+.dark button.bg-brand-600 {
+  background-color: var(--primary-btn-bg, var(--accent-primary)) !important;
+  color: var(--primary-btn-text, #ffffff) !important;
+}
+.dark .ribbon-bar button[class*="bg-brand-600"] *,
+.dark button.bg-brand-600 * {
+  color: var(--primary-btn-text, #ffffff) !important;
+}
+.dark .ribbon-bar button[class*="bg-brand-600"]:hover,
+.dark button.bg-brand-600:hover {
+  background-color: var(--primary-btn-hover, var(--accent-hover)) !important;
+}
+.dark .ribbon-bar button[class*="border-brand-500"] {
+  color: var(--accent-primary) !important;
+  border-bottom-color: var(--accent-primary) !important;
+}
+.dark section div[class*="bg-slate-850"] {
+  background-color: var(--selection-bg, var(--bg-surface-hover)) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-left: 4px solid var(--selection-border, var(--accent-primary)) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+}
+.dark main {
+  background-color: var(--bg-app) !important;
+}
+
+/* ========================================================
+   Light Skins (.clean-white) - Dirigido por variáveis CSS do ThemeService
+   ======================================================== */
+html.clean-white,
+body.clean-white,
+.clean-white {
+  color-scheme: light;
+}
+
+.clean-white {
+  background-color: var(--bg-app) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Custom Scrollbars in Clean White */
+.clean-white .custom-scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
+}
+.clean-white .custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.55);
+}
+
+/* Regras Gerais de Limpeza de Elementos Pretos/Escuros no Clean White */
+.clean-white .bg-slate-950,
+.clean-white [class*="bg-slate-950"] {
+  background-color: var(--bg-app) !important;
+}
+
+.clean-white .bg-slate-925,
+.clean-white [class*="bg-slate-925"] {
+  background-color: var(--bg-app) !important;
+}
+
+.clean-white .bg-slate-900,
+.clean-white [class*="bg-slate-900"] {
+  background-color: var(--bg-surface) !important;
+}
+
+.clean-white .bg-slate-850,
+.clean-white [class*="bg-slate-850"] {
+  background-color: var(--selection-bg, #e8eef7) !important;
+}
+
+.clean-white .bg-slate-800,
+.clean-white [class*="bg-slate-800"] {
+  background-color: var(--bg-surface-hover) !important;
+}
+
+.clean-white .bg-slate-700,
+.clean-white [class*="bg-slate-700"] {
+  background-color: var(--border-subtle) !important;
+}
+
+/* Bordas e divisores escuros substituídos por linhas suaves claras */
+.clean-white [class*="border-slate-800"],
+.clean-white [class*="border-slate-900"],
+.clean-white [class*="border-slate-700"] {
+  border-color: var(--border-subtle) !important;
+}
+
+.clean-white [class*="divide-slate-800"],
+.clean-white [class*="divide-slate-900"] {
+  border-color: var(--border-subtle) !important;
+}
+
+/* Textos e Ícones com Alto Contraste no Clean White */
+.clean-white .text-white {
+  color: #0f172a !important;
+}
+
+.clean-white .text-slate-100,
+.clean-white .text-slate-200 {
+  color: #0f172a !important;
+}
+
+.clean-white .text-slate-300,
+.clean-white .text-slate-400 {
+  color: #334155 !important;
+}
+
+.clean-white .text-slate-500,
+.clean-white .text-slate-600 {
+  color: #475569 !important;
+}
+
+.clean-white .text-brand-300,
+.clean-white .text-brand-400 {
+  color: #1d4ed8 !important;
+}
+
+.clean-white .text-blue-300,
+.clean-white .text-blue-400 {
+  color: #1d4ed8 !important;
+}
+
+.clean-white .text-cyan-300,
+.clean-white .text-cyan-400 {
+  color: #0e7490 !important;
+}
+
+.clean-white .text-emerald-300,
+.clean-white .text-emerald-400 {
+  color: #047857 !important;
+}
+
+.clean-white .text-amber-300,
+.clean-white .text-amber-400 {
+  color: #b45309 !important;
+}
+
+.clean-white .text-rose-300,
+.clean-white .text-rose-400 {
+  color: #be123c !important;
+}
+
+/* Preserva textos e ícones brancos em botões sólidos, avatares e badges com fundo colorido */
+.clean-white [class*="bg-brand-600"],
+.clean-white [class*="bg-brand-500"]:not([class*="bg-brand-500/"]),
+.clean-white [class*="bg-blue-600"],
+.clean-white [class*="bg-indigo-600"],
+.clean-white [class*="bg-emerald-600"],
+.clean-white [class*="bg-rose-600"],
+.clean-white [class*="bg-amber-600"],
+.clean-white [class*="from-brand-600"] {
+  color: #ffffff !important;
+}
+.clean-white [class*="bg-brand-600"] *,
+.clean-white [class*="bg-brand-500"]:not([class*="bg-brand-500/"]) *,
+.clean-white [class*="bg-blue-600"] *,
+.clean-white [class*="bg-indigo-600"] *,
+.clean-white [class*="bg-emerald-600"] *,
+.clean-white [class*="bg-rose-600"] *,
+.clean-white [class*="bg-amber-600"] *,
+.clean-white [class*="from-brand-600"] * {
+  color: #ffffff !important;
+}
+.clean-white [class*="bg-brand-"] [class*="text-white"],
+.clean-white [class*="bg-brand-"].text-white,
+.clean-white [class*="bg-blue-"] [class*="text-white"],
+.clean-white [class*="bg-blue-"].text-white,
+.clean-white [class*="bg-rose-"] [class*="text-white"],
+.clean-white [class*="bg-emerald-"] [class*="text-white"],
+.clean-white button[class*="bg-brand-"] {
+  color: #ffffff !important;
+}
+
+/* Top TitleBar in Clean White */
+.clean-white header {
+  background-color: #eff3f6 !important;
+  border-bottom: 1px solid #d4d8dd !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+.clean-white header span.text-slate-200 {
+  color: #0f172a !important;
+}
+.clean-white header input {
+  background-color: #fdfcf8 !important;
+  border: 1px solid #d4d5d7 !important;
+  color: #1e293b !important;
+}
+.clean-white header input:focus {
+  background-color: #ffffff !important;
+  border-color: #2b8cb3 !important;
+  box-shadow: 0 0 0 2px rgba(43, 140, 179, 0.18) !important;
+}
+.clean-white header input::placeholder {
+  color: #5e6166 !important;
+}
+.clean-white kbd,
+.clean-white header kbd {
+  background-color: #e4e8ec !important;
+  color: #383732 !important;
+  border: 1px solid #d4d5d7 !important;
+}
+.clean-white header button {
+  background-color: #fdfcf8 !important;
+  border-color: #d4d5d7 !important;
+  color: #1e293b !important;
+}
+.clean-white header button:hover {
+  background-color: #e4e8ec !important;
+  color: #0f172a !important;
+}
+
+/* Ribbon Toolbar in Light Skins */
+.clean-white .ribbon-bar {
+  background-color: var(--bg-sidebar) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+.clean-white .ribbon-bar > div:first-child {
+  background-color: var(--bg-app) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+.clean-white .ribbon-bar button {
+  color: var(--text-secondary) !important;
+}
+.clean-white .ribbon-bar button:hover {
+  background-color: var(--bg-surface-hover) !important;
+  color: var(--text-primary) !important;
+}
+.clean-white .ribbon-bar button[class*="bg-brand-600"] {
+  background-color: var(--primary-btn-bg, var(--accent-primary)) !important;
+  color: var(--primary-btn-text, #ffffff) !important;
+  border: 1px solid var(--primary-btn-bg, var(--accent-primary)) !important;
+}
+.clean-white .ribbon-bar button[class*="bg-brand-600"] *,
+.clean-white .ribbon-bar button[class*="bg-brand-600"] svg {
+  color: var(--primary-btn-text, #ffffff) !important;
+}
+.clean-white .ribbon-bar button[class*="bg-brand-600"]:hover {
+  background-color: var(--primary-btn-hover, var(--accent-hover)) !important;
+}
+.clean-white .ribbon-bar button[class*="border-brand-500"] {
+  color: var(--accent-primary) !important;
+  border-bottom-color: var(--accent-primary) !important;
+}
+.clean-white .ribbon-bar div[class*="border-slate-800"] {
+  border-color: var(--border-subtle) !important;
+}
+
+/* AppRail Navigation in Light Skins */
+.clean-white .app-rail {
+  background-color: var(--bg-sidebar) !important;
+  border-right: 1px solid var(--border-subtle) !important;
+}
+.clean-white .app-rail button {
+  color: var(--text-muted) !important;
+}
+.clean-white .app-rail button:hover {
+  background-color: var(--bg-surface-hover) !important;
+  color: var(--text-primary) !important;
+}
+.clean-white .app-rail button[class*="bg-brand-600/20"] {
+  background-color: var(--badge-bg) !important;
+  color: var(--badge-text) !important;
+}
+
+/* Sidebar (Folders & Accounts) in Light Skins */
+.clean-white aside {
+  background-color: var(--bg-sidebar) !important;
+  border-right: 1px solid var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+}
+.clean-white aside span {
+  color: var(--text-secondary) !important;
+}
+.clean-white aside button {
+  color: var(--text-secondary) !important;
+}
+.clean-white aside button:hover {
+  background-color: var(--bg-surface-hover) !important;
+  color: var(--text-primary) !important;
+}
+/* Pasta ativa na Sidebar */
+.clean-white aside button[class*="bg-slate-800"],
+.clean-white aside button[class*="bg-brand-600/20"],
+.clean-white aside button[class*="border-brand-500"] {
+  background-color: var(--selection-bg, var(--badge-bg)) !important;
+  color: var(--accent-primary) !important;
+  border-left: 3px solid var(--selection-border, var(--accent-primary)) !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+}
+.clean-white aside button[class*="bg-slate-800"] span,
+.clean-white aside button[class*="bg-slate-800"] svg,
+.clean-white aside button[class*="bg-slate-800"] div,
+.clean-white aside button[class*="bg-brand-600/20"] span,
+.clean-white aside button[class*="bg-brand-600/20"] svg,
+.clean-white aside button[class*="border-brand-500"] span,
+.clean-white aside button[class*="border-brand-500"] svg {
+  color: var(--accent-primary) !important;
+}
+/* Badges de contagem de e-mails na Sidebar */
+.clean-white aside span[class*="bg-brand-600/60"] {
+  background-color: var(--accent-primary) !important;
+  color: #ffffff !important;
+}
+.clean-white aside span[class*="bg-amber-500/20"] {
+  background-color: #fef3c7 !important;
+  color: #b45309 !important;
+}
+.clean-white aside div[class*="bg-slate-900"],
+.clean-white aside div[class*="bg-slate-950"],
+.clean-white aside div[class*="bg-slate-900/60"] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+.clean-white aside div[class*="bg-slate-800"] {
+  background-color: #e2e8f0 !important;
+}
+.clean-white aside span[class*="text-slate-100"],
+.clean-white aside span[class*="text-slate-200"],
+.clean-white aside span[class*="text-slate-300"] {
+  color: #0f172a !important;
+}
+.clean-white aside span[class*="text-slate-400"],
+.clean-white aside span[class*="text-slate-500"] {
+  color: #64748b !important;
+}
+
+/* EmailList in Clean White - SEM PARTES PRETAS */
+.clean-white section[class*="w-80"],
+.clean-white section[class*="lg:w-[360px]"] {
+  background-color: #ffffff !important;
+  border-right: 1px solid #e2e8f0 !important;
+}
+.clean-white section[class*="w-80"] > div:first-child,
+.clean-white section[class*="lg:w-[360px]"] > div:first-child {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+.clean-white section[class*="w-80"] input,
+.clean-white section[class*="lg:w-[360px]"] input {
+  background-color: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+.clean-white section[class*="w-80"] input::placeholder,
+.clean-white section[class*="lg:w-[360px]"] input::placeholder {
+  color: #94a3b8 !important;
+}
+.clean-white section[class*="w-80"] div[class*="sticky"],
+.clean-white section[class*="lg:w-[360px]"] div[class*="sticky"] {
+  background-color: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  color: #475569 !important;
+}
+.clean-white section[class*="w-80"] div[class*="bg-slate-925"],
+.clean-white section[class*="lg:w-[360px]"] div[class*="bg-slate-925"] {
+  background-color: #f7f6f2 !important;
+}
+.clean-white section div[class*="cursor-pointer"],
+.clean-white section[class*="w-80"] div[class*="cursor-pointer"],
+.clean-white section[class*="lg:w-[360px]"] div[class*="cursor-pointer"] {
+  background-color: #fdfcf8 !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+}
+.clean-white section div[class*="cursor-pointer"]:hover,
+.clean-white section[class*="w-80"] div[class*="cursor-pointer"]:hover,
+.clean-white section[class*="lg:w-[360px]"] div[class*="cursor-pointer"]:hover {
+  background-color: #ffffff !important;
+  border-color: #94a3b8 !important;
+}
+/* E-mail selecionado na lista */
+.clean-white section div[class*="bg-slate-850"],
+.clean-white section[class*="w-80"] div[class*="bg-slate-850"],
+.clean-white section[class*="lg:w-[360px]"] div[class*="bg-slate-850"],
+.clean-white section[class*="w-80"] div[class*="bg-brand-600/15"],
+.clean-white section[class*="lg:w-[360px]"] div[class*="bg-brand-600/15"] {
+  background-color: var(--selection-bg, #fdfcf8) !important;
+  border: 1px solid var(--selection-border, #cbd5e1) !important;
+  border-left: 4px solid var(--selection-border, var(--accent-primary)) !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08) !important;
+}
+.clean-white section div[class*="bg-slate-850"] p,
+.clean-white section div[class*="bg-slate-850"] span:not([class*="bg-"]),
+.clean-white section div[class*="bg-slate-850"] div {
+  color: #0f172a !important;
+}
+.clean-white section div[class*="bg-slate-850"] p[class*="text-slate-500"] {
+  color: #475569 !important;
+}
+.clean-white section div[class*="bg-slate-850"] span[class*="text-slate-400"] {
+  color: #64748b !important;
+}
+.clean-white section[class*="w-80"] p[class*="text-slate-200"],
+.clean-white section[class*="lg:w-[360px]"] p[class*="text-slate-200"] {
+  color: #0f172a !important;
+}
+.clean-white section[class*="w-80"] p[class*="text-slate-400"],
+.clean-white section[class*="lg:w-[360px]"] p[class*="text-slate-400"] {
+  color: #334155 !important;
+}
+.clean-white section[class*="w-80"] p[class*="text-slate-500"],
+.clean-white section[class*="lg:w-[360px]"] p[class*="text-slate-500"] {
+  color: #64748b !important;
+}
+
+/* Badges e tags (#IMAP, #Entrada, Categorias) no Clean White */
+.clean-white span[class*="bg-slate-900"],
+.clean-white span[class*="bg-slate-800"] {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+/* EmailView (Reading Pane) in Light Skins */
+.clean-white main {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+.clean-white main > div:first-child {
+  background-color: #fdfcf8 !important;
+  border-bottom: 1px solid #e2e0d8 !important;
+}
+.clean-white main h1 {
+  color: #0f172a !important;
+}
+.clean-white main .text-slate-100,
+.clean-white main .text-slate-200 {
+  color: #0f172a !important;
+}
+.clean-white main .text-slate-300,
+.clean-white main .text-slate-400 {
+  color: #334155 !important;
+}
+.clean-white main .text-slate-500 {
+  color: #64748b !important;
+}
+.clean-white main div[class*="border-slate-800"] {
+  border-color: #e2e8f0 !important;
+}
+
+/* Botões de Ação na Leitura do E-mail */
+.clean-white main button[class*="bg-slate-900"] {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #334155 !important;
+}
+.clean-white main button[class*="bg-slate-900"]:hover {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+.clean-white main button[class*="bg-brand-500/10"] {
+  background-color: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+}
+
+/* Card Resumo Executivo da IA (TL;DR) no Clean White (remove degradê escuro) */
+.clean-white [class*="from-indigo-950"],
+.clean-white [class*="bg-gradient-to-r"] {
+  background-image: none !important;
+  background-color: #f0f7ff !important;
+  border: 1px solid #bfdbfe !important;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.08) !important;
+}
+.clean-white [class*="from-indigo-950"] button,
+.clean-white [class*="from-indigo-950"] span {
+  color: #1e40af !important;
+}
+.clean-white [class*="from-indigo-950"] ul li {
+  color: #1e293b !important;
+}
+.clean-white [class*="from-indigo-950"] button[class*="bg-slate-900"] {
+  background-color: #ffffff !important;
+  border: 1px solid #bfdbfe !important;
+  color: #1e40af !important;
+}
+.clean-white [class*="from-indigo-950"] div[class*="border-indigo-500"] {
+  border-color: #dbeafe !important;
+}
+
+/* Cards de Anexos no Clean White */
+.clean-white main div[class*="bg-slate-950/80"] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+.clean-white main div[class*="bg-slate-950/80"]:hover {
+  background-color: #f8fafc !important;
+  border-color: #bfdbfe !important;
+}
+.clean-white main div[class*="bg-slate-950/80"] p[class*="text-white"] {
+  color: #0f172a !important;
+}
+.clean-white main div[class*="bg-slate-900"] {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Sugestões de Respostas Rápidas e Textarea no Clean White */
+.clean-white main div[class*="gap-1.5"] button,
+.clean-white main div[class*="flex-wrap"] button {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #334155 !important;
+}
+.clean-white main div[class*="gap-1.5"] button:hover,
+.clean-white main div[class*="flex-wrap"] button:hover {
+  background-color: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: #bfdbfe !important;
+}
+/* Preserva cores semânticas dos botões da barra de ações de leitura (Excluir, Spam, Privacidade, Exportar .EML, etc.) */
+.clean-white main button[class*="bg-rose-500/10"] {
+  background-color: rgba(244, 63, 94, 0.1) !important;
+  border: 1px solid rgba(244, 63, 94, 0.3) !important;
+  color: #e11d48 !important;
+}
+.clean-white main button[class*="bg-rose-500/10"]:hover {
+  background-color: rgba(244, 63, 94, 0.18) !important;
+  color: #be123c !important;
+}
+.clean-white main button[class*="bg-amber-500/10"],
+.clean-white main button[class*="bg-amber-500/20"] {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+  color: #b45309 !important;
+}
+.clean-white main button[class*="bg-amber-500/10"]:hover,
+.clean-white main button[class*="bg-amber-500/20"]:hover {
+  background-color: rgba(245, 158, 11, 0.2) !important;
+  color: #92400e !important;
+}
+.clean-white main button[class*="bg-emerald-500/10"],
+.clean-white main button[class*="bg-emerald-500/20"] {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+  border: 1px solid rgba(16, 185, 129, 0.35) !important;
+  color: #047857 !important;
+}
+.clean-white main button[class*="bg-emerald-500/10"]:hover,
+.clean-white main button[class*="bg-emerald-500/20"]:hover {
+  background-color: rgba(16, 185, 129, 0.2) !important;
+  color: #065f46 !important;
+}
+.clean-white main button[class*="bg-brand-500/10"] {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+  border: 1px solid rgba(37, 99, 235, 0.3) !important;
+  color: #1d4ed8 !important;
+}
+.clean-white main button[class*="bg-brand-500/10"]:hover {
+  background-color: rgba(37, 99, 235, 0.18) !important;
+  color: #1e40af !important;
+}
+.clean-white main button[class*="bg-sky-500/20"] {
+  background-color: rgba(14, 165, 233, 0.14) !important;
+  border: 1px solid rgba(14, 165, 233, 0.35) !important;
+  color: #0369a1 !important;
+}
+.clean-white main textarea[class*="bg-slate-900"] {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+.clean-white main textarea[class*="bg-slate-900"]:focus {
+  background-color: #ffffff !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
+}
+.clean-white main textarea[class*="bg-slate-900"]::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Modais no Clean White */
+.clean-white .bg-slate-950\/80,
+.clean-white .bg-slate-950\/90 {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+}
+.clean-white div[class*="max-w-"][class*="bg-slate-900"],
+.clean-white div[class*="max-w-"][class*="bg-slate-950"] {
+  background-color: #f3f5f7 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+.clean-white div[class*="max-w-"] input,
+.clean-white div[class*="max-w-"] textarea,
+.clean-white div[class*="max-w-"] select {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+/* Coluna lateral de anúncios no Clean White */
+.clean-white .ad-sidebar {
+  background-color: #f3f5f7 !important;
+  border-left: 1px solid #dce1e7 !important;
+}
+.clean-white .ad-sidebar > div:first-child {
+  background-color: #ebeff3 !important;
+  border-bottom: 1px solid #dce1e7 !important;
+}
+.clean-white .ad-sidebar button {
+  color: #1d4ed8 !important;
+}
+
+@keyframes anecttaLogoSpinY {
+  0% {
+    transform: perspective(400px) rotateY(0deg);
+  }
+  100% {
+    transform: perspective(400px) rotateY(360deg);
+  }
+}
+
+.anectta-logo-spin {
+  animation: anecttaLogoSpinY 5.4s ease-in-out infinite;
+  transform-style: preserve-3d;
+}

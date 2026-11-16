@@ -1,0 +1,98 @@
+{
+  "name": "anectta-mail",
+  "version": "1.0.118",
+  "description": "Anectta MAIL - High Performance Corporate Desktop Email Client",
+  "main": "dist-electron/main/main.js",
+  "author": "Anectta Enterprise",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build && tsc -p tsconfig.electron.json",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "start": "electron .",
+    "rebuild": "node scripts/rebuild.cjs",
+    "dist": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "@types/mailparser": "^3.9.0",
+    "@types/nodemailer": "^8.0.2",
+    "clsx": "^2.1.1",
+    "dompurify": "^3.4.18",
+    "imapflow": "^2.11.0",
+    "lucide-react": "^1.16.0",
+    "mailparser": "^3.14.2",
+    "minisearch": "^7.2.0",
+    "nodemailer": "^10.4.0",
+    "pst-extractor": "^1.12.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "45.3.2",
+    "electron-builder": "^25.1.8",
+    "png-to-ico": "^3.0.2",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3"
+  },
+  "build": {
+    "appId": "com.anectta.mail",
+    "productName": "Anectta MAIL",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "uninstallDisplayName": "${productName}",
+      "include": "build/installer.nsh"
+    },
+    "extraResources": [
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "public/logo.png",
+        "to": "logo.png"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network;Email"
+    }
+  }
+}
