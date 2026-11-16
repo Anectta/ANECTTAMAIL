@@ -1,7 +1,15 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import logoImg from '../assets/logo.png';
 
 export const SplashScreenView: React.FC = () => {
+  const [appVersion, setAppVersion] = useState<string>('');
+
+  useEffect(() => {
+    window.electronAPI?.getAppVersion?.().then((v) => {
+      if (v) setAppVersion(v);
+    }).catch(() => {});
+  }, []);
+
   return (
     <div className="h-screen w-screen overflow-hidden select-none bg-gradient-to-br from-[#091322] via-[#102036] to-[#08101d] text-slate-100 flex flex-col items-center justify-between p-8 border border-sky-500/20 relative">
       {/* Ambient glow */}
@@ -15,7 +23,7 @@ export const SplashScreenView: React.FC = () => {
         <span>Corporate Desktop</span>
         <span className="flex items-center gap-1.5 text-sky-400">
           <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
-          v2.0 Enterprise
+          Versão Atual {appVersion ? `v${appVersion}` : ''}
         </span>
       </div>
 
