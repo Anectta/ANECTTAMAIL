@@ -2377,6 +2377,13 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.anectta.mail');
 }
 
+function triggerStartupUpdateCheck(): void {
+  if (!app.isPackaged) return;
+  autoUpdater.checkForUpdates().catch((err) => {
+    console.warn('[AUTO-UPDATER] Falha ao buscar atualizações:', err?.message || err);
+  });
+}
+
 // Garante instância única para evitar conflito de lock no LevelDB (localStorage) quando minimizado na bandeja
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -2390,6 +2397,7 @@ if (!gotTheLock) {
     } else {
       createSystemTray();
       createWindow();
+      triggerStartupUpdateCheck();
     }
   });
 
@@ -2600,11 +2608,7 @@ if (!gotTheLock) {
     });
   }
 
-  if (app.isPackaged) {
-    autoUpdater.checkForUpdates().catch((err) => {
-      console.warn('[AUTO-UPDATER] Falha ao buscar atualizações:', err?.message || err);
-    });
-  }
+  triggerStartupUpdateCheck();
 
   // Registra o atalho global corporativo: Ctrl+Shift+E ou Cmd+Shift+E para Quick Compose
   try {
@@ -2625,6 +2629,7 @@ if (!gotTheLock) {
     if (BrowserWindow.getAllWindows().length === 0) {
       createSystemTray();
       createWindow();
+      triggerStartupUpdateCheck();
     }
   });
   });
