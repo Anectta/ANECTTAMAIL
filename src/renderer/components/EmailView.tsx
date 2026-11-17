@@ -166,6 +166,24 @@ export const EmailView: React.FC<EmailViewProps> = ({
   const privacyBtnRef = useRef<HTMLButtonElement | null>(null);
   const moreBtnRef = useRef<HTMLButtonElement | null>(null);
   const [isSendingReceipt, setIsSendingReceipt] = useState(false);
+  const [dismissedReceiptIds, setDismissedReceiptIds] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('anectta_dismissed_read_receipts_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const handleDismissReceipt = (emailId: string) => {
+    setDismissedReceiptIds((prev) => {
+      const next = { ...prev, [emailId]: true };
+      try {
+        localStorage.setItem('anectta_dismissed_read_receipts_v1', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     setIsTrackingOpen(false);
@@ -946,35 +964,49 @@ export const EmailView: React.FC<EmailViewProps> = ({
           </div>
 
           {/* Banner de Solicitação de Confirmação de Leitura (para e-mails recebidos que solicitaram recibo) */}
-          {email.folder !== 'sent' && email.readReceiptRequestedBy && (
-            <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center space-x-2 text-xs text-sky-200">
-                <CheckCheck className="w-4 h-4 text-sky-400 shrink-0" />
-                <span>
-                  {email.readReceiptSent
-                    ? `Confirmação de leitura enviada para ${email.readReceiptRequestedBy}.`
-                    : `O remetente (${email.readReceiptRequestedBy}) solicitou confirmação de abertura deste e-mail.`}
-                </span>
+          {email.folder !== 'sent' &&
+            email.readReceiptRequestedBy &&
+            (email.readReceiptSent || !dismissedReceiptIds[email.id]) && (
+              <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center space-x-2 text-xs text-sky-200">
+                  <CheckCheck className="w-4 h-4 text-sky-400 shrink-0" />
+                  <span>
+                    {email.readReceiptSent
+                      ? 'Confirmação de leitura enviada.'
+                      : 'O remetente solicitou a confirmação de leitura deste email.'}
+                  </span>
+                </div>
+                {!email.readReceiptSent && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      disabled={isSendingReceipt}
+                      onClick={() => handleDismissReceipt(email.id)}
+                      className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 border border-slate-700 text-xs font-semibold transition-colors shrink-0"
+                    >
+                      Cancelar
+                    </button>
+                    {onSendReadReceipt && (
+                      <button
+                        type="button"
+                        disabled={isSendingReceipt}
+                        onClick={async () => {
+                          setIsSendingReceipt(true);
+                          try {
+                            await onSendReadReceipt(email);
+                          } finally {
+                            setIsSendingReceipt(false);
+                          }
+                        }}
+                        className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors shrink-0"
+                      >
+                        {isSendingReceipt ? 'Enviando...' : 'Confirmar Leitura'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-              {!email.readReceiptSent && onSendReadReceipt && (
-                <button
-                  type="button"
-                  disabled={isSendingReceipt}
-                  onClick={async () => {
-                    setIsSendingReceipt(true);
-                    try {
-                      await onSendReadReceipt(email);
-                    } finally {
-                      setIsSendingReceipt(false);
-                    }
-                  }}
-                  className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors shrink-0"
-                >
-                  {isSendingReceipt ? 'Enviando...' : 'Confirmar Leitura'}
-                </button>
-              )}
-            </div>
-          )}
+            )}
 
           {/* Sender & Recipient Profile */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
