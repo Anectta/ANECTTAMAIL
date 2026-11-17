@@ -1204,7 +1204,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                     }
                   }
                 }}
-                className={`text-slate-200 text-sm leading-relaxed font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'} rounded-xl overflow-hidden border border-slate-800/80 shadow-md p-1`}
+                className={`bg-white text-slate-900 text-sm leading-relaxed font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'} rounded-xl overflow-x-auto border border-slate-700/60 shadow-md p-4`}
                 dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
               />
             </div>
