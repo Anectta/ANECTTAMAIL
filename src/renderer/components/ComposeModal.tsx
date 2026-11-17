@@ -796,6 +796,31 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 <CheckCheck className={`w-3.5 h-3.5 ${trackingEnabled ? 'text-sky-400' : 'text-slate-500'}`} />
                 <span>Rastrear Leitura</span>
               </button>
+
+              {/* Seletor de Assinatura na Barra de Ferramentas */}
+              {(availableSignatures.length > 0 || hasAccountSignature) && (
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 border border-slate-800">
+                  <FileSignature className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+                  <select
+                    value={selectedSignatureId}
+                    onChange={(e) => setSelectedSignatureId(e.target.value)}
+                    title="Escolher assinatura do e-mail"
+                    className="bg-transparent border-0 text-xs text-slate-200 focus:outline-none cursor-pointer max-w-[170px]"
+                  >
+                    <option value="none" className="bg-slate-900 text-slate-200">Sem assinatura</option>
+                    {availableSignatures.map((sig) => (
+                      <option key={sig.id} value={sig.id} className="bg-slate-900 text-slate-200">
+                        {sig.name || 'Assinatura'}
+                        {sig.defaultAccountId === currentAccount?.id ? ' (Padrão)' : ''}
+                      </option>
+                    ))}
+                    {hasAccountSignature &&
+                      !availableSignatures.some((s) => s.defaultAccountId === currentAccount?.id) && (
+                        <option value="__account__" className="bg-slate-900 text-slate-200">Assinatura da conta</option>
+                      )}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Priority Selector */}
@@ -1011,9 +1036,9 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
             </div>
           )}
 
-          {/* Body Textarea + Assinatura Integrada dentro da Mensagem */}
+          {/* Body Textarea + Assinatura Unificada no Corpo da Mensagem */}
           <div
-            className={`rounded-xl p-3 transition-all flex flex-col gap-2.5 ${currentStationery.previewBg} ${currentStationery.previewBorder}`}
+            className={`rounded-xl p-3 transition-all flex flex-col gap-2 ${currentStationery.previewBg} ${currentStationery.previewBorder}`}
           >
             <textarea
               rows={6}
@@ -1025,50 +1050,15 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               required
             />
 
-            {(availableSignatures.length > 0 || hasAccountSignature) && (
-              <div className="pt-2.5 border-t border-slate-700/50 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center space-x-1.5 text-[11px] font-medium text-slate-400">
-                    <FileSignature className="w-3.5 h-3.5 text-brand-400" />
-                    <span>Assinatura da mensagem:</span>
-                  </span>
-                  <select
-                    value={selectedSignatureId}
-                    onChange={(e) => setSelectedSignatureId(e.target.value)}
-                    className="bg-slate-900/90 border border-slate-700/80 rounded-lg px-2 py-0.5 text-[11px] text-slate-200 focus:outline-none focus:border-brand-500 cursor-pointer max-w-[240px]"
-                  >
-                    <option value="none">Sem assinatura</option>
-                    {availableSignatures.map((sig) => (
-                      <option key={sig.id} value={sig.id}>
-                        {sig.name || 'Assinatura'}
-                        {sig.defaultAccountId === currentAccount?.id ? ' (Padrão)' : ''}
-                      </option>
-                    ))}
-                    {hasAccountSignature &&
-                      !availableSignatures.some((s) => s.defaultAccountId === currentAccount?.id) && (
-                        <option value="__account__">Assinatura da conta</option>
-                      )}
-                  </select>
-                </div>
-
-                {activeSignatureHtml && (
-                  <div
-                    style={{
-                      backgroundColor: 'var(--bg-app)',
-                      color: 'var(--text-primary)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                    className="rounded-lg p-3 border text-xs overflow-x-auto max-h-40 overflow-y-auto custom-scroll"
-                  >
-                    <div
-                      dangerouslySetInnerHTML={{
-                        __html: /<[a-z][\s\S]*>/i.test(activeSignatureHtml)
-                          ? activeSignatureHtml
-                          : activeSignatureHtml.replace(/\n/g, '<br/>'),
-                      }}
-                    />
-                  </div>
-                )}
+            {activeSignatureHtml && (
+              <div className="pt-2 text-xs text-slate-100 overflow-x-auto max-h-40 overflow-y-auto custom-scroll">
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: /<[a-z][\s\S]*>/i.test(activeSignatureHtml)
+                      ? activeSignatureHtml
+                      : activeSignatureHtml.replace(/\n/g, '<br/>'),
+                  }}
+                />
               </div>
             )}
           </div>
