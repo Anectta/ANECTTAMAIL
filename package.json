@@ -52,7 +52,8 @@
       {
         "provider": "github",
         "owner": "Anectta",
-        "repo": "ANECTTAMAIL"
+        "repo": "ANECTTAMAIL",
+        "releaseType": "release"
       }
     ],
     "directories": {
