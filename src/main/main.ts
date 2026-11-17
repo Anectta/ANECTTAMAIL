@@ -2522,6 +2522,18 @@ if (!gotTheLock) {
 
   // Auto-Updater (Atualização Obrigatória via GitHub Releases)
   autoUpdater.autoDownload = false;
+  let isDownloadingUpdate = false;
+
+  const compareSemver = (a: string, b: string): number => {
+    const pa = a.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+    const pb = b.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+    const len = Math.max(pa.length, pb.length);
+    for (let i = 0; i < len; i++) {
+      const diff = (pa[i] || 0) - (pb[i] || 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  };
 
   ipcMain.handle('updater:get-pending', () => pendingUpdateVersion);
 
@@ -2537,7 +2549,7 @@ if (!gotTheLock) {
     try {
       const result = await autoUpdater.checkForUpdates();
       const latestVersion = result?.updateInfo?.version || '';
-      if (latestVersion && latestVersion !== currentVersion) {
+      if (latestVersion && compareSemver(latestVersion, currentVersion) > 0) {
         pendingUpdateVersion = latestVersion;
         return {
           status: 'available',
@@ -2561,6 +2573,7 @@ if (!gotTheLock) {
 
   autoUpdater.on('update-available', (info) => {
     const version = info?.version || '';
+    if (!version || compareSemver(version, app.getVersion()) <= 0) return;
     pendingUpdateVersion = version;
     console.log('[AUTO-UPDATER] Nova atualização disponível:', version);
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2577,11 +2590,25 @@ if (!gotTheLock) {
 
   autoUpdater.on('update-downloaded', () => {
     console.log('[AUTO-UPDATER] Download concluído. Reiniciando e instalando...');
+    isDownloadingUpdate = false;
     isQuitting = true;
-    autoUpdater.quitAndInstall(false, true);
+    isClosingAfterSync = true;
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      try { splashWindow.destroy(); } catch {}
+    }
+    if (systemTray && !systemTray.isDestroyed()) {
+      try {
+        systemTray.destroy();
+        systemTray = null;
+      } catch {}
+    }
+    setImmediate(() => {
+      autoUpdater.quitAndInstall(true, true);
+    });
   });
 
   autoUpdater.on('error', (err) => {
+    isDownloadingUpdate = false;
     const msg = err?.message || String(err);
     console.warn('[AUTO-UPDATER] Erro ao verificar/baixar atualização:', msg);
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2590,8 +2617,11 @@ if (!gotTheLock) {
   });
 
   ipcMain.on('iniciar-download-atualizacao', () => {
+    if (isDownloadingUpdate) return;
+    isDownloadingUpdate = true;
     console.log('[AUTO-UPDATER] Iniciando download da atualização obrigatória...');
     autoUpdater.downloadUpdate().catch((err) => {
+      isDownloadingUpdate = false;
       const msg = err?.message || String(err);
       console.error('[AUTO-UPDATER] Falha ao baixar atualização:', msg);
       if (mainWindow && !mainWindow.isDestroyed()) {

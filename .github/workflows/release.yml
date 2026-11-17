@@ -1,0 +1,67 @@
+name: Build and Publish Windows Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read version from package.json
+        id: pkg
+        shell: pwsh
+        run: |
+          $pkg = Get-Content -Raw -Path package.json | ConvertFrom-Json
+          $version = $pkg.version
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "tag=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Check if release already exists
+        id: check_release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ steps.pkg.outputs.tag }}"
+          try {
+            $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers @{ Authorization = "Bearer $env:GH_TOKEN" }
+            if ($rel.id) {
+              echo "exists=true" >> $env:GITHUB_OUTPUT
+              Write-Host "Release $tag already exists."
+              exit 0
+            }
+          } catch {
+            echo "exists=false" >> $env:GITHUB_OUTPUT
+            Write-Host "Release $tag does not exist yet. Will build and publish."
+          }
+
+      - name: Setup Node.js
+        if: steps.check_release.outputs.exists != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: steps.check_release.outputs.exists != 'true'
+        run: npm ci
+
+      - name: Build application
+        if: steps.check_release.outputs.exists != 'true'
+        run: npm run build
+
+      - name: Build and Publish Windows Installer to GitHub Releases
+        if: steps.check_release.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --publish always

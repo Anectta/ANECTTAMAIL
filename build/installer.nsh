@@ -1,3 +1,6 @@
+!include "FileFunc.nsh"
+!include "WordFunc.nsh"
+
 !macro customInit
   !ifndef BUILD_UNINSTALLER
     SetSilent silent
@@ -13,7 +16,7 @@
 !macro customCheckAppRunning
   nsExec::Exec '"$SYSDIR\taskkill.exe" /F /IM "${APP_EXECUTABLE_FILENAME}" /T'
   Pop $0
-  Sleep 400
+  Sleep 800
 !macroend
 
 !macro customInstall
@@ -35,7 +38,18 @@
     Goto wait_ui_close
   ui_closed_done:
 
-  MessageBox MB_YESNO|MB_ICONQUESTION|MB_TOPMOST|MB_SETFOREGROUND "Deseja criar um ícone do Anectta MAIL na Área de Trabalho?" IDYES create_desktop_shortcut IDNO remove_desktop_shortcut
+  ; Em atualizações automáticas (--updated ou /S), preserva o atalho atual sem exibir caixa de diálogo
+  ${GetParameters} $R0
+  ${WordFind} "$R0" "--updated" "E+1" $R1
+  ${IfNot} ${Errors}
+    Goto done_desktop_shortcut
+  ${EndIf}
+  ${WordFind} "$R0" "/S" "E+1" $R1
+  ${IfNot} ${Errors}
+    Goto done_desktop_shortcut
+  ${EndIf}
+
+  MessageBox MB_YESNO|MB_ICONQUESTION|MB_TOPMOST|MB_SETFOREGROUND "Deseja criar um ícone do Anectta MAIL na Área de Trabalho?" /SD IDYES IDYES create_desktop_shortcut IDNO remove_desktop_shortcut
 
   create_desktop_shortcut:
     Delete "$newDesktopLink"
