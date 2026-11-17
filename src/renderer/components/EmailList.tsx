@@ -1,4 +1,4 @@
-import React, { useRef, useImperativeHandle, forwardRef, useState, useEffect } from 'react';
+import React, { useRef, useImperativeHandle, forwardRef, useState, useEffect, useMemo } from 'react';
 import {
   Search,
   Star,
@@ -254,103 +254,135 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       }));
     };
 
-    const savedContactSet = new Set(savedContactEmails.map((e) => e.trim().toLowerCase()));
+    const savedContactSet = useMemo(
+      () => new Set(savedContactEmails.map((e) => e.trim().toLowerCase())),
+      [savedContactEmails]
+    );
     const normalizedActiveDomain = activeDomain.trim().toLowerCase();
 
-    // Filter pipeline: Prioriza SQLite FTS5 se disponível, com fallback local
-    const filteredEmails = emails.filter((item) => {
-      if (peopleOnly && isAutomatedSender(item, savedContactSet)) {
-        return false;
-      }
+    // Filter pipeline: Prioriza SQLite FTS5 se disponível, com fallback local (memoizado)
+    const filteredEmails = useMemo(() => {
+      const ftsSet = ftsMatchedIds !== null ? new Set(ftsMatchedIds) : null;
+      const q = searchQuery.trim().toLowerCase();
 
-      if (domainOnly && normalizedActiveDomain) {
-        const senderClean = (item.senderEmail || '').trim().toLowerCase();
-        const atIdx = senderClean.lastIndexOf('@');
-        const senderDomain = atIdx >= 0 ? senderClean.slice(atIdx + 1) : '';
-        if (senderDomain !== normalizedActiveDomain) {
+      return emails.filter((item) => {
+        if (peopleOnly && isAutomatedSender(item, savedContactSet)) {
           return false;
         }
-      }
 
-      const realAttachments =
-        item.attachments && item.attachments.length > 0
-          ? filterRealAttachments(item.attachments, item.bodyHtml)
-          : [];
-      const hasAnyAttachment = realAttachments.length > 0 || Boolean(item.hasAttachment);
+        if (domainOnly && normalizedActiveDomain) {
+          const senderClean = (item.senderEmail || '').trim().toLowerCase();
+          const atIdx = senderClean.lastIndexOf('@');
+          const senderDomain = atIdx >= 0 ? senderClean.slice(atIdx + 1) : '';
+          if (senderDomain !== normalizedActiveDomain) {
+            return false;
+          }
+        }
 
-      if (attachmentsOnly && !hasAnyAttachment) {
-        return false;
-      }
+        const hasAttachmentsList = Boolean(item.attachments && item.attachments.length > 0);
+        const realAttachments =
+          attachmentsOnly || q
+            ? hasAttachmentsList
+              ? filterRealAttachments(item.attachments!, item.bodyHtml)
+              : []
+            : [];
+        const hasAnyAttachment =
+          attachmentsOnly || q
+            ? realAttachments.length > 0 || Boolean(item.hasAttachment)
+            : Boolean(item.hasAttachment || hasAttachmentsList);
 
-      let matchesSearch = true;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const localMatches = Boolean(
-          (item.subject && item.subject.toLowerCase().includes(q)) ||
-          (item.sender && item.sender.toLowerCase().includes(q)) ||
-          (item.senderEmail && item.senderEmail.toLowerCase().includes(q)) ||
-          (item.snippet && item.snippet.toLowerCase().includes(q)) ||
-          (item.body && item.body.toLowerCase().includes(q)) ||
-          item.tags?.some((t) => t.toLowerCase().includes(q)) ||
-          realAttachments.some((att) => (att.name || '').toLowerCase().includes(q))
-        );
-        matchesSearch = ftsMatchedIds !== null ? (ftsMatchedIds.includes(item.id) || localMatches) : localMatches;
-      }
+        if (attachmentsOnly && !hasAnyAttachment) {
+          return false;
+        }
 
-      const matchesUnread =
-        activeTab === 'unread'
-          ? !item.isRead
-          : activeTab === 'favorites'
-          ? Boolean(item.isStarred)
-          : true;
+        let matchesSearch = true;
+        if (q) {
+          const localMatches = Boolean(
+            (item.subject && item.subject.toLowerCase().includes(q)) ||
+              (item.sender && item.sender.toLowerCase().includes(q)) ||
+              (item.senderEmail && item.senderEmail.toLowerCase().includes(q)) ||
+              (item.snippet && item.snippet.toLowerCase().includes(q)) ||
+              (item.body && item.body.toLowerCase().includes(q)) ||
+              item.tags?.some((t) => t.toLowerCase().includes(q)) ||
+              realAttachments.some((att) => (att.name || '').toLowerCase().includes(q))
+          );
+          matchesSearch = ftsSet !== null ? ftsSet.has(item.id) || localMatches : localMatches;
+        }
 
-      return matchesSearch && matchesUnread;
-    });
+        const matchesUnread =
+          activeTab === 'unread'
+            ? !item.isRead
+            : activeTab === 'favorites'
+            ? Boolean(item.isStarred)
+            : true;
 
-    // Grouping by Period (Hoje, Ontem, Semana Passada, Mais Antigos)
-    const periodsOrder: { id: TimePeriod; label: string }[] =
-      sortOrder === 'desc'
-        ? [
-            { id: 'today', label: 'Hoje' },
-            { id: 'yesterday', label: 'Ontem' },
-            { id: 'last_week', label: 'Semana Passada' },
-            { id: 'older', label: 'Mais Antigos' },
-          ]
-        : [
-            { id: 'older', label: 'Mais Antigos' },
-            { id: 'last_week', label: 'Semana Passada' },
-            { id: 'yesterday', label: 'Ontem' },
-            { id: 'today', label: 'Hoje' },
-          ];
+        return matchesSearch && matchesUnread;
+      });
+    }, [
+      emails,
+      peopleOnly,
+      savedContactSet,
+      domainOnly,
+      normalizedActiveDomain,
+      attachmentsOnly,
+      searchQuery,
+      ftsMatchedIds,
+      activeTab,
+    ]);
 
-    // O período é recalculado a partir da data real (dateStr) a cada renderização,
-    // pois o campo `period` persistido fica desatualizado (ex.: "Hoje" de ontem).
-    const resolvePeriod = (e: (typeof filteredEmails)[number]): TimePeriod => {
-      if (!e.dateStr) return e.period;
-      const ms = new Date(e.dateStr).getTime();
-      if (isNaN(ms)) return e.period;
+    // Grouping by Period (Hoje, Ontem, Semana Passada, Mais Antigos) - memoizado
+    const groupedEmails = useMemo(() => {
+      const periodsOrder: { id: TimePeriod; label: string }[] =
+        sortOrder === 'desc'
+          ? [
+              { id: 'today', label: 'Hoje' },
+              { id: 'yesterday', label: 'Ontem' },
+              { id: 'last_week', label: 'Semana Passada' },
+              { id: 'older', label: 'Mais Antigos' },
+            ]
+          : [
+              { id: 'older', label: 'Mais Antigos' },
+              { id: 'last_week', label: 'Semana Passada' },
+              { id: 'yesterday', label: 'Ontem' },
+              { id: 'today', label: 'Hoje' },
+            ];
+
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
       const DAY = 24 * 60 * 60 * 1000;
-      if (ms >= todayStart) return 'today';
-      if (ms >= todayStart - DAY) return 'yesterday';
-      if (ms >= todayStart - 7 * DAY) return 'last_week';
-      return 'older';
-    };
 
-    const groupedEmails = periodsOrder
-      .map((period) => {
-        const items = filteredEmails.filter((e) => resolvePeriod(e) === period.id);
-        // Ordenação rigorosa por data e hora (mais recente no topo em 'desc')
-        const keyed = items.map((e) => ({ e, t: getEmailTimestampMs(e) }));
-        keyed.sort((a, b) => (sortOrder === 'desc' ? b.t - a.t : a.t - b.t));
-        items.splice(0, items.length, ...keyed.map((k) => k.e));
-        return {
-          ...period,
-          items,
-        };
-      })
-      .filter((group) => group.items.length > 0);
+      const resolvePeriod = (e: (typeof filteredEmails)[number]): TimePeriod => {
+        if (!e.dateStr) return e.period;
+        const ms = new Date(e.dateStr).getTime();
+        if (isNaN(ms)) return e.period;
+        if (ms >= todayStart) return 'today';
+        if (ms >= todayStart - DAY) return 'yesterday';
+        if (ms >= todayStart - 7 * DAY) return 'last_week';
+        return 'older';
+      };
+
+      const buckets: Record<TimePeriod, typeof filteredEmails> = {
+        today: [],
+        yesterday: [],
+        last_week: [],
+        older: [],
+      };
+      for (const e of filteredEmails) {
+        buckets[resolvePeriod(e)].push(e);
+      }
+
+      return periodsOrder
+        .map((period) => {
+          const items = buckets[period.id];
+          const keyed = items.map((e) => ({ e, t: getEmailTimestampMs(e) }));
+          keyed.sort((a, b) => (sortOrder === 'desc' ? b.t - a.t : a.t - b.t));
+          return {
+            ...period,
+            items: keyed.map((k) => k.e),
+          };
+        })
+        .filter((group) => group.items.length > 0);
+    }, [filteredEmails, sortOrder]);
 
     return (
       <section

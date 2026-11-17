@@ -178,16 +178,32 @@ export class SearchIndexService {
   }
 
   private persistTimer: NodeJS.Timeout | null = null;
+  private isPersisting = false;
+  private persistPending = false;
   private persistIndexDebounced(): void {
     if (this.persistTimer) clearTimeout(this.persistTimer);
     this.persistTimer = setTimeout(() => {
-      if (!this.indexPath) return;
-      try {
-        const json = JSON.stringify(this.miniSearch);
-        fs.writeFileSync(this.indexPath, json, 'utf-8');
-      } catch (err: any) {
-        console.warn('[SEARCH] Erro ao persistir índice FTS no disco:', err.message);
-      }
+      void this.flushIndexToDisk();
     }, 1500);
+  }
+
+  private async flushIndexToDisk(): Promise<void> {
+    if (!this.indexPath) return;
+    if (this.isPersisting) {
+      this.persistPending = true;
+      return;
+    }
+    this.isPersisting = true;
+    try {
+      do {
+        this.persistPending = false;
+        const json = JSON.stringify(this.miniSearch);
+        await fs.promises.writeFile(this.indexPath, json, 'utf-8');
+      } while (this.persistPending);
+    } catch (err: any) {
+      console.warn('[SEARCH] Erro ao persistir índice FTS no disco:', err.message);
+    } finally {
+      this.isPersisting = false;
+    }
   }
 }

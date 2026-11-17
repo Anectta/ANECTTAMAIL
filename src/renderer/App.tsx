@@ -374,20 +374,30 @@ export const App: React.FC = () => {
     return INITIAL_EMAILS;
   });
 
+  const emailsRef = useRef<EmailItem[]>(emails);
+  emailsRef.current = emails;
+
   // Salvar e-mails em disco (debounce) para retenção offline, sem o limite de ~5 MB do localStorage
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      try {
-        if (window.electronAPI?.saveMessageCache) {
-          window.electronAPI.saveMessageCache(JSON.stringify(emails));
-          localStorage.removeItem('anectta_mail_messages');
-        } else {
-          localStorage.setItem('anectta_mail_messages', JSON.stringify(emails));
+      const persist = () => {
+        try {
+          if (window.electronAPI?.saveMessageCache) {
+            window.electronAPI.saveMessageCache(JSON.stringify(emails));
+            localStorage.removeItem('anectta_mail_messages');
+          } else {
+            localStorage.setItem('anectta_mail_messages', JSON.stringify(emails));
+          }
+        } catch (e) {
+          console.warn('Erro ao salvar e-mails localmente:', e);
         }
-      } catch (e) {
-        console.warn('Erro ao salvar e-mails localmente:', e);
+      };
+      if (typeof (window as any).requestIdleCallback === 'function') {
+        (window as any).requestIdleCallback(persist, { timeout: 2500 });
+      } else {
+        persist();
       }
-    }, 800);
+    }, 2000);
     return () => window.clearTimeout(timer);
   }, [emails]);
   // Fallback: se o carregamento síncrono do cache não trouxe mensagens reais, tenta de forma assíncrona
@@ -465,24 +475,24 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (spamSenders.length === 0) return;
     const spamSet = new Set(spamSenders);
-    setEmails((prev) => {
-      const hasMatch = prev.some(
-        (e) =>
-          e.folder !== 'junk' &&
-          e.folder !== 'trash' &&
-          e.senderEmail &&
-          spamSet.has(e.senderEmail.trim().toLowerCase())
-      );
-      if (!hasMatch) return prev;
-      return prev.map((e) =>
+    const hasMatch = emails.some(
+      (e) =>
+        e.folder !== 'junk' &&
+        e.folder !== 'trash' &&
+        e.senderEmail &&
+        spamSet.has(e.senderEmail.trim().toLowerCase())
+    );
+    if (!hasMatch) return;
+    setEmails((prev) =>
+      prev.map((e) =>
         e.folder !== 'junk' &&
         e.folder !== 'trash' &&
         e.senderEmail &&
         spamSet.has(e.senderEmail.trim().toLowerCase())
           ? { ...e, folder: 'junk' }
           : e
-      );
-    });
+      )
+    );
   }, [emails, spamSenders]);
 
   const [contacts, setContacts] = useState<CorporateContact[]>(() => {
@@ -1251,6 +1261,21 @@ export const App: React.FC = () => {
         syncedAccounts++;
 
         if (protocol === 'imap' && window.electronAPI?.syncAllRealFolders) {
+          const knownUidsByFolder: Record<string, number[]> = {};
+          const accPrefix = `${acc.id}-imap-`;
+          for (const cachedEmail of emailsRef.current) {
+            if (cachedEmail.accountId !== acc.id) continue;
+            if (!cachedEmail.id.startsWith(accPrefix)) continue;
+            const rest = cachedEmail.id.slice(accPrefix.length);
+            const lastDash = rest.lastIndexOf('-');
+            if (lastDash <= 0) continue;
+            const folderKey = rest.slice(0, lastDash);
+            const uid = Number(rest.slice(lastDash + 1));
+            if (!Number.isFinite(uid)) continue;
+            if (!knownUidsByFolder[folderKey]) knownUidsByFolder[folderKey] = [];
+            knownUidsByFolder[folderKey].push(uid);
+          }
+
           const res = await window.electronAPI.syncAllRealFolders({
             protocol: 'imap',
             host: host,
@@ -1260,6 +1285,7 @@ export const App: React.FC = () => {
             pass: password,
             accessToken,
             inboxOnly: silent,
+            knownUidsByFolder,
           } as any);
 
           if (res.quota) {
@@ -1323,14 +1349,26 @@ export const App: React.FC = () => {
             syncErrors.push(`${acc.email}: ${res.error}`);
           }
 
-          if (res.success && res.emails && res.emails.length > 0) {
-            const taggedEmails: EmailItem[] = res.emails.map((m) => ({
+          const flagUpdates = (res as any).flagUpdates as
+            | Array<{ id: string; isRead: boolean; isStarred: boolean }>
+            | undefined;
+
+          if (res.success && ((res.emails && res.emails.length > 0) || (flagUpdates && flagUpdates.length > 0))) {
+            const taggedEmails: EmailItem[] = (res.emails || []).map((m) => ({
               ...m,
               id: m.id.startsWith(`${acc.id}-`) ? m.id : `${acc.id}-${m.id}`,
               accountId: acc.id,
               folder: (imapFolderKeyToId.get(m.folder) || m.folder) as MailFolder,
             }));
             totalSynced += taggedEmails.length;
+
+            const flagMap = new Map<string, { isRead: boolean; isStarred: boolean }>();
+            if (flagUpdates) {
+              for (const fu of flagUpdates) {
+                const fullId = fu.id.startsWith(`${acc.id}-`) ? fu.id : `${acc.id}-${fu.id}`;
+                flagMap.set(fullId, { isRead: fu.isRead, isStarred: fu.isStarred });
+              }
+            }
 
             setEmails((prev) => {
               const existingIds = new Set(prev.map((p) => p.id));
@@ -1351,7 +1389,22 @@ export const App: React.FC = () => {
                   !p.id.startsWith('msg-marco-') &&
                   !p.id.startsWith('msg-anectta-')
               );
-              const updated = realPrev.filter((p) => !incomingMap.has(p.id));
+              let flagsChanged = false;
+              const updated = realPrev
+                .filter((p) => !incomingMap.has(p.id))
+                .map((p) => {
+                  const fu = flagMap.get(p.id);
+                  if (fu && (p.isRead !== fu.isRead || Boolean(p.isStarred) !== fu.isStarred)) {
+                    flagsChanged = true;
+                    return { ...p, isRead: fu.isRead, isStarred: fu.isStarred };
+                  }
+                  return p;
+                });
+
+              if (ruledIncoming.length === 0 && !flagsChanged && realPrev.length === prev.length) {
+                return prev;
+              }
+
               const combined = [...ruledIncoming, ...updated];
               combined.sort((a, b) => getEmailTimestampMs(b) - getEmailTimestampMs(a));
               return combined;

@@ -17,6 +17,7 @@ export interface MailServerConfig {
   pass: string;
   accessToken?: string;
   leaveOnServer?: boolean;
+  knownUidsByFolder?: Record<string, number[]>;
 }
 
 export interface QuotaInfo {
@@ -40,6 +41,7 @@ export interface FetchResult {
   folderStats?: Record<string, number>;
   customFolders?: DiscoveredCustomFolder[];
   quota?: QuotaInfo;
+  flagUpdates?: Array<{ id: string; isRead: boolean; isStarred: boolean }>;
 }
 
 export type SupportedFolder = 'inbox' | 'sent' | 'drafts' | 'archive' | 'trash' | 'junk';
@@ -725,6 +727,87 @@ export class MailService {
   }
 
   /**
+   * Fetches only new messages (by UID) with full MIME source, while collecting flag updates
+   * for already-cached UIDs without re-downloading their full source.
+   */
+  private static async fetchFolderIncremental(
+    client: ImapFlow,
+    range: string,
+    folderKey: string,
+    config: MailServerConfig,
+    knownUids: Set<number>,
+    flagUpdates: Array<{ id: string; isRead: boolean; isStarred: boolean }>
+  ): Promise<{ messages: any[]; bytesCount: number }> {
+    const messages: any[] = [];
+    let bytesCount = 0;
+
+    if (knownUids.size > 0) {
+      const newUids: number[] = [];
+      for await (const meta of client.fetch(range, { uid: true, flags: true, size: true })) {
+        if (typeof (meta as any).size === 'number') {
+          bytesCount += (meta as any).size;
+        }
+        const uid = Number((meta as any).uid);
+        if (!Number.isFinite(uid)) continue;
+        if (knownUids.has(uid)) {
+          flagUpdates.push({
+            id: `imap-${folderKey}-${uid}`,
+            isRead: Boolean(meta.flags?.has('\\Seen')),
+            isStarred: Boolean(meta.flags?.has('\\Flagged')),
+          });
+        } else {
+          newUids.push(uid);
+        }
+      }
+
+      if (newUids.length === 0) {
+        return { messages, bytesCount };
+      }
+
+      for await (const message of client.fetch(
+        newUids.join(','),
+        {
+          envelope: true,
+          flags: true,
+          bodyStructure: true,
+          uid: true,
+          source: true,
+        },
+        { uid: true }
+      )) {
+        try {
+          const formatted = await this.formatImapMessage(message, folderKey, config);
+          messages.push(formatted);
+        } catch (formatErr: any) {
+          console.warn(`[IMAP] Erro ao formatar mensagem UID ${message?.uid} em ${folderKey}:`, formatErr?.message);
+        }
+      }
+      return { messages, bytesCount };
+    }
+
+    for await (const message of client.fetch(range, {
+      envelope: true,
+      flags: true,
+      bodyStructure: true,
+      uid: true,
+      size: true,
+      source: true,
+    })) {
+      if (typeof (message as any).size === 'number') {
+        bytesCount += (message as any).size;
+      }
+      try {
+        const formatted = await this.formatImapMessage(message, folderKey, config);
+        messages.push(formatted);
+      } catch (formatErr: any) {
+        console.warn(`[IMAP] Erro ao formatar mensagem UID ${message?.uid}:`, formatErr?.message);
+      }
+    }
+
+    return { messages, bytesCount };
+  }
+
+  /**
    * Full IMAP Multi-Folder Synchronization:
    * Synchronizes Inbox, Sent, Drafts, Trash, Junk, Archive from the IMAP server
    */
@@ -785,9 +868,11 @@ export class MailService {
         ? ['inbox']
         : ['inbox', 'sent', 'drafts', 'trash', 'junk', 'archive'];
       const allMessages: any[] = [];
+      const flagUpdates: Array<{ id: string; isRead: boolean; isStarred: boolean }> = [];
       const folderStats: Record<string, number> = {};
       const systemPathToFolder = new Map<string, SupportedFolder>();
       const discoveredCustomFolders: DiscoveredCustomFolder[] = [];
+      const knownUidsByFolder = config.knownUidsByFolder || {};
       let fallbackUsedBytes = 0;
 
       for (const folder of foldersToSync) {
@@ -800,7 +885,7 @@ export class MailService {
 
         try {
           const lock = await client.getMailboxLock(mailboxPath);
-          const folderMessages: any[] = [];
+          let folderMessages: any[] = [];
 
           try {
             const total = client.mailbox ? client.mailbox.exists : 0;
@@ -808,25 +893,17 @@ export class MailService {
               const effectiveLimit = folder === 'inbox' ? Math.max(limitPerFolder, 50) : limitPerFolder;
               const startIdx = Math.max(1, total - effectiveLimit + 1);
               const range = `${startIdx}:${total}`;
-
-              for await (const message of client.fetch(range, {
-                envelope: true,
-                flags: true,
-                bodyStructure: true,
-                uid: true,
-                size: true,
-                source: true,
-              })) {
-                if (typeof (message as any).size === 'number') {
-                  fallbackUsedBytes += (message as any).size;
-                }
-                try {
-                  const formatted = await this.formatImapMessage(message, folder, config);
-                  folderMessages.push(formatted);
-                } catch (formatErr: any) {
-                  console.warn(`[IMAP] Erro ao formatar mensagem UID ${message?.uid}:`, formatErr?.message);
-                }
-              }
+              const knownUids = new Set<number>(knownUidsByFolder[folder] || []);
+              const res = await this.fetchFolderIncremental(
+                client,
+                range,
+                folder,
+                config,
+                knownUids,
+                flagUpdates
+              );
+              folderMessages = res.messages;
+              fallbackUsedBytes += res.bytesCount;
             }
           } finally {
             lock.release();
@@ -884,29 +961,24 @@ export class MailService {
 
         try {
           const lock = await client.getMailboxLock(m.path);
-          const customMessages: any[] = [];
+          let customMessages: any[] = [];
           try {
             const total = client.mailbox ? client.mailbox.exists : 0;
             if (total > 0) {
               const effectiveLimit = Math.min(limitPerFolder, 30);
               const startIdx = Math.max(1, total - effectiveLimit + 1);
               const range = `${startIdx}:${total}`;
-
-              for await (const message of client.fetch(range, {
-                envelope: true,
-                flags: true,
-                bodyStructure: true,
-                uid: true,
-                size: true,
-                source: true,
-              })) {
-                try {
-                  const formatted = await this.formatImapMessage(message, `imap:${m.path}`, config);
-                  customMessages.push(formatted);
-                } catch (formatErr: any) {
-                  console.warn(`[IMAP] Erro ao formatar mensagem UID ${message?.uid} em ${m.path}:`, formatErr?.message);
-                }
-              }
+              const folderKey = `imap:${m.path}`;
+              const knownUids = new Set<number>(knownUidsByFolder[folderKey] || []);
+              const res = await this.fetchFolderIncremental(
+                client,
+                range,
+                folderKey,
+                config,
+                knownUids,
+                flagUpdates
+              );
+              customMessages = res.messages;
             }
           } finally {
             lock.release();
@@ -941,6 +1013,7 @@ export class MailService {
         folderStats: folderStats,
         customFolders: discoveredCustomFolders,
         quota: quotaInfo,
+        flagUpdates: flagUpdates.length > 0 ? flagUpdates : undefined,
       };
     } catch (err: any) {
       return {
