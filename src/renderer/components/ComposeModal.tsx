@@ -1052,7 +1052,14 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 </div>
 
                 {activeSignatureHtml && (
-                  <div className="rounded-lg bg-white text-slate-900 p-3 border border-slate-700/40 text-xs overflow-x-auto max-h-40 overflow-y-auto custom-scroll">
+                  <div
+                    style={{
+                      backgroundColor: 'var(--bg-app)',
+                      color: 'var(--text-primary)',
+                      borderColor: 'var(--border-subtle)',
+                    }}
+                    className="rounded-lg p-3 border text-xs overflow-x-auto max-h-40 overflow-y-auto custom-scroll"
+                  >
                     <div
                       dangerouslySetInnerHTML={{
                         __html: /<[a-z][\s\S]*>/i.test(activeSignatureHtml)
