@@ -670,6 +670,7 @@ export const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isClosingSync, setIsClosingSync] = useState(false);
   const syncInFlightRef = useRef(false);
+  const syncInFlightSilentRef = useRef(false);
   const syncPromiseRef = useRef<Promise<void> | null>(null);
   const closingInProgressRef = useRef(false);
   const lastFocusSyncRef = useRef(0);
@@ -1197,17 +1198,44 @@ export const App: React.FC = () => {
   const handleSyncAll = useCallback(async (opts?: { silent?: boolean; background?: boolean }) => {
     const silent = opts?.silent === true;
     const hideFeedback = silent || opts?.background === true;
-    if (syncInFlightRef.current) return syncPromiseRef.current ?? undefined;
-    syncInFlightRef.current = true;
-    if (!hideFeedback) setIsSyncing(true);
     const allAccounts =
       settings.accounts && settings.accounts.length > 0 ? settings.accounts : [currentAccount];
+
+    if (syncInFlightRef.current) {
+      if (hideFeedback) {
+        return syncPromiseRef.current ?? undefined;
+      }
+      // Clique manual enquanto uma sincronização em segundo plano já está em andamento:
+      // exibe feedback imediato, aguarda a atual terminar e executa sync completo se a anterior era apenas inboxOnly.
+      const wasSilent = syncInFlightSilentRef.current;
+      setIsSyncing(true);
+      showToast(`Sincronizando ${allAccounts.length} conta(s) configurada(s)...`);
+      try {
+        await syncPromiseRef.current;
+      } catch {
+        // segue para tentar sincronização completa se necessário
+      }
+      if (!wasSilent) {
+        setIsSyncing(false);
+        showToast('✓ Sincronização concluída.');
+        return;
+      }
+      if (syncInFlightRef.current) {
+        return syncPromiseRef.current ?? undefined;
+      }
+    }
+
+    syncInFlightRef.current = true;
+    syncInFlightSilentRef.current = silent;
+    if (!hideFeedback) setIsSyncing(true);
 
     if (!hideFeedback) showToast(`Sincronizando ${allAccounts.length} conta(s) configurada(s)...`);
 
     const run = (async () => {
     try {
       let totalSynced = 0;
+      let syncedAccounts = 0;
+      const syncErrors: string[] = [];
 
       for (const acc of allAccounts) {
         const incoming = acc.incomingServer;
@@ -1219,6 +1247,7 @@ export const App: React.FC = () => {
         const hasCredentials = Boolean(host && user && (password || accessToken));
 
         if (!hasCredentials) continue;
+        syncedAccounts++;
 
         if (protocol === 'imap' && window.electronAPI?.syncAllRealFolders) {
           const res = await window.electronAPI.syncAllRealFolders({
@@ -1289,6 +1318,10 @@ export const App: React.FC = () => {
             });
           }
 
+          if (!res.success && res.error) {
+            syncErrors.push(`${acc.email}: ${res.error}`);
+          }
+
           if (res.success && res.emails && res.emails.length > 0) {
             const taggedEmails: EmailItem[] = res.emails.map((m) => ({
               ...m,
@@ -1342,6 +1375,10 @@ export const App: React.FC = () => {
             }));
           }
 
+          if (!res.success && res.error) {
+            syncErrors.push(`${acc.email}: ${res.error}`);
+          }
+
           if (res.success && res.emails && res.emails.length > 0) {
             const taggedEmails: EmailItem[] = res.emails.map((m) => ({
               ...m,
@@ -1381,7 +1418,11 @@ export const App: React.FC = () => {
       }
 
       if (!hideFeedback) {
-        if (totalSynced > 0) {
+        if (syncErrors.length > 0 && totalSynced === 0) {
+          showToast(`Aviso na sincronização: ${syncErrors[0]}`);
+        } else if (syncedAccounts === 0) {
+          showToast('Nenhuma conta configurada com credenciais de recebimento.');
+        } else if (totalSynced > 0) {
           showToast(`✓ Sincronização concluída! ${totalSynced} mensagens atualizadas nas contas.`);
         } else {
           showToast('✓ Sincronização concluída.');
@@ -1391,6 +1432,7 @@ export const App: React.FC = () => {
       if (!hideFeedback) showToast(`Aviso: ${err.message || 'Verifique as credenciais do servidor'}`);
     } finally {
       syncInFlightRef.current = false;
+      syncInFlightSilentRef.current = false;
       syncPromiseRef.current = null;
       if (!hideFeedback) setIsSyncing(false);
     }
@@ -1805,6 +1847,7 @@ export const App: React.FC = () => {
               [targetAcc.id]: res.quota!,
             }));
           }
+
           if (res.success && res.emails && res.emails.length > 0) {
             const taggedEmails: EmailItem[] = res.emails.map((m) => ({
               ...m,

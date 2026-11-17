@@ -42,7 +42,10 @@
   -webkit-app-region: drag;
 }
 
-.app-no-drag {
+.app-no-drag,
+.app-drag-region button,
+.app-drag-region a,
+.app-drag-region [role="button"] {
   -webkit-app-region: no-drag;
 }
 
