@@ -14,7 +14,6 @@ import {
   Clock,
   Trash2,
   CheckCheck,
-  FileSignature,
   Smile,
 } from 'lucide-react';
 import { PriorityLevel } from '@/types/email';
@@ -330,9 +329,6 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
 
   const currentAccount =
     (fromAccountId && accounts.find((a) => a.id === fromAccountId)) || accounts[0];
-
-  const availableSignatures = signatures.filter((s) => hasVisibleSignatureContent(s.html));
-  const hasAccountSignature = hasVisibleSignatureContent(currentAccount?.signature);
 
   const activeSignatureHtml = (() => {
     if (selectedSignatureId === 'none') return '';
@@ -810,31 +806,6 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 <CheckCheck className={`w-3.5 h-3.5 ${trackingEnabled ? 'text-sky-400' : 'text-slate-500'}`} />
                 <span>Rastrear Leitura</span>
               </button>
-
-              {/* Seletor de Assinatura na Barra de Ferramentas */}
-              {(availableSignatures.length > 0 || hasAccountSignature) && (
-                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 border border-slate-800">
-                  <FileSignature className="w-3.5 h-3.5 text-brand-400 shrink-0" />
-                  <select
-                    value={selectedSignatureId}
-                    onChange={(e) => setSelectedSignatureId(e.target.value)}
-                    title="Escolher assinatura do e-mail"
-                    className="bg-transparent border-0 text-xs text-slate-200 focus:outline-none cursor-pointer max-w-[170px]"
-                  >
-                    <option value="none" className="bg-slate-900 text-slate-200">Sem assinatura</option>
-                    {availableSignatures.map((sig) => (
-                      <option key={sig.id} value={sig.id} className="bg-slate-900 text-slate-200">
-                        {sig.name || 'Assinatura'}
-                        {sig.defaultAccountId === currentAccount?.id ? ' (Padrão)' : ''}
-                      </option>
-                    ))}
-                    {hasAccountSignature &&
-                      !availableSignatures.some((s) => s.defaultAccountId === currentAccount?.id) && (
-                        <option value="__account__" className="bg-slate-900 text-slate-200">Assinatura da conta</option>
-                      )}
-                  </select>
-                </div>
-              )}
             </div>
 
             {/* Priority Selector */}
