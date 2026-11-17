@@ -721,6 +721,51 @@ body.clean-white,
   border: 1px solid rgba(14, 165, 233, 0.35) !important;
   color: #0369a1 !important;
 }
+/* Banners informativos e avisos de privacidade (Escudo Anectta, imagens bloqueadas, alertas) no Modo Claro */
+.clean-white main div[class*="bg-emerald-500/10"],
+.clean-white main div[class*="bg-emerald-500/15"] {
+  background-color: #ecfdf5 !important;
+  border-color: #6ee7b7 !important;
+  color: #065f46 !important;
+}
+.clean-white main div[class*="bg-emerald-500/10"] *,
+.clean-white main div[class*="bg-emerald-500/15"] * {
+  color: #065f46 !important;
+}
+.clean-white main div[class*="bg-amber-500/10"],
+.clean-white main div[class*="bg-amber-500/15"] {
+  background-color: #fffbeb !important;
+  border-color: #fcd34d !important;
+  color: #92400e !important;
+}
+.clean-white main div[class*="bg-amber-500/10"] span,
+.clean-white main div[class*="bg-amber-500/10"] strong,
+.clean-white main div[class*="bg-amber-500/15"] span,
+.clean-white main div[class*="bg-amber-500/15"] strong {
+  color: #92400e !important;
+}
+.clean-white main div[class*="bg-rose-500/10"],
+.clean-white main div[class*="bg-rose-500/15"] {
+  background-color: #fff1f2 !important;
+  border-color: #fda4af !important;
+  color: #9f1239 !important;
+}
+.clean-white main div[class*="bg-rose-500/10"] *,
+.clean-white main div[class*="bg-rose-500/15"] * {
+  color: #9f1239 !important;
+}
+.clean-white main div[class*="bg-sky-500/10"],
+.clean-white main div[class*="bg-sky-500/15"],
+.clean-white main div[class*="bg-brand-500/10"] {
+  background-color: #f0f9ff !important;
+  border-color: #7dd3fc !important;
+  color: #075985 !important;
+}
+.clean-white main div[class*="bg-sky-500/10"] *,
+.clean-white main div[class*="bg-sky-500/15"] *,
+.clean-white main div[class*="bg-brand-500/10"] * {
+  color: #075985 !important;
+}
 .clean-white main textarea[class*="bg-slate-900"] {
   background-color: #ffffff !important;
   border: 1px solid #cbd5e1 !important;
