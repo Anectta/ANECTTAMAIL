@@ -325,6 +325,16 @@ body.clean-white,
   color: #b45309 !important;
 }
 
+.clean-white .text-orange-400 {
+  color: #c2410c !important;
+}
+
+.clean-white .text-teal-200,
+.clean-white .text-teal-300,
+.clean-white .text-teal-400 {
+  color: #0f766e !important;
+}
+
 .clean-white .text-rose-100,
 .clean-white .text-rose-200,
 .clean-white .text-rose-300,
@@ -347,7 +357,8 @@ body.clean-white,
 .clean-white .text-purple-300,
 .clean-white .text-purple-400,
 .clean-white .text-violet-200,
-.clean-white .text-violet-300 {
+.clean-white .text-violet-300,
+.clean-white .text-violet-400 {
   color: #6d28d9 !important;
 }
 
@@ -433,11 +444,13 @@ body.clean-white,
   background-color: var(--bg-app) !important;
   border-bottom: 1px solid var(--border-subtle) !important;
 }
-.clean-white .ribbon-bar button {
+.clean-white .ribbon-bar button:not([class*="text-emerald-"]):not([class*="text-rose-"]):not([class*="text-amber-"]):not([class*="text-sky-"]):not([class*="text-brand-"]) {
   color: var(--text-secondary) !important;
 }
 .clean-white .ribbon-bar button:hover {
   background-color: var(--bg-surface-hover) !important;
+}
+.clean-white .ribbon-bar button:not([class*="text-emerald-"]):not([class*="text-rose-"]):not([class*="text-amber-"]):not([class*="text-sky-"]):not([class*="text-brand-"]):hover {
   color: var(--text-primary) !important;
 }
 .clean-white .ribbon-bar button[class*="bg-brand-600"] {
@@ -504,12 +517,12 @@ body.clean-white,
   box-shadow: none !important;
 }
 .clean-white aside button[class*="bg-slate-800"] span,
-.clean-white aside button[class*="bg-slate-800"] svg,
+.clean-white aside button[class*="bg-slate-800"] svg:not([class*="text-"]),
 .clean-white aside button[class*="bg-slate-800"] div,
 .clean-white aside button[class*="bg-brand-600/20"] span,
-.clean-white aside button[class*="bg-brand-600/20"] svg,
+.clean-white aside button[class*="bg-brand-600/20"] svg:not([class*="text-"]),
 .clean-white aside button[class*="border-brand-500"] span,
-.clean-white aside button[class*="border-brand-500"] svg {
+.clean-white aside button[class*="border-brand-500"] svg:not([class*="text-"]) {
   color: var(--accent-primary) !important;
 }
 /* Badges de contagem de e-mails na Sidebar */
@@ -712,14 +725,14 @@ body.clean-white,
 }
 
 /* Sugestões de Respostas Rápidas e Textarea no Clean White */
-.clean-white main div[class*="gap-1.5"] button,
-.clean-white main div[class*="flex-wrap"] button {
+.clean-white main div[class*="gap-1.5"] button:not([class*="bg-rose-"]):not([class*="bg-amber-"]):not([class*="bg-emerald-"]):not([class*="bg-brand-"]):not([class*="bg-sky-"]),
+.clean-white main div[class*="flex-wrap"] button:not([class*="bg-rose-"]):not([class*="bg-amber-"]):not([class*="bg-emerald-"]):not([class*="bg-brand-"]):not([class*="bg-sky-"]) {
   background-color: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
   color: #334155 !important;
 }
-.clean-white main div[class*="gap-1.5"] button:hover,
-.clean-white main div[class*="flex-wrap"] button:hover {
+.clean-white main div[class*="gap-1.5"] button:not([class*="bg-rose-"]):not([class*="bg-amber-"]):not([class*="bg-emerald-"]):not([class*="bg-brand-"]):not([class*="bg-sky-"]):hover,
+.clean-white main div[class*="flex-wrap"] button:not([class*="bg-rose-"]):not([class*="bg-amber-"]):not([class*="bg-emerald-"]):not([class*="bg-brand-"]):not([class*="bg-sky-"]):hover {
   background-color: #eff6ff !important;
   color: #1d4ed8 !important;
   border-color: #bfdbfe !important;

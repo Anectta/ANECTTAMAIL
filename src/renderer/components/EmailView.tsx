@@ -432,7 +432,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             onClick={() => onReply(email)}
             className="flex items-center space-x-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
           >
-            <Reply className="w-3.5 h-3.5 shrink-0" />
+            <Reply className="w-3.5 h-3.5 shrink-0 text-brand-400" />
             <span>{email.folder === 'drafts' ? 'Continuar editando' : 'Responder'}</span>
           </button>
 
@@ -441,7 +441,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
               onClick={() => onReplyAll(email)}
               className="flex items-center space-x-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
             >
-              <ReplyAll className="w-3.5 h-3.5 shrink-0" />
+              <ReplyAll className="w-3.5 h-3.5 shrink-0 text-sky-400" />
               <span>Responder a Todos</span>
             </button>
           )}
@@ -451,7 +451,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
               onClick={() => onForward(email)}
               className="flex items-center space-x-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
             >
-              <Forward className="w-3.5 h-3.5 shrink-0" />
+              <Forward className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
               <span>Encaminhar</span>
             </button>
           )}
@@ -463,7 +463,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             onClick={() => onArchive(email.id)}
             className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
           >
-            <Archive className="w-4 h-4 shrink-0" />
+            <Archive className="w-4 h-4 shrink-0 text-teal-400" />
             <span>Arquivar</span>
           </button>
 
@@ -471,7 +471,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             onClick={() => onDelete(email.id)}
             className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl transition-colors"
           >
-            <Trash2 className="w-4 h-4 shrink-0" />
+            <Trash2 className="w-4 h-4 shrink-0 text-rose-400" />
             <span>Excluir</span>
           </button>
 
@@ -481,7 +481,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             title="Imprimir e-mail ou salvar em PDF"
             className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors disabled:opacity-60"
           >
-            <Printer className="w-4 h-4 shrink-0" />
+            <Printer className="w-4 h-4 shrink-0 text-cyan-400" />
             <span>{isPrinting ? '...' : 'Imprimir'}</span>
           </button>
 
@@ -491,7 +491,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
               title="Marcar como Spam e mover futuros e-mails deste remetente para o Lixo Eletrônico"
               className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-xl transition-colors"
             >
-              <AlertOctagon className="w-4 h-4 shrink-0" />
+              <AlertOctagon className="w-4 h-4 shrink-0 text-amber-400" />
               <span>Spam</span>
             </button>
           )}
@@ -502,7 +502,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
               title="Desmarcar como Spam e retornar para Caixa de Entrada"
               className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl transition-colors"
             >
-              <CheckCircle className="w-4 h-4 shrink-0" />
+              <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />
               <span>Não é Spam</span>
             </button>
           )}
@@ -511,7 +511,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             onClick={() => onSnooze(email.id)}
             className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
           >
-            <Clock className="w-4 h-4 shrink-0" />
+            <Clock className="w-4 h-4 shrink-0 text-amber-400" />
             <span>Adiar</span>
           </button>
         </div>
@@ -533,7 +533,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             }`}
             title="Mais ações"
           >
-            <MoreHorizontal className="w-4 h-4 shrink-0" />
+            <MoreHorizontal className="w-4 h-4 shrink-0 text-violet-400" />
             <span>Mais</span>
           </button>
 
@@ -572,7 +572,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                             : 'text-slate-300 hover:text-white bg-slate-950/80 hover:bg-slate-800 border-slate-800'
                         }`}
                       >
-                        <CheckSquare className="w-3.5 h-3.5 shrink-0" />
+                        <CheckSquare className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
                         <span>Tarefa</span>
                       </button>
                     )}
@@ -591,7 +591,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                             : 'text-slate-300 hover:text-white bg-slate-950/80 hover:bg-slate-800 border-slate-800'
                         }`}
                       >
-                        <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                        <BookOpen className="w-3.5 h-3.5 shrink-0 text-sky-400" />
                         <span>Ler depois</span>
                       </button>
                     )}
@@ -610,7 +610,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                             : 'text-slate-300 hover:text-white bg-slate-950/80 hover:bg-slate-800 border-slate-800'
                         }`}
                       >
-                        <Tag className="w-3.5 h-3.5 shrink-0" />
+                        <Tag className="w-3.5 h-3.5 shrink-0 text-amber-400" />
                         <span>Importante</span>
                       </button>
                     )}
@@ -646,7 +646,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                             : 'text-slate-300 hover:text-white bg-slate-950/80 hover:bg-slate-800 border-slate-800'
                         }`}
                       >
-                        <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                        <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
                         <span>Privacidade</span>
                       </button>
                     )}
@@ -663,7 +663,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                       className="flex items-center space-x-1.5 px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap text-brand-400 hover:text-white bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/30 rounded-lg transition-all"
                       title="Exportar mensagem no formato aberto padrão RFC 822 (.EML)"
                     >
-                      <FileDown className="w-3.5 h-3.5 shrink-0" />
+                      <FileDown className="w-3.5 h-3.5 shrink-0 text-brand-400" />
                       <span>{isExportingEml ? 'Exportando...' : 'Exportar .EML'}</span>
                     </button>
 
@@ -702,7 +702,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                         className="flex items-center space-x-1.5 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-950/80 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors"
                         title="Abrir e-mail inteiro em caixa expandida"
                       >
-                        <Maximize2 className="w-3.5 h-3.5 shrink-0" />
+                        <Maximize2 className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
                         <span>Expandir</span>
                       </button>
                     )}

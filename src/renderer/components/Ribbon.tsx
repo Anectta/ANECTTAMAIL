@@ -134,7 +134,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
                     className="flex flex-col items-center justify-center px-2 py-1 text-slate-300 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors disabled:opacity-40"
                     title="Excluir (Delete)"
                   >
-                    <Trash2 className="w-4 h-4 mb-0.5" />
+                    <Trash2 className="w-4 h-4 mb-0.5 text-rose-400" />
                     <span className="text-[10px]">Excluir</span>
                   </button>
                   <button
@@ -143,7 +143,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
                     className="flex flex-col items-center justify-center px-2 py-1 text-slate-300 hover:text-brand-300 hover:bg-slate-800 rounded transition-colors disabled:opacity-40"
                     title="Arquivar (E)"
                   >
-                    <Archive className="w-4 h-4 mb-0.5" />
+                    <Archive className="w-4 h-4 mb-0.5 text-teal-400" />
                     <span className="text-[10px]">Arquivar</span>
                   </button>
                 </div>
@@ -170,7 +170,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
                     className="flex flex-col items-center justify-center px-2 py-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors disabled:opacity-40"
                     title="Responder a Todos"
                   >
-                    <ReplyAll className="w-4 h-4 mb-0.5" />
+                    <ReplyAll className="w-4 h-4 mb-0.5 text-sky-400" />
                     <span className="text-[10px]">A Todos</span>
                   </button>
                   <button
@@ -179,7 +179,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
                     className="flex flex-col items-center justify-center px-2 py-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors disabled:opacity-40"
                     title="Encaminhar"
                   >
-                    <Forward className="w-4 h-4 mb-0.5" />
+                    <Forward className="w-4 h-4 mb-0.5 text-indigo-400" />
                     <span className="text-[10px]">Encaminhar</span>
                   </button>
                 </div>
