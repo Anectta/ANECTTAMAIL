@@ -44,6 +44,46 @@ export interface FetchResult {
 
 export type SupportedFolder = 'inbox' | 'sent' | 'drafts' | 'archive' | 'trash' | 'junk';
 
+const EMAIL_ADDRESS_REGEX = /([^\s,;<>'"]+@[^\s,;<>'"]+\.[^\s,;<>'"]+)/;
+
+/**
+ * Extracts and validates a single email address from a raw header or address string.
+ */
+function extractValidEmail(raw: unknown): string | undefined {
+  if (!raw) return undefined;
+  const text = String(raw).replace(/^mailto:/i, '').trim();
+  if (!text) return undefined;
+  const bracketMatch = text.match(/<([^\s<>'"]+@[^\s<>'"]+\.[^\s<>'"]+)>/);
+  const candidate = (bracketMatch ? bracketMatch[1] : text.match(EMAIL_ADDRESS_REGEX)?.[1] || '').trim();
+  return /^[^\s@<>'"]+@[^\s@<>'"]+\.[^\s@<>'"]+$/.test(candidate) ? candidate : undefined;
+}
+
+/**
+ * Extracts a validated read-receipt (MDN) return address from parsed email headers,
+ * falling back to the sender's email if the header value is malformed.
+ */
+function extractReadReceiptAddress(headers: any, fallbackSenderEmail: string): string | undefined {
+  if (!headers || typeof headers.get !== 'function') return undefined;
+  const rawHeader =
+    headers.get('disposition-notification-to') ||
+    headers.get('return-receipt-to') ||
+    headers.get('x-confirm-reading-to');
+  if (!rawHeader) return undefined;
+
+  const firstEntry = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+  const rawCandidates: unknown[] =
+    typeof firstEntry === 'object' && firstEntry !== null
+      ? [firstEntry.value?.[0]?.address, firstEntry.text]
+      : [firstEntry];
+
+  for (const candidate of rawCandidates) {
+    const valid = extractValidEmail(candidate);
+    if (valid) return valid;
+  }
+
+  return extractValidEmail(fallbackSenderEmail);
+}
+
 export class MailService {
   /**
    * Universal test connection (routes to IMAP or POP3 based on protocol)
@@ -470,17 +510,7 @@ export class MailService {
         if (parsed.inReplyTo) {
           inReplyToHeader = String(parsed.inReplyTo).trim();
         }
-        if (parsed.headers && typeof parsed.headers.get === 'function') {
-          const dnt =
-            parsed.headers.get('disposition-notification-to') ||
-            parsed.headers.get('return-receipt-to') ||
-            parsed.headers.get('x-confirm-reading-to');
-          if (dnt) {
-            const dntText = typeof dnt === 'object' ? (dnt.text || dnt.value?.[0]?.address || '') : String(dnt);
-            const matchAddr = dntText.match(/<([^>]+)>/) || dntText.match(/([^\s,;<>]+@[^\s,;<>]+)/);
-            readReceiptRequestedBy = (matchAddr ? matchAddr[1] : dntText).trim() || senderEmail;
-          }
-        }
+        readReceiptRequestedBy = extractReadReceiptAddress(parsed.headers, senderEmail);
 
         if (parsed.attachments && Array.isArray(parsed.attachments) && parsed.attachments.length > 0) {
           attachmentsList = parsed.attachments.map((att: any, idx: number) =>
@@ -1101,18 +1131,7 @@ export class MailService {
 
           const hasRealPopAttachments = popAttachments.some((a) => !a.isSignature);
 
-          let popReadReceiptRequestedBy: string | undefined = undefined;
-          if (parsed.headers && typeof parsed.headers.get === 'function') {
-            const dnt =
-              parsed.headers.get('disposition-notification-to') ||
-              parsed.headers.get('return-receipt-to') ||
-              parsed.headers.get('x-confirm-reading-to');
-            if (dnt) {
-              const dntText = typeof dnt === 'object' ? (dnt.text || dnt.value?.[0]?.address || '') : String(dnt);
-              const matchAddr = dntText.match(/<([^>]+)>/) || dntText.match(/([^\s,;<>]+@[^\s,;<>]+)/);
-              popReadReceiptRequestedBy = (matchAddr ? matchAddr[1] : dntText).trim() || senderEmail;
-            }
-          }
+          const popReadReceiptRequestedBy = extractReadReceiptAddress(parsed.headers, senderEmail);
 
           messages.push({
             id: pop3MessageId,
@@ -1259,15 +1278,30 @@ export class MailService {
           socketTimeout: 15000,
         });
 
-        const normalizedRecipients = String(emailData.recipient || '')
+        const recipientTokens = String(emailData.recipient || '')
           .split(/[;,]/)
           .map((r) => r.trim())
-          .filter(Boolean)
-          .join(', ');
+          .filter(Boolean);
+
+        const invalidRecipient = recipientTokens.find((token) => !extractValidEmail(token));
+        if (recipientTokens.length === 0 || invalidRecipient) {
+          return {
+            success: false,
+            error: invalidRecipient
+              ? `Destinatário inválido: "${invalidRecipient}". Verifique o endereço de e-mail.`
+              : 'Nenhum destinatário válido informado.',
+          };
+        }
+
+        const normalizedRecipients = recipientTokens.join(', ');
+
+        const safeSenderName = String(emailData.sender || user)
+          .replace(/["<>\r\n]/g, '')
+          .trim() || user;
 
         const mailOptions: any = {
-          from: `"${emailData.sender || user}" <${user}>`,
-          to: normalizedRecipients || emailData.recipient,
+          from: `"${safeSenderName}" <${user}>`,
+          to: normalizedRecipients,
           subject: emailData.subject,
           text: emailData.body,
         };
@@ -1277,7 +1311,7 @@ export class MailService {
         }
 
         if (emailData.requestReadReceipt || emailData.trackingEnabled) {
-          const receiptAddress = `"${emailData.sender || user}" <${user}>`;
+          const receiptAddress = `"${safeSenderName}" <${user}>`;
           mailOptions.headers = {
             ...(mailOptions.headers || {}),
             'Disposition-Notification-To': receiptAddress,

@@ -2317,10 +2317,23 @@ export const App: React.FC = () => {
   const handleSendReadReceipt = useCallback(
     async (targetEmail: EmailItem) => {
       if (!targetEmail || !targetEmail.readReceiptRequestedBy) return;
+      const extractValidAddr = (raw?: string): string | undefined => {
+        if (!raw) return undefined;
+        const cleaned = raw.replace(/^mailto:/i, '').trim();
+        const bracketMatch = cleaned.match(/<([^\s<>'"]+@[^\s<>'"]+\.[^\s<>'"]+)>/);
+        const match = bracketMatch?.[1] || cleaned.match(/([^\s,;<>'"]+@[^\s,;<>'"]+\.[^\s,;<>'"]+)/)?.[1];
+        return match && /^[^\s@<>'"]+@[^\s@<>'"]+\.[^\s@<>'"]+$/.test(match) ? match : undefined;
+      };
+      const receiptRecipient =
+        extractValidAddr(targetEmail.readReceiptRequestedBy) || extractValidAddr(targetEmail.senderEmail);
+      if (!receiptRecipient) {
+        showToast('❌ Não foi possível enviar a confirmação de leitura: endereço do solicitante inválido.');
+        return;
+      }
       const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       try {
         await dispatchEmailNow({
-          recipient: targetEmail.readReceiptRequestedBy,
+          recipient: receiptRecipient,
           subject: `Lida: ${targetEmail.subject}`,
           body: `Sua mensagem\n\n  Para: ${currentAccount.displayName || currentAccount.email}\n  Assunto: ${targetEmail.subject}\n\nfoi lida em ${new Date().toLocaleDateString('pt-BR')} às ${nowTime}.`,
           priority: 'medium',
@@ -2332,7 +2345,7 @@ export const App: React.FC = () => {
           prev.map((m) => (m.id === targetEmail.id ? { ...m, readReceiptSent: true } : m))
         );
         soundService.play('pop');
-        showToast(`✓ Confirmação de leitura enviada para ${targetEmail.readReceiptRequestedBy}.`);
+        showToast(`✓ Confirmação de leitura enviada para ${receiptRecipient}.`);
       } catch {}
     },
     [currentAccount]
