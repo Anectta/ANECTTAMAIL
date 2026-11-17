@@ -206,14 +206,14 @@ export function compileToInlineHtml(options: CompileOptions): string {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 650px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border-left: 6px solid #2563eb; overflow: hidden;">
     <tr>
       <td style="padding: 28px 36px;">
+        ${subject ? `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px;">
           <tr>
             <td>
-              <span style="font-size: 11px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 0.08em;">Comunicação Corporativa • Anectta</span>
-              ${subject ? `<h2 style="margin: 6px 0 0 0; font-size: 18px; color: #0f172a; font-weight: 700;">${subject}</h2>` : ''}
+              <h2 style="margin: 0; font-size: 18px; color: #0f172a; font-weight: 700;">${subject}</h2>
             </td>
           </tr>
-        </table>
+        </table>` : ''}
         <div style="color: #334155;">
           ${paragraphs}
           ${gifsHtml}
