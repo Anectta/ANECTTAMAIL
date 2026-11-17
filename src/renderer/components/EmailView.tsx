@@ -359,7 +359,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
 
   if (!email) {
     return (
-      <main className="flex-1 bg-slate-950 flex flex-col items-center justify-center text-slate-500 p-8 select-none">
+      <main className="flex-1 bg-slate-950 flex flex-col items-center justify-center text-slate-500 p-8 select-text">
         <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-4 text-slate-600 shadow-xl">
           <MailQuestion className="w-8 h-8" />
         </div>
@@ -411,7 +411,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
   };
 
   return (
-    <main className="flex-1 bg-slate-950 flex flex-col h-full overflow-hidden select-none">
+    <main className="flex-1 bg-slate-950 flex flex-col h-full overflow-hidden select-text">
       {/* Top Action Toolbar (Layout unificado em linha com cores originais preservadas) */}
       <div className="border-b border-slate-800/80 px-5 py-2 flex items-center justify-between gap-3 flex-wrap shrink-0 bg-slate-950/60">
         {/* Grupo Esquerdo: Responder, Responder a Todos, Encaminhar */}

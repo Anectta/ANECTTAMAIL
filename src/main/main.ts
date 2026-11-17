@@ -2695,8 +2695,11 @@ app.on('web-contents-created', (_event, contents) => {
         { type: 'separator' },
         { label: 'Selecionar tudo', role: 'selectAll', enabled: params.editFlags.canSelectAll }
       );
-    } else if (params.selectionText && params.selectionText.trim().length > 0) {
-      menuItems.push({ label: 'Copiar', role: 'copy' });
+    } else {
+      if (params.selectionText && params.selectionText.trim().length > 0) {
+        menuItems.push({ label: 'Copiar', role: 'copy' });
+      }
+      menuItems.push({ label: 'Selecionar tudo', role: 'selectAll' });
     }
 
     if (menuItems.length > 0) {

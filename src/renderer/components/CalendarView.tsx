@@ -549,7 +549,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const HOURS = Array.from({ length: 16 }, (_, i) => i + 7); // 07:00 to 22:00
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white text-slate-800 select-none overflow-hidden">
+    <div className="flex-1 flex flex-col h-full bg-white text-slate-800 select-text overflow-hidden">
       {/* Top Bar */}
       <div className="px-5 py-3 border-b border-slate-200 bg-white flex flex-wrap items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-3 flex-wrap">

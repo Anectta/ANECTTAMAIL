@@ -2649,7 +2649,7 @@ export const App: React.FC = () => {
   }, [activeModule, activeWebApp, currentFolder, customFolders, isUnifiedView]);
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden font-sans select-none bg-[#162231] text-slate-100">
+    <div className="h-screen w-screen flex overflow-hidden font-sans bg-[#162231] text-slate-100">
       {/* Left Full-Height Dark Navy Sidebar (Mockup Style) */}
       {!isMinimalLayout && (
         <>

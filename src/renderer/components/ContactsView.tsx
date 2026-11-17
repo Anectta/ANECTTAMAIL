@@ -176,7 +176,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
   });
 
   return (
-    <div className="flex-1 flex flex-col h-full p-6 select-none overflow-y-auto custom-scroll bg-white text-slate-800">
+    <div className="flex-1 flex flex-col h-full p-6 select-text overflow-y-auto custom-scroll bg-white text-slate-800">
       {/* Top Header */}
       <div className="flex items-center justify-between pb-5 border-b border-slate-200 gap-4">
         <div>

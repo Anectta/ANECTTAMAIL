@@ -53,8 +53,8 @@ export const useKeyboardShortcuts = (handlers: ShortcutHandlers) => {
         return;
       }
 
-      // Do not trigger single-key productivity navigation when typing inside input/textarea or when modal/settings is active
-      if (handlers.disabled || isInput) {
+      // Do not trigger single-key productivity navigation when typing inside input/textarea, when modal/settings is active, or when modifier keys (Ctrl+C, Ctrl+V, etc.) are held
+      if (handlers.disabled || isInput || event.ctrlKey || event.metaKey || event.altKey) {
         return;
       }
 
