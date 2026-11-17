@@ -162,7 +162,7 @@ interface CompileOptions {
  * garantindo compatibilidade total com Outlook, Gmail, Thunderbird e Webmail.
  */
 export function compileToInlineHtml(options: CompileOptions): string {
-  const { text, stationeryId, senderName, senderEmail, signature, insertedGifs = [], subject } = options;
+  const { text, signature } = options;
 
   const paragraphs = text
     .split(/\n\n+/)
@@ -170,18 +170,6 @@ export function compileToInlineHtml(options: CompileOptions): string {
     .filter(Boolean)
     .map((p) => `<p style="margin: 0 0 16px 0; line-height: 1.6; font-size: 14px;">${p.replace(/\n/g, '<br/>')}</p>`)
     .join('');
-
-  const gifsHtml =
-    insertedGifs.length > 0
-      ? `<div style="margin: 20px 0; text-align: center;">
-          ${insertedGifs
-            .map(
-              (url) =>
-                `<img src="${url}" alt="Animação inserida" style="max-width: 280px; height: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin: 6px; display: inline-block;" />`
-            )
-            .join('')}
-        </div>`
-      : '';
 
   const formattedSignature = signature
     ? /<[a-z][\s\S]*>/i.test(signature)
@@ -195,152 +183,15 @@ export function compileToInlineHtml(options: CompileOptions): string {
       </div>`
     : '';
 
-  // Configurações específicas de cada Papel de Carta (com CSS 100% Inline)
-  switch (stationeryId) {
-    case 'anectta-executive':
-      return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8" /></head>
-<body style="margin: 0; padding: 24px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 650px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border-left: 6px solid #2563eb; overflow: hidden;">
-    <tr>
-      <td style="padding: 28px 36px;">
-        ${subject ? `
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px;">
-          <tr>
-            <td>
-              <h2 style="margin: 0; font-size: 18px; color: #0f172a; font-weight: 700;">${subject}</h2>
-            </td>
-          </tr>
-        </table>` : ''}
-        <div style="color: #334155;">
-          ${paragraphs}
-          ${gifsHtml}
-        </div>
-        ${signatureHtml}
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`.trim();
-
-    case 'parchment-formal':
-      return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8" /></head>
-<body style="margin: 0; padding: 24px; background-color: #faf7f2; font-family: Georgia, Cambria, 'Times New Roman', serif; color: #292524;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 650px; margin: 0 auto; background-color: #fdfbf7; border: 3px double #d97706; padding: 8px; border-radius: 4px;">
-    <tr>
-      <td style="padding: 32px 40px; border: 1px solid #fde68a;">
-        <div style="text-align: center; margin-bottom: 24px;">
-          <span style="font-size: 14px; font-weight: bold; color: #b45309; text-transform: uppercase; letter-spacing: 0.15em;">⚜ Notificação Oficial ⚜</span>
-          <div style="width: 80px; height: 1px; background-color: #d97706; margin: 8px auto 0 auto;"></div>
-        </div>
-        <div style="color: #292524; font-size: 15px; line-height: 1.7;">
-          ${paragraphs}
-          ${gifsHtml}
-        </div>
-        ${signatureHtml}
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`.trim();
-
-    case 'dark-cyber':
-      return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8" /></head>
-<body style="margin: 0; padding: 24px; background-color: #030712; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; color: #e2e8f0;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 650px; margin: 0 auto; background-color: #0f172a; border: 1px solid #06b6d4; border-radius: 12px; box-shadow: 0 0 20px rgba(6, 182, 212, 0.15); overflow: hidden;">
-    <tr>
-      <td style="padding: 30px 36px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid #1e293b; padding-bottom: 12px;">
-          <span style="font-size: 11px; font-family: monospace; color: #06b6d4; font-weight: bold;">[SECURE TRANSMISSION // TLS 1.3]</span>
-        </div>
-        <div style="color: #cbd5e1; font-size: 14px; line-height: 1.6;">
-          ${paragraphs}
-          ${gifsHtml}
-        </div>
-        ${signatureHtml}
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`.trim();
-
-    case 'corporate-memo':
-      return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8" /></head>
-<body style="margin: 0; padding: 24px; background-color: #f8fafc; font-family: Arial, Helvetica, sans-serif; color: #0f172a;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 650px; margin: 0 auto; background-color: #ffffff; border: 1px solid #cbd5e1; border-top: 6px solid #4f46e5; border-radius: 4px;">
-    <tr>
-      <td style="padding: 28px 36px;">
-        <div style="font-size: 20px; font-weight: bold; color: #1e1b4b; letter-spacing: 0.05em; margin-bottom: 18px;">MEMORANDO INTERNO</div>
-        <table role="presentation" width="100%" cellpadding="6" cellspacing="0" border="0" style="margin-bottom: 24px; background-color: #f1f5f9; border-radius: 6px; font-size: 12px;">
-          <tr>
-            <td width="20%" style="font-weight: bold; color: #475569;">DE:</td>
-            <td style="color: #0f172a;">${senderName} &lt;${senderEmail}&gt;</td>
-          </tr>
-          ${subject ? `<tr><td style="font-weight: bold; color: #475569;">ASSUNTO:</td><td style="color: #0f172a;">${subject}</td></tr>` : ''}
-          <tr>
-            <td style="font-weight: bold; color: #475569;">DATA:</td>
-            <td style="color: #0f172a;">${new Date().toLocaleDateString('pt-BR')}</td>
-          </tr>
-        </table>
-        <div style="color: #334155; font-size: 14px; line-height: 1.6;">
-          ${paragraphs}
-          ${gifsHtml}
-        </div>
-        ${signatureHtml}
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`.trim();
-
-    case 'festive-celebration':
-      return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8" /></head>
-<body style="margin: 0; padding: 24px; background-color: #f0fdf4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #064e3b;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 650px; margin: 0 auto; background-color: #ffffff; border: 2px solid #10b981; border-radius: 16px; box-shadow: 0 6px 20px rgba(16, 185, 129, 0.1); overflow: hidden;">
-    <tr>
-      <td style="padding: 32px 40px;">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <span style="font-size: 20px;">✨ 🎄 🌟</span>
-          <div style="font-size: 12px; font-weight: bold; color: #059669; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px;">Comemoração & Votos Executivos</div>
-        </div>
-        <div style="color: #1f2937; font-size: 14px; line-height: 1.6;">
-          ${paragraphs}
-          ${gifsHtml}
-        </div>
-        ${signatureHtml}
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`.trim();
-
-    case 'clean':
-    default:
-      return `
+  return `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8" /></head>
 <body style="margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.6;">
   <div style="max-width: 620px; margin: 0 auto;">
     ${paragraphs}
-    ${gifsHtml}
     ${signatureHtml}
   </div>
 </body>
 </html>`.trim();
-  }
 }

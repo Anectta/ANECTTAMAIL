@@ -8,18 +8,14 @@ import {
   Download,
   AlertTriangle,
   Plus,
-  Palette,
-  Image as ImageIcon,
   Rocket,
   Shield,
   Zap,
-  Check,
-  Sparkles,
-  ChevronDown,
   Clock,
   Trash2,
   CheckCheck,
   FileSignature,
+  Smile,
 } from 'lucide-react';
 import { PriorityLevel } from '@/types/email';
 import { AccountSettings, EmailSignature } from '@/types/settings';
@@ -27,11 +23,62 @@ import { RecentFileItem } from '../../types/electron';
 import { EmailSending } from './animated-icons';
 import { CorporateContact } from './ContactsView';
 import {
-  STATIONERY_TEMPLATES,
-  ANIMATED_STICKERS,
   OutgoingAnimationType,
   compileToInlineHtml,
 } from '../services/stationeryCompiler';
+
+const EMOJI_CATEGORIES: Array<{ id: string; label: string; icon: string; emojis: string[] }> = [
+  {
+    id: 'faces',
+    label: 'Expressões',
+    icon: '😀',
+    emojis: [
+      '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂',
+      '🙂', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘',
+      '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭',
+      '🤔', '😐', '😑', '😶', '😏', '😒', '🙄', '😬',
+      '😌', '😔', '😪', '😴', '😷', '🤒', '🤕', '🤢',
+      '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '😎',
+      '🤓', '🧐', '😕', '😟', '🙁', '😮', '😯', '😲',
+      '😳', '🥺', '😦', '😧', '😨', '😰', '😥', '😢',
+      '😭', '😱', '😖', '😣', '😞', '😓', '😩', '😫',
+      '😤', '😡', '😠', '🤬', '😈', '💀', '👻', '🤖',
+    ],
+  },
+  {
+    id: 'gestures',
+    label: 'Gestos',
+    icon: '👍',
+    emojis: [
+      '👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '🤙',
+      '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️',
+      '🖖', '👋', '🤝', '🙏', '✍️', '💪', '👏', '🙌',
+      '👐', '🤲', '🫶', '❤️‍🔥', '👀', '🧠', '🗣️', '👤',
+    ],
+  },
+  {
+    id: 'work',
+    label: 'Trabalho',
+    icon: '💼',
+    emojis: [
+      '💼', '📁', '📂', '📄', '📝', '📌', '📍', '📎',
+      '📅', '📆', '⏰', '⏳', '📧', '📨', '📩', '📤',
+      '📊', '📈', '📉', '💻', '🖥️', '📱', '☎️', '🔒',
+      '🔑', '🛠️', '⚙️', '💡', '🔍', '🎯', '🏆', '🚀',
+    ],
+  },
+  {
+    id: 'symbols',
+    label: 'Símbolos',
+    icon: '❤️',
+    emojis: [
+      '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍',
+      '✅', '☑️', '✔️', '❌', '⚠️', '❗', '❓', '💯',
+      '🔥', '⭐', '🌟', '✨', '🎉', '🎊', '👏', '🔔',
+      '➡️', '⬅️', '⬆️', '⬇️', '🔄', '➕', '➖', '💬',
+    ],
+  },
+];
 
 interface EmailSnippet {
   id: string;
@@ -184,12 +231,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const [recentDownloads, setRecentDownloads] = useState<RecentFileItem[]>([]);
   const [showMissingAttachmentAlert, setShowMissingAttachmentAlert] = useState(false);
 
-  // Papéis de Carta & Animações
-  const [selectedStationeryId, setSelectedStationeryId] = useState<string>('anectta-executive');
-  const [isStationeryPickerOpen, setIsStationeryPickerOpen] = useState(false);
-  const [insertedGifs, setInsertedGifs] = useState<string[]>([]);
-  const [isGifPickerOpen, setIsGifPickerOpen] = useState(false);
-  const [customGifUrl, setCustomGifUrl] = useState('');
+  // Emojis
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [activeEmojiCategory, setActiveEmojiCategory] = useState<string>('faces');
+  const bodyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [isDispatching, setIsDispatching] = useState(false);
 
   const [isSending, setIsSending] = useState(false);
@@ -305,13 +350,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
       setFromAccountId(targetAccountId);
       setSelectedSignatureId(resolveDefaultSignatureId(targetAccountId, accounts, signatures));
       setAttachments(draftAttachments || []);
-      setInsertedGifs([]);
-      setSelectedStationeryId('anectta-executive');
       setErrorMessage('');
       setShowMissingAttachmentAlert(false);
       setIsDispatching(false);
-      setIsStationeryPickerOpen(false);
-      setIsGifPickerOpen(false);
+      setIsEmojiPickerOpen(false);
       setIsSnippetPickerOpen(false);
       setIsSchedulePickerOpen(false);
       setScheduledDateTime('');
@@ -327,9 +369,6 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   }, [isOpen, defaultRecipient, defaultSubject, defaultBody, activeAccountId, accounts]);
 
   if (!isOpen) return null;
-
-  const currentStationery =
-    STATIONERY_TEMPLATES.find((s) => s.id === selectedStationeryId) || STATIONERY_TEMPLATES[0];
 
   const formatFileSize = (bytes: number) => {
     if (!bytes || bytes === 0) return '0 B';
@@ -366,17 +405,21 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
     setAttachments((prev) => prev.filter((a) => a.path !== filePath));
   };
 
-  const handleInsertGif = (url: string) => {
-    if (!url.trim()) return;
-    if (!insertedGifs.includes(url.trim())) {
-      setInsertedGifs((prev) => [...prev, url.trim()]);
+  const handleInsertEmoji = (emoji: string) => {
+    const el = bodyTextareaRef.current;
+    if (el && typeof el.selectionStart === 'number' && typeof el.selectionEnd === 'number') {
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const next = body.slice(0, start) + emoji + body.slice(end);
+      setBody(next);
+      requestAnimationFrame(() => {
+        el.focus();
+        const cursor = start + emoji.length;
+        el.setSelectionRange(cursor, cursor);
+      });
+    } else {
+      setBody((prev) => prev + emoji);
     }
-    setCustomGifUrl('');
-    setIsGifPickerOpen(false);
-  };
-
-  const handleRemoveGif = (urlToRemove: string) => {
-    setInsertedGifs((prev) => prev.filter((u) => u !== urlToRemove));
   };
 
   const executeSend = async (scheduledAt?: number) => {
@@ -388,11 +431,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
     // Compilação do HTML com CSS 100% Inline garantido para clientes de correio
     const compiledHtml = compileToInlineHtml({
       text: body,
-      stationeryId: selectedStationeryId,
+      stationeryId: 'clean',
       senderName: currentAccount?.displayName || currentAccount?.email || 'Anectta User',
       senderEmail: currentAccount?.email || '',
       signature: activeSignatureHtml || undefined,
-      insertedGifs,
       subject,
     });
 
@@ -407,7 +449,6 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
         body,
         html: compiledHtml,
         signature: activeSignatureHtml,
-        stationery: selectedStationeryId,
         priority,
         fromAccountId,
         attachments,
@@ -716,51 +757,25 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
             />
           </div>
 
-          {/* Creative Styling Bar (Papel de Carta & GIFs) */}
+          {/* Barra de Recursos da Mensagem */}
           <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-xl bg-slate-950/70 border border-slate-800/80">
             <div className="flex items-center space-x-2">
-              {/* Papel de Carta Button */}
+              {/* Emojis */}
               <button
                 type="button"
                 onClick={() => {
-                  setIsStationeryPickerOpen(!isStationeryPickerOpen);
-                  setIsGifPickerOpen(false);
-                }}
-                className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
-                  isStationeryPickerOpen
-                    ? 'bg-brand-600 text-white border-brand-500 shadow-sm'
-                    : 'bg-slate-900 text-slate-300 hover:text-white border-slate-800 hover:border-slate-700'
-                }`}
-                title="Escolher modelo decorativo de Papel de Carta"
-              >
-                <Palette className="w-3.5 h-3.5 text-brand-400" />
-                <span>Papel de Carta:</span>
-                <span className="font-semibold text-brand-300">{currentStationery.name}</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </button>
-
-              {/* Inserir GIF / Animação */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsGifPickerOpen(!isGifPickerOpen);
-                  setIsStationeryPickerOpen(false);
+                  setIsEmojiPickerOpen(!isEmojiPickerOpen);
                   setIsSnippetPickerOpen(false);
                 }}
                 className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
-                  isGifPickerOpen
+                  isEmojiPickerOpen
                     ? 'bg-brand-600 text-white border-brand-500 shadow-sm'
                     : 'bg-slate-900 text-slate-300 hover:text-white border-slate-800 hover:border-slate-700'
                 }`}
-                title="Inserir animação GIF ou Sticker no corpo do texto"
+                title="Inserir emoji na mensagem"
               >
-                <ImageIcon className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Inserir GIF / Sticker</span>
-                {insertedGifs.length > 0 && (
-                  <span className="w-4 h-4 rounded-full bg-cyan-500 text-slate-950 font-bold text-[10px] flex items-center justify-center">
-                    {insertedGifs.length}
-                  </span>
-                )}
+                <Smile className="w-3.5 h-3.5 text-amber-400" />
+                <span>Emojis</span>
               </button>
 
               {/* Snippets de Resposta Rápida */}
@@ -768,8 +783,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 type="button"
                 onClick={() => {
                   setIsSnippetPickerOpen(!isSnippetPickerOpen);
-                  setIsStationeryPickerOpen(false);
-                  setIsGifPickerOpen(false);
+                  setIsEmojiPickerOpen(false);
                 }}
                 className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
                   isSnippetPickerOpen
@@ -847,121 +861,51 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
             </div>
           </div>
 
-          {/* Stationery Picker Popover Drawer */}
-          {isStationeryPickerOpen && (
-            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5 animate-in fade-in">
-              <div className="flex items-center justify-between text-xs text-slate-300 font-semibold">
-                <span className="flex items-center space-x-1.5">
-                  <Palette className="w-3.5 h-3.5 text-brand-400" />
-                  <span>Escolha o Papel de Carta (Compilado para HTML com CSS Inline):</span>
-                </span>
-                <span className="text-[11px] text-slate-500">Compatível com Outlook & Gmail</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {STATIONERY_TEMPLATES.map((tmpl) => (
-                  <button
-                    type="button"
-                    key={tmpl.id}
-                    onClick={() => {
-                      setSelectedStationeryId(tmpl.id);
-                      setIsStationeryPickerOpen(false);
-                    }}
-                    className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${tmpl.previewBg} ${tmpl.previewBorder} ${
-                      selectedStationeryId === tmpl.id
-                        ? 'ring-2 ring-brand-500 shadow-md shadow-brand-500/20'
-                        : 'opacity-80 hover:opacity-100 hover:border-slate-600'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-bold text-white truncate">{tmpl.name}</span>
-                      {selectedStationeryId === tmpl.id && (
-                        <Check className="w-3.5 h-3.5 text-brand-400 shrink-0" />
-                      )}
-                    </div>
-                    <span className="text-[10px] text-slate-400 line-clamp-2">{tmpl.description}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* GIF / Sticker Picker Popover Drawer */}
-          {isGifPickerOpen && (
-            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3 animate-in fade-in">
-              <div className="flex items-center justify-between text-xs text-slate-300 font-semibold">
-                <span className="flex items-center space-x-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Stickers e Animações Corporativas:</span>
-                </span>
-                <span className="text-[11px] text-slate-500 font-mono">1 clique para inserir</span>
-              </div>
-
-              {/* Presets Grid */}
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {ANIMATED_STICKERS.map((stk) => (
-                  <button
-                    type="button"
-                    key={stk.id}
-                    onClick={() => handleInsertGif(stk.url)}
-                    className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 flex flex-col items-center space-y-1 transition-all group"
-                  >
-                    <img
-                      src={stk.url}
-                      alt={stk.name}
-                      className="w-12 h-12 object-contain rounded group-hover:scale-105 transition-transform"
-                    />
-                    <span className="text-[9px] text-slate-400 group-hover:text-slate-200 text-center truncate w-full">
-                      {stk.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Custom GIF URL input */}
-              <div className="pt-2 border-t border-slate-800/80 flex items-center space-x-2">
-                <input
-                  type="url"
-                  value={customGifUrl}
-                  onChange={(e) => setCustomGifUrl(e.target.value)}
-                  placeholder="Ou cole a URL direta de qualquer GIF (ex: https://.../animacao.gif)"
-                  className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-500 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleInsertGif(customGifUrl)}
-                  disabled={!customGifUrl.trim()}
-                  className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium disabled:opacity-50 transition-colors"
-                >
-                  Inserir
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Selected Inserted GIFs Strip */}
-          {insertedGifs.length > 0 && (
-            <div className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/30 flex items-center space-x-3 overflow-x-auto custom-scroll">
-              <span className="text-[11px] text-cyan-400 font-semibold shrink-0 flex items-center space-x-1">
-                <Sparkles className="w-3 h-3" />
-                <span>Animações no E-mail ({insertedGifs.length}):</span>
-              </span>
-              <div className="flex items-center space-x-2">
-                {insertedGifs.map((url, i) => (
-                  <div
-                    key={i}
-                    className="relative group p-1 bg-slate-900 rounded-lg border border-slate-700 shrink-0"
-                  >
-                    <img src={url} alt="GIF" className="w-14 h-14 object-cover rounded" />
+          {/* Emoji Picker Popover Drawer */}
+          {isEmojiPickerOpen && (
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5 animate-in fade-in">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                <div className="flex items-center gap-1 flex-wrap">
+                  {EMOJI_CATEGORIES.map((cat) => (
                     <button
                       type="button"
-                      onClick={() => handleRemoveGif(url)}
-                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center opacity-80 hover:opacity-100 shadow"
-                      title="Remover animação"
+                      key={cat.id}
+                      onClick={() => setActiveEmojiCategory(cat.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1.5 transition-all ${
+                        activeEmojiCategory === cat.id
+                          ? 'bg-brand-600 text-white shadow-sm'
+                          : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      }`}
                     >
-                      <X className="w-2.5 h-2.5" />
+                      <span>{cat.icon}</span>
+                      <span>{cat.label}</span>
                     </button>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEmojiPickerOpen(false)}
+                  className="p-1 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-slate-800"
+                  title="Fechar painel de emojis"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-8 sm:grid-cols-12 gap-1 max-h-44 overflow-y-auto custom-scroll pr-1">
+                {(EMOJI_CATEGORIES.find((c) => c.id === activeEmojiCategory) || EMOJI_CATEGORIES[0]).emojis.map(
+                  (emoji, idx) => (
+                    <button
+                      type="button"
+                      key={`${activeEmojiCategory}-${idx}`}
+                      onClick={() => handleInsertEmoji(emoji)}
+                      className="h-8 rounded-lg hover:bg-slate-800 active:scale-95 flex items-center justify-center text-lg transition-transform cursor-pointer select-none"
+                      title={emoji}
+                    >
+                      {emoji}
+                    </button>
+                  )
+                )}
               </div>
             </div>
           )}
@@ -1038,14 +982,19 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
 
           {/* Body Textarea + Assinatura Unificada no Corpo da Mensagem */}
           <div
-            className={`rounded-xl p-3 transition-all flex flex-col gap-2 ${currentStationery.previewBg} ${currentStationery.previewBorder}`}
+            style={{
+              backgroundColor: 'var(--bg-app)',
+              borderColor: 'var(--border-subtle)',
+            }}
+            className="rounded-xl p-3 border transition-all flex flex-col gap-2"
           >
             <textarea
+              ref={bodyTextareaRef}
               rows={6}
               value={body}
               onChange={(e) => setBody(e.target.value)}
               spellCheck={spellCheckEnabled}
-              placeholder="Escreva sua mensagem com clareza executiva... O papel de carta selecionado e os GIFs serão compilados em HTML com CSS inline."
+              placeholder="Escreva sua mensagem..."
               className="w-full bg-transparent border-0 text-xs text-slate-100 placeholder-slate-600 focus:outline-none resize-none font-sans leading-relaxed custom-scroll"
               required
             />
