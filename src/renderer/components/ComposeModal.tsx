@@ -19,9 +19,10 @@ import {
   Clock,
   Trash2,
   CheckCheck,
+  FileSignature,
 } from 'lucide-react';
 import { PriorityLevel } from '@/types/email';
-import { AccountSettings } from '@/types/settings';
+import { AccountSettings, EmailSignature } from '@/types/settings';
 import { RecentFileItem } from '../../types/electron';
 import { EmailSending } from './animated-icons';
 import { CorporateContact } from './ContactsView';
@@ -66,6 +67,7 @@ interface ComposeModalProps {
     subject: string;
     body: string;
     html?: string;
+    signature?: string;
     stationery?: string;
     priority: PriorityLevel;
     fromAccountId?: string;
@@ -79,6 +81,7 @@ interface ComposeModalProps {
   defaultBody?: string;
   accounts?: AccountSettings[];
   activeAccountId?: string;
+  signatures?: EmailSignature[];
   contacts?: CorporateContact[];
   /** Salvamento automático do rascunho (local). */
   draftAutoSaveEnabled?: boolean;
@@ -118,6 +121,39 @@ const clearStoredDraft = () => {
   } catch {}
 };
 
+const hasVisibleSignatureContent = (html?: string): boolean => {
+  if (!html) return false;
+  if (/<img\b/i.test(html)) return true;
+  const plain = html
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .trim();
+  return plain.length > 0;
+};
+
+const resolveDefaultSignatureId = (
+  accountId: string,
+  accounts: AccountSettings[],
+  signatures: EmailSignature[]
+): string => {
+  const byAccount = signatures.find(
+    (s) => s.defaultAccountId === accountId && hasVisibleSignatureContent(s.html)
+  );
+  if (byAccount) return byAccount.id;
+
+  const account = accounts.find((a) => a.id === accountId) || accounts[0];
+  if (hasVisibleSignatureContent(account?.signature)) {
+    return '__account__';
+  }
+
+  const nonEmptySignatures = signatures.filter((s) => hasVisibleSignatureContent(s.html));
+  if (nonEmptySignatures.length === 1 && !nonEmptySignatures[0].defaultAccountId) {
+    return nonEmptySignatures[0].id;
+  }
+
+  return 'none';
+};
+
 export const ComposeModal: React.FC<ComposeModalProps> = ({
   isOpen,
   onClose,
@@ -128,6 +164,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   defaultBody = '',
   accounts = [],
   activeAccountId = '',
+  signatures = [],
   contacts = [],
   draftAutoSaveEnabled = true,
   draftAutoSaveMinutes = 3,
@@ -142,6 +179,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const [body, setBody] = useState('');
   const [priority, setPriority] = useState<PriorityLevel>('medium');
   const [fromAccountId, setFromAccountId] = useState<string>(activeAccountId);
+  const [selectedSignatureId, setSelectedSignatureId] = useState<string>('none');
   const [attachments, setAttachments] = useState<Array<{ name: string; path: string; size: number }>>([]);
   const [recentDownloads, setRecentDownloads] = useState<RecentFileItem[]>([]);
   const [showMissingAttachmentAlert, setShowMissingAttachmentAlert] = useState(false);
@@ -248,12 +286,24 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const currentAccount =
     (fromAccountId && accounts.find((a) => a.id === fromAccountId)) || accounts[0];
 
+  const availableSignatures = signatures.filter((s) => hasVisibleSignatureContent(s.html));
+  const hasAccountSignature = hasVisibleSignatureContent(currentAccount?.signature);
+
+  const activeSignatureHtml = (() => {
+    if (selectedSignatureId === 'none') return '';
+    if (selectedSignatureId === '__account__') return currentAccount?.signature || '';
+    const found = signatures.find((s) => s.id === selectedSignatureId);
+    return found && hasVisibleSignatureContent(found.html) ? found.html : '';
+  })();
+
   useEffect(() => {
     if (isOpen) {
+      const targetAccountId = activeAccountId || accounts[0]?.id || '';
       setRecipient(defaultRecipient);
       setSubject(defaultSubject);
       setBody(defaultBody || '');
-      setFromAccountId(activeAccountId || accounts[0]?.id || '');
+      setFromAccountId(targetAccountId);
+      setSelectedSignatureId(resolveDefaultSignatureId(targetAccountId, accounts, signatures));
       setAttachments(draftAttachments || []);
       setInsertedGifs([]);
       setSelectedStationeryId('anectta-executive');
@@ -341,7 +391,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
       stationeryId: selectedStationeryId,
       senderName: currentAccount?.displayName || currentAccount?.email || 'Anectta User',
       senderEmail: currentAccount?.email || '',
-      signature: currentAccount?.signature,
+      signature: activeSignatureHtml || undefined,
       insertedGifs,
       subject,
     });
@@ -356,6 +406,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
         subject,
         body,
         html: compiledHtml,
+        signature: activeSignatureHtml,
         stationery: selectedStationeryId,
         priority,
         fromAccountId,
@@ -591,7 +642,11 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               <span className="w-16 text-xs text-slate-400 font-medium">De:</span>
               <select
                 value={fromAccountId}
-                onChange={(e) => setFromAccountId(e.target.value)}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  setFromAccountId(nextId);
+                  setSelectedSignatureId(resolveDefaultSignatureId(nextId, accounts, signatures));
+                }}
                 className="flex-1 bg-slate-900 text-xs text-slate-100 focus:outline-none font-mono cursor-pointer"
               >
                 {accounts.map((acc) => (
@@ -970,6 +1025,47 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               required
             />
           </div>
+
+          {/* Assinatura Automática / Seletor e Pré-visualização */}
+          {(availableSignatures.length > 0 || hasAccountSignature) && (
+            <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center space-x-1.5 text-[11px] font-medium text-slate-300">
+                  <FileSignature className="w-3.5 h-3.5 text-brand-400" />
+                  <span>Assinatura no e-mail:</span>
+                </span>
+                <select
+                  value={selectedSignatureId}
+                  onChange={(e) => setSelectedSignatureId(e.target.value)}
+                  className="bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-brand-500 cursor-pointer max-w-[240px]"
+                >
+                  <option value="none">Sem assinatura</option>
+                  {availableSignatures.map((sig) => (
+                    <option key={sig.id} value={sig.id}>
+                      {sig.name || 'Assinatura'}
+                      {sig.defaultAccountId === currentAccount?.id ? ' (Padrão)' : ''}
+                    </option>
+                  ))}
+                  {hasAccountSignature &&
+                    !availableSignatures.some((s) => s.defaultAccountId === currentAccount?.id) && (
+                      <option value="__account__">Assinatura da conta</option>
+                    )}
+                </select>
+              </div>
+
+              {activeSignatureHtml && (
+                <div className="rounded-lg bg-white text-slate-900 p-3 border border-slate-700/50 text-xs overflow-x-auto max-h-40 overflow-y-auto custom-scroll">
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: /<[a-z][\s\S]*>/i.test(activeSignatureHtml)
+                        ? activeSignatureHtml
+                        : activeSignatureHtml.replace(/\n/g, '<br/>'),
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Anexos Inteligentes: Downloads Recentes */}
           {recentDownloads.length > 0 && (

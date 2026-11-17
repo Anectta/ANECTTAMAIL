@@ -294,14 +294,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const updatedAccounts = baseAccounts.map((acc) => {
       const baseAcc = acc.id === formData.account.id ? { ...formData.account } : { ...acc };
       const assignedSig = signaturesList.find((s) => s.defaultAccountId === baseAcc.id);
-      if (assignedSig) {
-        return {
-          ...baseAcc,
-          signature: assignedSig.html,
-          signatureUseHtml: true,
-        };
-      }
-      return baseAcc;
+      return {
+        ...baseAcc,
+        signature: assignedSig ? assignedSig.html : '',
+        signatureUseHtml: Boolean(assignedSig),
+      };
     });
     const updatedActiveAccount =
       updatedAccounts.find((a) => a.id === formData.account.id) || formData.account;

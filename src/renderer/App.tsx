@@ -1009,6 +1009,7 @@ export const App: React.FC = () => {
     subject: string;
     body: string;
     html?: string;
+    signature?: string;
     stationery?: string;
     priority: PriorityLevel;
     fromAccountId?: string;
@@ -2186,9 +2187,21 @@ export const App: React.FC = () => {
       (emailData.fromAccountId && settings.accounts?.find((a) => a.id === emailData.fromAccountId)) ||
       currentAccount;
 
-    const signatureToAppend = sendingAccount.signature
-      ? `\n\n--\n${sendingAccount.signature}`
+    const effectiveSignature =
+      emailData.signature !== undefined ? emailData.signature : sendingAccount.signature;
+    const plainSignature = effectiveSignature
+      ? effectiveSignature
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
+          .replace(/<[^>]*>/g, '')
+          .replace(/&nbsp;/gi, ' ')
+          .replace(/&amp;/gi, '&')
+          .replace(/&lt;/gi, '<')
+          .replace(/&gt;/gi, '>')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim()
       : '';
+    const signatureToAppend = plainSignature ? `\n\n--\n${plainSignature}` : '';
     const fullBody = `${emailData.body}${signatureToAppend}`;
 
     const outgoing = sendingAccount.outgoingServer;
@@ -3153,6 +3166,7 @@ export const App: React.FC = () => {
         defaultBody={composeDefaults.body}
         accounts={settings.accounts}
         activeAccountId={currentAccount.id}
+        signatures={settings.signatures || []}
         contacts={contacts}
         draftAutoSaveEnabled={settings.drafts?.autoSaveEnabled ?? true}
         draftAutoSaveMinutes={settings.drafts?.autoSaveMinutes ?? 3}

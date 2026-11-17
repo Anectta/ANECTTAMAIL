@@ -183,9 +183,15 @@ export function compileToInlineHtml(options: CompileOptions): string {
         </div>`
       : '';
 
-  const signatureHtml = signature
+  const formattedSignature = signature
+    ? /<[a-z][\s\S]*>/i.test(signature)
+      ? signature
+      : signature.replace(/\n/g, '<br/>')
+    : '';
+
+  const signatureHtml = formattedSignature
     ? `<div style="margin-top: 28px; padding-top: 16px; border-top: 1px solid #cbd5e1; font-size: 13px; color: #64748b; line-height: 1.5;">
-        ${signature.replace(/\n/g, '<br/>')}
+        ${formattedSignature}
       </div>`
     : '';
 
