@@ -2377,11 +2377,118 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.anectta.mail');
 }
 
+function compareSemver(a: string, b: string): number {
+  const pa = a.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = b.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+let inFlightUpdateCheck: Promise<{ latestVersion: string; error?: string }> | null = null;
+let lastUpdateCheckAt = 0;
+let startupRetryTimers: NodeJS.Timeout[] = [];
+let periodicUpdateTimer: NodeJS.Timeout | null = null;
+let updaterFeedConfigured = false;
+
+function ensureUpdaterConfigured(): void {
+  if (updaterFeedConfigured) return;
+  updaterFeedConfigured = true;
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.requestHeaders = {
+    ...(autoUpdater.requestHeaders || {}),
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    Pragma: 'no-cache',
+  };
+  try {
+    const appUpdateYml = path.join(process.resourcesPath, 'app-update.yml');
+    if (!fs.existsSync(appUpdateYml)) {
+      autoUpdater.setFeedURL({
+        provider: 'github',
+        owner: 'Anectta',
+        repo: 'ANECTTAMAIL',
+      });
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function notifyUpdateAvailable(version: string): void {
+  if (!version) return;
+  pendingUpdateVersion = version;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-available', version);
+  }
+}
+
+async function performUpdateCheck(force = false): Promise<{ latestVersion: string; error?: string }> {
+  if (!app.isPackaged) {
+    return { latestVersion: app.getVersion() };
+  }
+  if (pendingUpdateVersion) {
+    notifyUpdateAvailable(pendingUpdateVersion);
+    return { latestVersion: pendingUpdateVersion };
+  }
+  if (inFlightUpdateCheck) {
+    return inFlightUpdateCheck;
+  }
+  const now = Date.now();
+  if (!force && now - lastUpdateCheckAt < 60_000) {
+    return { latestVersion: app.getVersion() };
+  }
+
+  ensureUpdaterConfigured();
+  lastUpdateCheckAt = now;
+
+  inFlightUpdateCheck = (async () => {
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      const latestVersion = result?.updateInfo?.version || '';
+      if (latestVersion && compareSemver(latestVersion, app.getVersion()) > 0) {
+        notifyUpdateAvailable(latestVersion);
+      }
+      return { latestVersion: latestVersion || app.getVersion() };
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      console.warn('[AUTO-UPDATER] Falha ao buscar atualizações:', msg);
+      return { latestVersion: '', error: msg };
+    } finally {
+      inFlightUpdateCheck = null;
+    }
+  })();
+
+  return inFlightUpdateCheck;
+}
+
 function triggerStartupUpdateCheck(): void {
   if (!app.isPackaged) return;
-  autoUpdater.checkForUpdates().catch((err) => {
-    console.warn('[AUTO-UPDATER] Falha ao buscar atualizações:', err?.message || err);
-  });
+  for (const t of startupRetryTimers) clearTimeout(t);
+  startupRetryTimers = [];
+
+  void performUpdateCheck(true);
+
+  // Retries automáticos caso a rede/DNS/GitHub ainda não esteja disponível na abertura
+  for (const delayMs of [20_000, 90_000]) {
+    const t = setTimeout(() => {
+      if (!pendingUpdateVersion) {
+        void performUpdateCheck(true);
+      }
+    }, delayMs);
+    startupRetryTimers.push(t);
+  }
+
+  if (!periodicUpdateTimer) {
+    periodicUpdateTimer = setInterval(() => {
+      if (!pendingUpdateVersion) {
+        void performUpdateCheck(true);
+      }
+    }, 30 * 60 * 1000);
+  }
 }
 
 // Garante instância única para evitar conflito de lock no LevelDB (localStorage) quando minimizado na bandeja
@@ -2394,6 +2501,11 @@ if (!gotTheLock) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       mainWindow.focus();
+      if (pendingUpdateVersion) {
+        notifyUpdateAvailable(pendingUpdateVersion);
+      } else {
+        void performUpdateCheck(false);
+      }
     } else {
       createSystemTray();
       createWindow();
@@ -2521,19 +2633,8 @@ if (!gotTheLock) {
   createWindow();
 
   // Auto-Updater (Atualização Obrigatória via GitHub Releases)
-  autoUpdater.autoDownload = false;
+  ensureUpdaterConfigured();
   let isDownloadingUpdate = false;
-
-  const compareSemver = (a: string, b: string): number => {
-    const pa = a.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
-    const pb = b.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
-    const len = Math.max(pa.length, pb.length);
-    for (let i = 0; i < len; i++) {
-      const diff = (pa[i] || 0) - (pb[i] || 0);
-      if (diff !== 0) return diff;
-    }
-    return 0;
-  };
 
   ipcMain.handle('updater:get-pending', () => pendingUpdateVersion);
 
@@ -2546,39 +2647,35 @@ if (!gotTheLock) {
         message: 'Verificação automática de atualização disponível apenas no aplicativo instalado.',
       };
     }
-    try {
-      const result = await autoUpdater.checkForUpdates();
-      const latestVersion = result?.updateInfo?.version || '';
-      if (latestVersion && compareSemver(latestVersion, currentVersion) > 0) {
-        pendingUpdateVersion = latestVersion;
-        return {
-          status: 'available',
-          currentVersion,
-          latestVersion,
-        };
-      }
-      return {
-        status: 'up-to-date',
-        currentVersion,
-        latestVersion: latestVersion || currentVersion,
-      };
-    } catch (err: any) {
+    const res = await performUpdateCheck(true);
+    if (res.error) {
       return {
         status: 'error',
         currentVersion,
-        error: err?.message || 'Erro ao consultar atualizações.',
+        error: res.error,
       };
     }
+    const latestVersion = pendingUpdateVersion || res.latestVersion;
+    if (latestVersion && compareSemver(latestVersion, currentVersion) > 0) {
+      pendingUpdateVersion = latestVersion;
+      return {
+        status: 'available',
+        currentVersion,
+        latestVersion,
+      };
+    }
+    return {
+      status: 'up-to-date',
+      currentVersion,
+      latestVersion: latestVersion || currentVersion,
+    };
   });
 
   autoUpdater.on('update-available', (info) => {
     const version = info?.version || '';
     if (!version || compareSemver(version, app.getVersion()) <= 0) return;
-    pendingUpdateVersion = version;
     console.log('[AUTO-UPDATER] Nova atualização disponível:', version);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update-available', version);
-    }
+    notifyUpdateAvailable(version);
   });
 
   autoUpdater.on('download-progress', (progressObj) => {
@@ -2632,8 +2729,15 @@ if (!gotTheLock) {
 
   if (mainWindow) {
     mainWindow.webContents.on('did-finish-load', () => {
-      if (pendingUpdateVersion && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('update-available', pendingUpdateVersion);
+      if (pendingUpdateVersion) {
+        notifyUpdateAvailable(pendingUpdateVersion);
+      }
+    });
+    mainWindow.on('show', () => {
+      if (pendingUpdateVersion) {
+        notifyUpdateAvailable(pendingUpdateVersion);
+      } else {
+        void performUpdateCheck(false);
       }
     });
   }
