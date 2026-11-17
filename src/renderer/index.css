@@ -891,6 +891,21 @@ body.clean-white,
   color: #1d4ed8 !important;
 }
 
+/* Splash Screen sempre mantém alto contraste sobre seu fundo escuro institucional */
+.clean-white .splash-screen {
+  color: #f1f5f9 !important;
+}
+.clean-white .splash-screen h1,
+.clean-white .splash-screen .text-white {
+  color: #ffffff !important;
+}
+.clean-white .splash-screen .text-slate-200 {
+  color: #e2e8f0 !important;
+}
+.clean-white .splash-screen .text-sky-400 {
+  color: #38bdf8 !important;
+}
+
 @keyframes anecttaLogoSpinY {
   0% {
     transform: perspective(400px) rotateY(0deg);
