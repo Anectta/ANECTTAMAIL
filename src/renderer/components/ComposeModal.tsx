@@ -15,10 +15,6 @@ import {
   Trash2,
   CheckCheck,
   Smile,
-  Move,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
 } from 'lucide-react';
 import { PriorityLevel } from '@/types/email';
 import {
@@ -254,9 +250,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const [isDispatching, setIsDispatching] = useState(false);
 
   // Movimento e alinhamento da logo / imagem inserida na assinatura dentro da composição
-  const [selectedComposeImg, setSelectedComposeImg] = useState<HTMLImageElement | null>(null);
-  const [composeSignatureOverride, setComposeSignatureOverride] = useState<string | null>(null);
-  const [isDraggingComposeImg, setIsDraggingComposeImg] = useState(false);
+  // A assinatura flutua integrada à área de escrita e pode ser arrastada livremente
+  const composeCanvasRef = useRef<HTMLDivElement | null>(null);
+  const [signaturePos, setSignaturePos] = useState<{ x: number; y: number } | null>(null);
+  const [isDraggingSignature, setIsDraggingSignature] = useState(false);
 
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -359,68 +356,49 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
     return found && hasVisibleSignatureContent(found.html) ? found.html : '';
   })();
 
+  const signatureDisplayHtml = /<[a-z][\s\S]*>/i.test(baseSignatureHtml)
+    ? baseSignatureHtml
+    : baseSignatureHtml.replace(/\n/g, '<br/>');
+
+  // No e-mail enviado, preserva o deslocamento horizontal escolhido pelo usuário
   const activeSignatureHtml =
-    composeSignatureOverride !== null ? composeSignatureOverride : baseSignatureHtml;
+    baseSignatureHtml && signaturePos && signaturePos.x > 0
+      ? `<div style="margin-left:${Math.round(signaturePos.x)}px">${signatureDisplayHtml}</div>`
+      : baseSignatureHtml;
 
   useEffect(() => {
-    setComposeSignatureOverride(null);
-    setSelectedComposeImg(null);
+    setSignaturePos(null);
   }, [selectedSignatureId, fromAccountId, isOpen]);
 
-  const startDragComposeLogo = (img: HTMLImageElement, e: React.MouseEvent) => {
+  const startDragSignature = (e: React.MouseEvent<HTMLDivElement>) => {
+    const canvas = composeCanvasRef.current;
+    const sigEl = signaturePreviewRef.current;
+    if (!canvas || !sigEl || e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    setSelectedComposeImg(img);
-    setIsDraggingComposeImg(true);
 
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const prevLeft = parseFloat(img.style.marginLeft || '0') || 0;
-    const prevTop = parseFloat(img.style.marginTop || '0') || 0;
-
-    img.style.position = 'relative';
-    img.style.cursor = 'grabbing';
+    const canvasRect = canvas.getBoundingClientRect();
+    const sigRect = sigEl.getBoundingClientRect();
+    const offsetX = e.clientX - sigRect.left;
+    const offsetY = e.clientY - sigRect.top;
+    setIsDraggingSignature(true);
 
     const onMove = (ev: MouseEvent) => {
-      const dx = ev.clientX - startX;
-      const dy = ev.clientY - startY;
-      const nextLeft = Math.max(0, Math.round(prevLeft + dx));
-      const nextTop = Math.round(prevTop + dy);
-      img.style.marginLeft = `${nextLeft}px`;
-      img.style.marginTop = `${nextTop}px`;
+      const maxX = Math.max(0, canvasRect.width - sigRect.width);
+      const maxY = Math.max(0, canvasRect.height - sigRect.height);
+      const x = Math.min(maxX, Math.max(0, ev.clientX - canvasRect.left - offsetX));
+      const y = Math.min(maxY, Math.max(0, ev.clientY - canvasRect.top - offsetY));
+      setSignaturePos({ x, y });
     };
 
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
-      img.style.cursor = 'grab';
-      setIsDraggingComposeImg(false);
-      if (signaturePreviewRef.current) {
-        setComposeSignatureOverride(signaturePreviewRef.current.innerHTML);
-      }
+      setIsDraggingSignature(false);
     };
 
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-  };
-
-  const alignComposeLogo = (align: 'left' | 'center' | 'right') => {
-    if (!selectedComposeImg || !signaturePreviewRef.current) return;
-    selectedComposeImg.style.marginTop = selectedComposeImg.style.marginTop || '0px';
-    if (align === 'left') {
-      selectedComposeImg.style.display = 'block';
-      selectedComposeImg.style.marginLeft = '0px';
-      selectedComposeImg.style.marginRight = 'auto';
-    } else if (align === 'center') {
-      selectedComposeImg.style.display = 'block';
-      selectedComposeImg.style.marginLeft = 'auto';
-      selectedComposeImg.style.marginRight = 'auto';
-    } else {
-      selectedComposeImg.style.display = 'block';
-      selectedComposeImg.style.marginLeft = 'auto';
-      selectedComposeImg.style.marginRight = '0px';
-    }
-    setComposeSignatureOverride(signaturePreviewRef.current.innerHTML);
   };
 
   useEffect(() => {
@@ -1084,7 +1062,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               borderColor: 'var(--border-subtle)',
               color: 'var(--text-primary)',
             }}
-            className="compose-message-canvas rounded-xl p-3 border transition-all flex flex-col gap-2"
+            ref={composeCanvasRef}
+            className="compose-message-canvas relative rounded-xl p-3 border transition-all flex flex-col min-h-[280px]"
           >
             <textarea
               ref={bodyTextareaRef}
@@ -1108,73 +1087,29 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 backgroundColor: 'transparent',
                 color: 'var(--text-primary)',
               }}
-              className="compose-message-field w-full bg-transparent border-0 text-xs focus:outline-none resize-none font-sans leading-relaxed custom-scroll"
+              className="compose-message-field w-full flex-1 min-h-[250px] bg-transparent border-0 text-xs focus:outline-none resize-none font-sans leading-relaxed custom-scroll"
               required
             />
 
-            {activeSignatureHtml && (
-              <div className="pt-2 text-xs overflow-x-auto max-h-52 overflow-y-auto custom-scroll relative">
-                {selectedComposeImg && (
-                  <div className="mb-1.5 inline-flex items-center space-x-1 px-2 py-1 rounded-lg bg-slate-900/90 border border-slate-700 text-[10px] text-slate-200 shadow-md">
-                    <Move className="w-3 h-3 text-brand-400 mr-1" />
-                    <span className="text-slate-300 mr-1">Mover Logo (arraste com o mouse ou alinhe):</span>
-                    <button
-                      type="button"
-                      onClick={() => alignComposeLogo('left')}
-                      className="p-1 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-                      title="Alinhar logo à esquerda"
-                    >
-                      <AlignLeft className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => alignComposeLogo('center')}
-                      className="p-1 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-                      title="Centralizar logo"
-                    >
-                      <AlignCenter className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => alignComposeLogo('right')}
-                      className="p-1 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-                      title="Alinhar logo à direita"
-                    >
-                      <AlignRight className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedComposeImg(null)}
-                      className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white ml-1"
-                      title="Fechar controles da logo"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-                <div
-                  ref={signaturePreviewRef}
-                  onMouseDown={(e) => {
-                    const target = e.target as HTMLElement | null;
-                    if (target && target.tagName === 'IMG') {
-                      startDragComposeLogo(target as HTMLImageElement, e);
-                    } else if (selectedComposeImg) {
-                      setSelectedComposeImg(null);
-                    }
-                  }}
-                  style={{ color: 'var(--text-primary)' }}
-                  className="[&_img]:cursor-grab active:[&_img]:cursor-grabbing [&_img]:transition-shadow [&_img:hover]:ring-2 [&_img:hover]:ring-brand-500/60 [&_img]:rounded"
-                  dangerouslySetInnerHTML={{
-                    __html: /<[a-z][\s\S]*>/i.test(activeSignatureHtml)
-                      ? activeSignatureHtml
-                      : activeSignatureHtml.replace(/\n/g, '<br/>'),
-                  }}
-                />
-                {isDraggingComposeImg && (
-                  <div className="fixed inset-0 z-50 cursor-grabbing" />
-                )}
-              </div>
+            {signatureDisplayHtml && (
+              <div
+                ref={signaturePreviewRef}
+                onMouseDown={startDragSignature}
+                onDragStart={(e) => e.preventDefault()}
+                title="Arraste para mover a assinatura"
+                style={{
+                  color: 'var(--text-primary)',
+                  position: 'absolute',
+                  ...(signaturePos
+                    ? { left: signaturePos.x, top: signaturePos.y }
+                    : { left: 12, bottom: 12 }),
+                  cursor: isDraggingSignature ? 'grabbing' : 'grab',
+                }}
+                className="text-xs select-none max-w-[90%] z-10 [&_img]:pointer-events-none"
+                dangerouslySetInnerHTML={{ __html: signatureDisplayHtml }}
+              />
             )}
+            {isDraggingSignature && <div className="fixed inset-0 z-50 cursor-grabbing" />}
           </div>
 
           {/* Anexos Inteligentes: Downloads Recentes */}
