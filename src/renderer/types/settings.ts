@@ -253,6 +253,26 @@ export interface BackupSettings {
   lastBackupSizeBytes?: number;
 }
 
+export interface ProxySettings {
+  mode: 'system' | 'direct' | 'manual';
+  host?: string;
+  port?: number;
+  bypassList?: string;
+  requiresAuth: boolean;
+  username: string;
+  password?: string;
+}
+
+export const DEFAULT_PROXY_SETTINGS: ProxySettings = {
+  mode: 'system',
+  host: '',
+  port: 8080,
+  bypassList: 'localhost,127.0.0.1,<local>',
+  requiresAuth: false,
+  username: '',
+  password: '',
+};
+
 export interface AppSettings {
   accounts: AccountSettings[];
   activeAccountId: string;
@@ -269,6 +289,7 @@ export interface AppSettings {
   sending?: SendingSettings;
   spellcheck?: SpellcheckSettings;
   backup?: BackupSettings;
+  proxy?: ProxySettings;
 }
 
 export interface SendingSettings {
@@ -391,5 +412,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     frequencyDays: 14,
     keepLastCount: 3,
   },
+  proxy: DEFAULT_PROXY_SETTINGS,
   isPremium: false,
 };

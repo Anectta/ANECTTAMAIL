@@ -36,6 +36,7 @@ import {
   Check,
   GripVertical,
   DownloadCloud,
+  Globe,
 } from 'lucide-react';
 import { EmailItem } from '@/types/email';
 import { AppSettings, EmailSignature } from '@/types/settings';
@@ -53,6 +54,7 @@ import { SpellcheckSettingsPanel } from './SpellcheckSettingsPanel';
 import { BackupSettingsPanel } from './BackupSettingsPanel';
 import { StorageSettingsPanel } from './StorageSettingsPanel';
 import { VersionSettingsPanel } from './VersionSettingsPanel';
+import { ProxySettingsPanel } from './ProxySettingsPanel';
 import logoImg from '../assets/logo.png';
 
 interface SettingsModalProps {
@@ -83,7 +85,8 @@ interface SettingsModalProps {
     | 'security'
     | 'importExport'
     | 'support'
-    | 'version';
+    | 'version'
+    | 'proxy';
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -103,7 +106,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   initialTab,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'account' | 'appearance' | 'spellcheck' | 'backup' | 'storage' | 'signature' | 'quickReplies' | 'notifications' | 'calendar' | 'apps' | 'security' | 'importExport' | 'support' | 'version'
+    'account' | 'appearance' | 'spellcheck' | 'backup' | 'storage' | 'signature' | 'quickReplies' | 'notifications' | 'calendar' | 'apps' | 'security' | 'importExport' | 'support' | 'version' | 'proxy'
   >(initialTab || 'account');
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [quickRepliesList, setQuickRepliesList] = useState<string[]>(() =>
@@ -458,6 +461,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 isActive: activeTab === 'security',
                 activeClass: 'bg-emerald-600/20 text-emerald-400 font-semibold border border-emerald-500/30',
                 onClick: () => setActiveTab('security'),
+              },
+              {
+                key: 'proxy',
+                label: 'Servidor Proxy',
+                icon: <Globe className="w-4 h-4 text-sky-400" />,
+                isActive: activeTab === 'proxy',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => setActiveTab('proxy'),
               },
               {
                 key: 'support',
@@ -2078,6 +2089,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             {/* ================= TAB: ARMAZENAMENTO EM REDE ================= */}
             {activeTab === 'storage' && <StorageSettingsPanel />}
+
+            {/* ================= TAB: SERVIDOR PROXY ================= */}
+            {activeTab === 'proxy' && (
+              <ProxySettingsPanel
+                proxy={formData.proxy}
+                onChangeProxy={(nextProxy) =>
+                  setFormData({ ...formData, proxy: nextProxy })
+                }
+              />
+            )}
 
             {/* ================= TAB 5: SEGURANÇA & SOC2 ================= */}
             {activeTab === 'security' && (

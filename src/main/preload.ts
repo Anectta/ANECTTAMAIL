@@ -310,6 +310,10 @@ const electronAPI = {
     ipcRenderer.invoke('system:play-sound', type),
   openSystemNotificationSettings: () =>
     ipcRenderer.invoke('system:open-notification-settings'),
+  openSystemProxySettings: () =>
+    ipcRenderer.invoke('system:open-proxy-settings'),
+  applyProxySettings: (proxyConfig: any) =>
+    ipcRenderer.invoke('proxy:apply', proxyConfig),
 
   // Templates e Papéis de Carta Locais em Disco
   saveLocalTemplate: (template: {

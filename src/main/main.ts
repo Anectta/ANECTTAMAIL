@@ -1248,6 +1248,9 @@ ipcMain.handle('settings:load', async () => {
     if (!parsed || typeof parsed !== 'object') {
       return { success: false };
     }
+    if (parsed.proxy) {
+      void applyElectronProxyConfig(parsed.proxy);
+    }
     return { success: true, settings: parsed };
   } catch (e: any) {
     console.warn('[MAIN] Erro ao ler settings.json:', e?.message || e);
@@ -1266,6 +1269,9 @@ ipcMain.handle('settings:save', async (_event, settingsObj: any) => {
     const tmpPath = `${filePath}.tmp`;
     await fs.promises.writeFile(tmpPath, JSON.stringify(mapSecrets(settingsObj, encryptSecret), null, 2), 'utf-8');
     await fs.promises.rename(tmpPath, filePath);
+    if (settingsObj.proxy) {
+      void applyElectronProxyConfig(settingsObj.proxy);
+    }
     return { success: true };
   } catch (e: any) {
     console.warn('[MAIN] Erro ao salvar settings.json:', e?.message || e);
@@ -1941,6 +1947,92 @@ ipcMain.handle('system:open-notification-settings', async () => {
   } catch {
     return false;
   }
+});
+
+// ==========================================
+// Servidor Proxy do Sistema & Autenticação
+// ==========================================
+let currentProxyConfig: {
+  mode: 'system' | 'direct' | 'manual';
+  host?: string;
+  port?: number;
+  bypassList?: string;
+  requiresAuth: boolean;
+  username: string;
+  password?: string;
+} = {
+  mode: 'system',
+  host: '',
+  port: 8080,
+  bypassList: 'localhost,127.0.0.1,<local>',
+  requiresAuth: false,
+  username: '',
+  password: '',
+};
+
+async function applyElectronProxyConfig(cfg?: Partial<typeof currentProxyConfig>): Promise<boolean> {
+  if (cfg && typeof cfg === 'object') {
+    currentProxyConfig = {
+      ...currentProxyConfig,
+      ...cfg,
+    };
+  }
+  try {
+    const ses = mainWindow?.webContents.session || session.defaultSession;
+    const mode = currentProxyConfig.mode || 'system';
+    let proxyConfigObj: Electron.ProxyConfig = { mode: 'system' };
+    if (mode === 'direct') {
+      proxyConfigObj = { mode: 'direct' };
+    } else if (mode === 'manual' && currentProxyConfig.host?.trim()) {
+      const host = currentProxyConfig.host.trim();
+      const port = Number(currentProxyConfig.port) || 8080;
+      proxyConfigObj = {
+        mode: 'fixed_servers',
+        proxyRules: `http=${host}:${port};https=${host}:${port}`,
+        proxyBypassRules: currentProxyConfig.bypassList || 'localhost,127.0.0.1,<local>',
+      };
+    } else {
+      proxyConfigObj = { mode: 'system' };
+    }
+
+    await ses.setProxy(proxyConfigObj);
+    try {
+      const waSes = session.fromPartition('persist:whatsapp');
+      await waSes.setProxy(proxyConfigObj);
+    } catch {}
+    return true;
+  } catch (err: any) {
+    console.warn('[MAIN] Falha ao aplicar configuração de proxy:', err?.message);
+    return false;
+  }
+}
+
+app.on('login', (event, _webContents, _details, authInfo, callback) => {
+  if (authInfo?.isProxy && currentProxyConfig.requiresAuth && currentProxyConfig.username) {
+    event.preventDefault();
+    callback(currentProxyConfig.username, currentProxyConfig.password || '');
+  }
+});
+
+ipcMain.handle('system:open-proxy-settings', async () => {
+  try {
+    if (process.platform === 'win32') {
+      await shell.openExternal('ms-settings:network-proxy');
+      return true;
+    }
+    if (process.platform === 'darwin') {
+      await shell.openExternal('x-apple.systempreferences:com.apple.preference.network?Proxies');
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+});
+
+ipcMain.handle('proxy:apply', async (_event, cfg: any) => {
+  const ok = await applyElectronProxyConfig(cfg);
+  return { success: ok };
 });
 
 // Diretório local de templates de e-mail / papéis de carta em disco
