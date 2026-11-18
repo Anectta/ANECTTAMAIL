@@ -551,6 +551,24 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
             <Plus className="w-3.5 h-3.5" />
             <span>Adicionar assinatura</span>
           </button>
+
+          {/* Gerador rápido de assinatura (abaixo do botão Adicionar) */}
+          <div className="pt-3 mt-1 border-t border-slate-800/80 space-y-2">
+            <h4 className="text-sm font-semibold text-white leading-snug">
+              Crie uma assinatura de e-mail em segundos
+            </h4>
+            <p className="text-xs text-slate-400">
+              Eleve seu e-mail e sua marca. Nossa ferramenta de assinatura ajudará você a criar assinaturas profissionais e atraentes em poucos cliques.
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsGeneratorOpen((prev) => !prev)}
+              className="w-full flex items-center justify-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-200 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 rounded-lg transition-colors"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>{isGeneratorOpen ? 'Fechar Gerador' : 'Abrir Gerador de Assinatura'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Right Editor Area */}
@@ -1044,22 +1062,7 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
             </label>
 
             {/* Quick Signature Generator Section (Flamingo-style) */}
-            <div className="pt-3 border-t border-slate-800/80 space-y-2">
-              <h4 className="text-sm font-semibold text-white">
-                Crie uma assinatura de e-mail em segundos
-              </h4>
-              <p className="text-xs text-slate-400">
-                Eleve seu e-mail e sua marca. Nossa ferramenta de assinatura ajudará você a criar assinaturas profissionais e atraentes em poucos cliques.
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsGeneratorOpen((prev) => !prev)}
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-200 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 rounded-lg transition-colors"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>{isGeneratorOpen ? 'Fechar Gerador' : 'Abrir Gerador de Assinatura'}</span>
-              </button>
-
+            <div className="space-y-2">
               {isGeneratorOpen && (
                 <div className="p-3.5 bg-slate-950/90 border border-slate-800 rounded-xl space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
