@@ -953,7 +953,8 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                                     <Paperclip className="w-3.5 h-3.5 text-slate-400" />
                                   </span>
                                 )}
-                                {(email.folder === 'sent' || (email.recipientTracking && email.recipientTracking.length > 0)) && (
+                                {((email.trackingEnabled || email.requestReadReceipt) &&
+                                  (email.folder === 'sent' || (email.recipientTracking && email.recipientTracking.length > 0))) && (
                                   (() => {
                                     const trackingList =
                                       email.recipientTracking && email.recipientTracking.length > 0

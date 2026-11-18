@@ -865,7 +865,8 @@ export const EmailView: React.FC<EmailViewProps> = ({
               <span className="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider bg-brand-500/15 text-brand-400 border border-brand-500/30">
                 {email.priority === 'high' ? 'Prioridade Alta' : 'Normal'}
               </span>
-              {(email.folder === 'sent' || (email.recipientTracking && email.recipientTracking.length > 0)) && (
+              {((email.trackingEnabled || email.requestReadReceipt) &&
+                (email.folder === 'sent' || (email.recipientTracking && email.recipientTracking.length > 0))) && (
                 (() => {
                   const trackingList =
                     email.recipientTracking && email.recipientTracking.length > 0

@@ -277,8 +277,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const [isSchedulePickerOpen, setIsSchedulePickerOpen] = useState(false);
   const [scheduledDateTime, setScheduledDateTime] = useState('');
 
-  // Confirmação de Leitura & Monitoramento de Abertura por Destinatário
-  const [trackingEnabled, setTrackingEnabled] = useState<boolean>(true);
+  // Confirmação de Leitura & Monitoramento de Abertura por Destinatário (desmarcado por padrão)
+  const [trackingEnabled, setTrackingEnabled] = useState<boolean>(false);
 
   // Salvamento automático do rascunho
   const [draftNotice, setDraftNotice] = useState('');
@@ -418,6 +418,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
       setIsSnippetPickerOpen(false);
       setIsSchedulePickerOpen(false);
       setScheduledDateTime('');
+      setTrackingEnabled(false);
       setDraftNotice(draftId ? 'Rascunho carregado' : '');
 
       if (window.electronAPI?.getRecentDownloads) {
@@ -889,7 +890,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 <span>Snippets ({snippets.length})</span>
               </button>
 
-              {/* Monitoramento de Abertura e Confirmação de Leitura */}
+              {/* Solicitação de Confirmação de Leitura (desmarcado por padrão) */}
               <button
                 type="button"
                 onClick={() => setTrackingEnabled((v) => !v)}
@@ -898,10 +899,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 shadow-sm'
                     : 'bg-slate-900 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700'
                 }`}
-                title="Rastrear abertura e solicitar confirmação de leitura por destinatário"
+                title="Solicitar confirmação de leitura ao destinatário"
               >
                 <CheckCheck className={`w-3.5 h-3.5 ${trackingEnabled ? 'text-sky-400' : 'text-slate-500'}`} />
-                <span>Rastrear Leitura</span>
+                <span>Solicitar confirmação de Leitura</span>
               </button>
             </div>
 

@@ -2437,8 +2437,8 @@ export const App: React.FC = () => {
             body: fullBody,
             html: emailData.html,
             attachments: emailData.attachments,
-            trackingEnabled: emailData.trackingEnabled ?? true,
-            requestReadReceipt: emailData.requestReadReceipt ?? true,
+            trackingEnabled: Boolean(emailData.trackingEnabled),
+            requestReadReceipt: Boolean(emailData.requestReadReceipt),
           }
         );
 
@@ -2460,21 +2460,25 @@ export const App: React.FC = () => {
       showToast('✉️ E-mail registrado nos Itens Enviados (Modo Local)');
     }
 
-    const parsedRecipients = String(emailData.recipient || '')
-      .split(/[;,]/)
-      .map((r) => r.trim())
-      .filter(Boolean)
-      .map((raw) => {
-        const emailMatch = raw.match(/<([^>]+)>/) || raw.match(/([^\s<>]+@[^\s<>]+)/);
-        const addr = (emailMatch ? emailMatch[1] : raw).trim();
-        const cleanName = raw.replace(/<[^>]+>/g, '').replace(/["']/g, '').trim();
-        const contactMatch = contacts.find((c) => c.email.trim().toLowerCase() === addr.toLowerCase());
-        return {
-          name: contactMatch?.name || (cleanName && cleanName !== addr ? cleanName : addr.split('@')[0] || addr),
-          email: addr,
-          status: 'delivered' as const,
-        };
-      });
+    const isReadReceiptEnabled = Boolean(emailData.trackingEnabled || emailData.requestReadReceipt);
+
+    const parsedRecipients = isReadReceiptEnabled
+      ? String(emailData.recipient || '')
+          .split(/[;,]/)
+          .map((r) => r.trim())
+          .filter(Boolean)
+          .map((raw) => {
+            const emailMatch = raw.match(/<([^>]+)>/) || raw.match(/([^\s<>]+@[^\s<>]+)/);
+            const addr = (emailMatch ? emailMatch[1] : raw).trim();
+            const cleanName = raw.replace(/<[^>]+>/g, '').replace(/["']/g, '').trim();
+            const contactMatch = contacts.find((c) => c.email.trim().toLowerCase() === addr.toLowerCase());
+            return {
+              name: contactMatch?.name || (cleanName && cleanName !== addr ? cleanName : addr.split('@')[0] || addr),
+              email: addr,
+              status: 'delivered' as const,
+            };
+          })
+      : undefined;
 
     const newMail: EmailItem = {
       id: `${sendingAccount.id}-msg-${Date.now()}`,
@@ -2497,8 +2501,8 @@ export const App: React.FC = () => {
       isRead: true,
       hasAttachment: Boolean(emailData.attachments && emailData.attachments.length > 0),
       tags: ['Enviado'],
-      trackingEnabled: emailData.trackingEnabled ?? true,
-      requestReadReceipt: emailData.requestReadReceipt ?? true,
+      trackingEnabled: isReadReceiptEnabled,
+      requestReadReceipt: isReadReceiptEnabled,
       recipientTracking: parsedRecipients,
     };
 
@@ -2550,7 +2554,7 @@ export const App: React.FC = () => {
     setEmails((prev) => {
       let updatedAny = false;
       const next = prev.map((msg) => {
-        if (msg.folder !== 'sent') return msg;
+        if (msg.folder !== 'sent' || (!msg.trackingEnabled && !msg.requestReadReceipt)) return msg;
 
         const baseTracking =
           msg.recipientTracking && msg.recipientTracking.length > 0
