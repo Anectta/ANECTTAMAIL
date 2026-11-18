@@ -870,7 +870,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                       type="button"
                       key={`${activeEmojiCategory}-${idx}`}
                       onClick={() => handleInsertEmoji(emoji)}
-                      className="h-8 rounded-lg hover:bg-slate-800 active:scale-95 flex items-center justify-center text-lg transition-transform cursor-pointer select-none"
+                      className="h-8 rounded-lg hover:bg-slate-800 active:scale-95 flex items-center justify-center text-lg transition-transform cursor-pointer"
                       title={emoji}
                     >
                       {emoji}

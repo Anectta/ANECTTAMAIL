@@ -389,10 +389,10 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
         style={layoutMode === 'compact' && width ? { width: `${width}px` } : undefined}
         className={
           layoutMode === 'horizontal'
-            ? 'w-full h-[42%] min-h-[220px] max-h-[55%] bg-slate-925 border-b border-slate-800/80 flex flex-col shrink-0 select-none text-xs'
+            ? 'w-full h-[42%] min-h-[220px] max-h-[55%] bg-slate-925 border-b border-slate-800/80 flex flex-col shrink-0 text-xs'
             : layoutMode === 'fullscreen'
-            ? 'w-full flex-1 min-w-0 bg-slate-925 flex flex-col h-full select-none text-xs'
-            : 'w-80 lg:w-[360px] bg-slate-925 border-r border-slate-800/80 flex flex-col shrink-0 h-full select-none text-xs'
+            ? 'w-full flex-1 min-w-0 bg-slate-925 flex flex-col h-full text-xs'
+            : 'w-80 lg:w-[360px] bg-slate-925 border-r border-slate-800/80 flex flex-col shrink-0 h-full text-xs'
         }
       >
         {/* Top Header: Search Bar */}
@@ -535,7 +535,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                 <div
                   role="menu"
                   aria-label="Classificar"
-                  className="absolute right-0 top-full mt-1 w-60 bg-slate-900 border border-slate-700/90 rounded-lg shadow-2xl py-1.5 z-50 text-xs text-slate-200 select-none"
+                  className="absolute right-0 top-full mt-1 w-60 bg-slate-900 border border-slate-700/90 rounded-lg shadow-2xl py-1.5 z-50 text-xs text-slate-200"
                 >
                   <div className="px-3 py-1 text-[11px] font-bold text-slate-100">
                     Classificar
@@ -596,7 +596,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                 <div
                   role="menu"
                   aria-label="Opções da caixa de e-mails"
-                  className="absolute right-0 top-full mt-1 w-64 bg-slate-900 border border-slate-700/90 rounded-lg shadow-2xl py-1.5 z-50 text-xs text-slate-200 select-none"
+                  className="absolute right-0 top-full mt-1 w-64 bg-slate-900 border border-slate-700/90 rounded-lg shadow-2xl py-1.5 z-50 text-xs text-slate-200"
                 >
                   <button
                     type="button"
@@ -832,7 +832,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   {/* Period Header (ex: ▾ Hoje, ▾ Semana Passada) */}
                   <div
                     onClick={() => togglePeriod(group.id)}
-                    className="flex items-center space-x-1 px-3 py-1.5 bg-slate-950/80 text-[11px] font-semibold text-slate-400 hover:text-slate-200 cursor-pointer select-none sticky top-0 z-10 border-b border-slate-900"
+                    className="flex items-center space-x-1 px-3 py-1.5 bg-slate-950/80 text-[11px] font-semibold text-slate-400 hover:text-slate-200 cursor-pointer sticky top-0 z-10 border-b border-slate-900"
                   >
                     {isCollapsed ? (
                       <ChevronRight className="w-3.5 h-3.5 text-slate-500" />

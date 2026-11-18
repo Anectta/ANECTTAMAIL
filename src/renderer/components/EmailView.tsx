@@ -1106,7 +1106,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                     <div
                       key={att.id || idx}
                       onClick={() => handleOpenAttachment(att)}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 hover:border-brand-500/70 hover:bg-slate-900/90 transition-all text-xs cursor-pointer group shadow-sm select-none"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 hover:border-brand-500/70 hover:bg-slate-900/90 transition-all text-xs cursor-pointer group shadow-sm"
                       title={`Clique para abrir "${att.name}"`}
                     >
                       <div className="flex items-center space-x-2.5 min-w-0 pr-2">

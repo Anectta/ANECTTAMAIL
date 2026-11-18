@@ -344,7 +344,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Modal Body: Left Tabs + Right Content */}
         <div className="flex-1 flex overflow-hidden">
           {/* Navigation Tabs (Sidebar) */}
-          <div className="w-56 bg-slate-950/60 border-r border-slate-800/80 p-3 space-y-1 shrink-0 select-none overflow-y-auto custom-scroll">
+          <div className="w-56 bg-slate-950/60 border-r border-slate-800/80 p-3 space-y-1 shrink-0 overflow-y-auto custom-scroll">
             <button
               onClick={() => setActiveTab('account')}
               className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${

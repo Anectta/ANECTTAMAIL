@@ -74,7 +74,7 @@ export const EmailReaderModal: React.FC<EmailReaderModalProps> = ({
         }`}
       >
         {/* Barra Superior da Caixa de Leitura (estilo Outlook Mensagem Aberta) */}
-        <div className="h-10 px-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0 select-none">
+        <div className="h-10 px-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-2 min-w-0 pr-4">
             <MailOpen className="w-4 h-4 text-brand-400 shrink-0" />
             <span className="text-xs font-semibold text-slate-200 truncate">

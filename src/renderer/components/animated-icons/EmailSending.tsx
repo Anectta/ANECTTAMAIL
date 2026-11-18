@@ -56,7 +56,7 @@ export const EmailSending: React.FC<EmailSendingProps> = ({
 
   return (
     <div
-      className={`inline-flex items-center justify-center select-none ${className}`}
+      className={`inline-flex items-center justify-center ${className}`}
       style={{ width: size, height: size, ...customVariables }}
       role="img"
       aria-label="Enviando e-mail"

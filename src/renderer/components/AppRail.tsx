@@ -34,7 +34,7 @@ export const AppRail: React.FC<AppRailProps> = ({
   ];
 
   return (
-    <div className="app-rail w-13 bg-slate-950 border-r border-slate-800/90 flex flex-col items-center justify-between py-3 shrink-0 select-none z-20">
+    <div className="app-rail w-13 bg-slate-950 border-r border-slate-800/90 flex flex-col items-center justify-between py-3 shrink-0 z-20">
       {/* Top Module Icons */}
       <div className="flex flex-col items-center space-y-2 w-full px-1.5">
         {/* Brand Hex / Logo Icon */}

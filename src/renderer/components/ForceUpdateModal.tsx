@@ -54,7 +54,7 @@ export const ForceUpdateModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 select-none">
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
       <div className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-slate-900 p-6 shadow-2xl text-slate-100">
         <div className="flex items-center space-x-3 mb-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-400">

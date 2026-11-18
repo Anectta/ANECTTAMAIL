@@ -34,6 +34,8 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: var(--bg-app);
     color: var(--text-primary);
+    user-select: text;
+    -webkit-user-select: text;
   }
 }
 
@@ -47,6 +49,12 @@
 .app-drag-region a,
 .app-drag-region [role="button"] {
   -webkit-app-region: no-drag;
+}
+
+/* Guarantee free text selection across all forms, tables, cards, modals and display fields */
+*, *::before, *::after {
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 
 /* Ensure all inputs and textareas have full text selection and interaction */

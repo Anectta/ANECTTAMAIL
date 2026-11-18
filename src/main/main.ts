@@ -2823,17 +2823,23 @@ app.on('web-contents-created', (_event, contents) => {
 
     if (params.isEditable) {
       menuItems.push(
+        { label: 'Desfazer', role: 'undo', enabled: params.editFlags.canUndo },
+        { label: 'Refazer', role: 'redo', enabled: params.editFlags.canRedo },
+        { type: 'separator' },
         { label: 'Recortar', role: 'cut', enabled: params.editFlags.canCut },
-        { label: 'Copiar', role: 'copy', enabled: params.editFlags.canCopy },
+        { label: 'Copiar', role: 'copy', enabled: params.editFlags.canCopy || Boolean(params.selectionText?.trim()) },
         { label: 'Colar', role: 'paste', enabled: params.editFlags.canPaste },
         { type: 'separator' },
         { label: 'Selecionar tudo', role: 'selectAll', enabled: params.editFlags.canSelectAll }
       );
     } else {
-      if (params.selectionText && params.selectionText.trim().length > 0) {
-        menuItems.push({ label: 'Copiar', role: 'copy' });
-      }
-      menuItems.push({ label: 'Selecionar tudo', role: 'selectAll' });
+      const hasSelection = Boolean(params.selectionText && params.selectionText.length > 0);
+      menuItems.push(
+        { label: 'Copiar', role: 'copy', enabled: hasSelection || params.editFlags.canCopy },
+        { label: 'Colar', role: 'paste', enabled: params.editFlags.canPaste },
+        { type: 'separator' },
+        { label: 'Selecionar tudo', role: 'selectAll' }
+      );
     }
 
     if (menuItems.length > 0) {

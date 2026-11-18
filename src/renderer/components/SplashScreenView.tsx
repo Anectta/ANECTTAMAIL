@@ -11,7 +11,7 @@ export const SplashScreenView: React.FC = () => {
   }, []);
 
   return (
-    <div className="splash-screen h-screen w-screen overflow-hidden select-none bg-gradient-to-br from-[#091322] via-[#102036] to-[#08101d] text-slate-100 flex flex-col items-center justify-between p-8 border border-sky-500/20 relative">
+    <div className="splash-screen h-screen w-screen overflow-hidden bg-gradient-to-br from-[#091322] via-[#102036] to-[#08101d] text-slate-100 flex flex-col items-center justify-between p-8 border border-sky-500/20 relative">
       {/* Ambient glow */}
       <div
         className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full opacity-25 blur-3xl"

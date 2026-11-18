@@ -588,7 +588,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return (
       <aside
         style={{ width: '56px', backgroundColor: '#162231' }}
-        className="sidebar-navy border-r border-slate-800/80 flex flex-col justify-between shrink-0 h-full select-none text-xs text-slate-200"
+        className="sidebar-navy border-r border-slate-800/80 flex flex-col justify-between shrink-0 h-full text-xs text-slate-200"
       >
         {/* Topo recolhido: Logo + Botão Expandir + Configurações */}
         <div className="shrink-0 py-2.5 px-1.5 flex flex-col items-center gap-1.5 border-b border-white/10">
@@ -779,7 +779,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       style={width ? { width: `${width}px`, backgroundColor: '#162231' } : { backgroundColor: '#162231' }}
-      className="sidebar-navy w-60 border-r border-slate-800/80 flex flex-col justify-between shrink-0 h-full select-none text-xs text-slate-200"
+      className="sidebar-navy w-60 border-r border-slate-800/80 flex flex-col justify-between shrink-0 h-full text-xs text-slate-200"
     >
       {/* Top Brand Header */}
       <div className="shrink-0">
@@ -1712,8 +1712,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div
           onClick={(e) => e.stopPropagation()}
           style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
-          className="fixed z-50 w-60 bg-slate-900 border border-slate-700/90 rounded-lg shadow-2xl py-1.5 text-xs text-slate-200 select-none"
+          className="fixed z-50 w-60 bg-slate-900 border border-slate-700/90 rounded-lg shadow-2xl py-1.5 text-xs text-slate-200"
         >
+          {(() => {
+            const selectedText = window.getSelection()?.toString()?.trim() || '';
+            if (!selectedText) return null;
+            return (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(selectedText).catch(() => {});
+                    setContextMenu(null);
+                  }}
+                  className="w-full flex items-center space-x-2.5 px-3 py-1.5 hover:bg-brand-600/25 hover:text-white text-left"
+                >
+                  <Copy className="w-3.5 h-3.5 text-brand-400" />
+                  <span className="truncate">Copiar texto selecionado</span>
+                </button>
+                <div className="my-1 border-t border-slate-800" />
+              </>
+            );
+          })()}
+
           <button
             type="button"
             onClick={() => {

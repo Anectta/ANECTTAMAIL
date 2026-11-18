@@ -182,7 +182,7 @@ export const QuickComposeView: React.FC = () => {
   return (
     <div className="h-screen w-screen bg-slate-950/95 flex flex-col overflow-hidden text-slate-200 font-sans border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl">
       {/* Frameless Drag Header */}
-      <header className="h-10 bg-slate-925 border-b border-slate-800/80 px-3.5 flex items-center justify-between app-drag-region select-none shrink-0">
+      <header className="h-10 bg-slate-925 border-b border-slate-800/80 px-3.5 flex items-center justify-between app-drag-region shrink-0">
         <div className="flex items-center space-x-2 app-no-drag">
           <img src={logoImg} alt="Anectta MAIL" className="w-4 h-4 object-contain" />
           <span className="text-xs font-bold text-white tracking-wide flex items-center space-x-1.5">

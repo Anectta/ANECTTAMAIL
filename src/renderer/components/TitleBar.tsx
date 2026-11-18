@@ -41,13 +41,13 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   };
 
   return (
-    <header className="h-10 bg-slate-950 border-b border-slate-800/80 flex items-center justify-between px-3 select-none app-drag-region z-50">
+    <header className="h-10 bg-slate-950 border-b border-slate-800/80 flex items-center justify-between px-3 app-drag-region z-50">
       {/* Brand & Left Status */}
       <div className="flex items-center space-x-2.5 app-no-drag">
         <img
           src={logoImg}
           alt="Anectta MAIL"
-          className="w-5 h-5 object-contain select-none"
+          className="w-5 h-5 object-contain"
         />
         <span className="text-xs font-semibold tracking-wide text-slate-200">
           Anectta <span className="text-brand-400 font-normal">MAIL</span>
@@ -90,7 +90,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
                 <X className="w-3.5 h-3.5" />
               </button>
             ) : (
-              <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-slate-800 text-slate-400 rounded border border-slate-700 select-none">
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-slate-800 text-slate-400 rounded border border-slate-700">
                 Ctrl + K
               </kbd>
             )}

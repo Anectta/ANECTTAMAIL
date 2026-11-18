@@ -82,7 +82,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
   ];
 
   return (
-    <div className="ribbon-bar bg-slate-900/95 border-b border-slate-800 select-none shrink-0 transition-all">
+    <div className="ribbon-bar bg-slate-900/95 border-b border-slate-800 shrink-0 transition-all">
       {/* Top Ribbon Tab Navigation Bar */}
       <div className="flex items-center justify-between px-3 border-b border-slate-800/80 bg-slate-950/70 text-xs">
         <div className="flex items-center space-x-1">

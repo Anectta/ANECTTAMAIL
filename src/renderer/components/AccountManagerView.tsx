@@ -495,7 +495,7 @@ export const AccountManagerView: React.FC<AccountManagerViewProps> = ({
       {/* Main Split Layout: Left Account Tree + Right Configuration Deck */}
       <div className="flex-1 flex overflow-hidden">
         {/* ================= LEFT TREE PANEL ================= */}
-        <aside className="w-68 bg-slate-925 border-r border-slate-800/80 flex flex-col justify-between shrink-0 h-full p-3 select-none">
+        <aside className="w-68 bg-slate-925 border-r border-slate-800/80 flex flex-col justify-between shrink-0 h-full p-3">
           <div className="space-y-3 overflow-y-auto custom-scroll">
             {/* Blue "+ Adicionar conta" button */}
             <button

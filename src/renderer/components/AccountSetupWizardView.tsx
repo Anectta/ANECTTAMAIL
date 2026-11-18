@@ -397,12 +397,12 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white text-slate-900 select-none overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex flex-col bg-white text-slate-900 overflow-y-auto">
       {/* Decorative top color stripe */}
       <div className="w-full h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 shrink-0" />
 
       {/* Top Frameless Window Header - Compact (h-8) */}
-      <div className="h-8 flex items-center justify-between px-3 select-none app-drag-region border-b border-slate-100 bg-slate-50/70 shrink-0">
+      <div className="h-8 flex items-center justify-between px-3 app-drag-region border-b border-slate-100 bg-slate-50/70 shrink-0">
         <div className="flex items-center space-x-2 app-no-drag">
           <span className="text-xs font-semibold text-slate-700">Anectta MAIL</span>
           <span className="text-[10px] text-slate-400 font-medium">&bull; Assistente de Conexão</span>

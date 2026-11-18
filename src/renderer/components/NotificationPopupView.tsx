@@ -61,7 +61,7 @@ export const NotificationPopupView: React.FC = () => {
   };
 
   return (
-    <div className="w-screen h-screen p-2.5 flex items-center justify-center select-none overflow-hidden bg-transparent font-sans">
+    <div className="w-screen h-screen p-2.5 flex items-center justify-center overflow-hidden bg-transparent font-sans">
       <div
         onClick={handleClick}
         className="w-full h-full rounded-2xl px-3.5 py-2.5 shadow-2xl backdrop-blur-xl flex items-center space-x-3 cursor-pointer transition-all duration-200 group active:scale-[0.99] border"

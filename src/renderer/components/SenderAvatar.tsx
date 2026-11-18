@@ -35,7 +35,7 @@ export const SenderAvatar: React.FC<SenderAvatarProps> = ({
 
   return (
     <div
-      className={`relative shrink-0 flex items-center justify-center rounded-xl select-none transition-all ${className}`}
+      className={`relative shrink-0 flex items-center justify-center rounded-xl transition-all ${className}`}
       style={{
         width: `${size}px`,
         height: `${size}px`,
