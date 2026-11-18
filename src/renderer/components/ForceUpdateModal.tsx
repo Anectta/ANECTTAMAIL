@@ -88,14 +88,29 @@ export const ForceUpdateModal: React.FC = () => {
         )}
 
         {!isDownloading ? (
-          <button
-            type="button"
-            onClick={handleStartDownload}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-sky-500 hover:bg-sky-400 active:bg-sky-600 px-4 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-sky-500/20 transition-all"
-          >
-            <DownloadCloud className="h-4 w-4" />
-            Atualizar Agora
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleStartDownload}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-sky-500 hover:bg-sky-400 active:bg-sky-600 px-4 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-sky-500/20 transition-all"
+            >
+              <DownloadCloud className="h-4 w-4" />
+              Atualizar Agora
+            </button>
+
+            {errorMsg && (
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMsg(null);
+                  setUpdateAvailable(false);
+                }}
+                className="flex-1 flex items-center justify-center rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 hover:text-white transition-all"
+              >
+                Deixar para mais tarde
+              </button>
+            )}
+          </div>
         ) : (
           <div className="space-y-2.5">
             <div className="flex items-center justify-between text-xs font-medium text-slate-300">
