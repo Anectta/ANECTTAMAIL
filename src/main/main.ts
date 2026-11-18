@@ -2482,6 +2482,58 @@ function compareSemver(a: string, b: string): number {
 
 let inFlightUpdateCheck: Promise<{ latestVersion: string; error?: string }> | null = null;
 let lastUpdateCheckAt = 0;
+
+function updaterLog(message: string): void {
+  const line = `[${new Date().toISOString()}] ${message}`;
+  console.log('[AUTO-UPDATER]', message);
+  try {
+    fs.appendFileSync(path.join(app.getPath('userData'), 'updater.log'), line + '\n');
+  } catch {
+    // ignore
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      }
+    );
+  });
+}
+
+async function fetchLatestGithubVersion(): Promise<string> {
+  // Usa a sessão padrão (respeita o proxy configurado no app)
+  const res = await session.defaultSession.fetch(
+    `https://api.github.com/repos/Anectta/ANECTTAMAIL/releases/latest?t=${Date.now()}`,
+    {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': `AnecttaMAIL/${app.getVersion()}`,
+        'Cache-Control': 'no-cache',
+      },
+    }
+  );
+  if (!res.ok) throw new Error(`GitHub respondeu HTTP ${res.status}`);
+  const data: any = await res.json();
+  return String(data?.tag_name || data?.name || '').replace(/^v/i, '');
+}
+
+// Garante que o electron-updater conheça a versão nova antes de baixar
+async function ensureUpdaterHasUpdateInfo(): Promise<void> {
+  const result = await withTimeout(autoUpdater.checkForUpdates(), 25_000, 'Tempo esgotado ao preparar o download.');
+  const v = result?.updateInfo?.version || '';
+  if (!v || compareSemver(v, app.getVersion()) <= 0) {
+    throw new Error('O servidor de atualizações ainda está propagando a nova versão. Tente novamente em alguns minutos.');
+  }
+}
 let startupRetryTimers: NodeJS.Timeout[] = [];
 let periodicUpdateTimer: NodeJS.Timeout | null = null;
 let updaterFeedConfigured = false;
@@ -2538,17 +2590,40 @@ async function performUpdateCheck(force = false): Promise<{ latestVersion: strin
   lastUpdateCheckAt = now;
 
   inFlightUpdateCheck = (async () => {
+    const current = app.getVersion();
+    let updaterVersion = '';
+    let updaterError = '';
     try {
-      const result = await autoUpdater.checkForUpdates();
-      const latestVersion = result?.updateInfo?.version || '';
-      if (latestVersion && compareSemver(latestVersion, app.getVersion()) > 0) {
-        notifyUpdateAvailable(latestVersion);
-      }
-      return { latestVersion: latestVersion || app.getVersion() };
+      const result = await withTimeout(autoUpdater.checkForUpdates(), 25_000, 'Tempo esgotado ao consultar o servidor de atualizações.');
+      updaterVersion = result?.updateInfo?.version || '';
+      updaterLog(`electron-updater: versão publicada=${updaterVersion || '(nenhuma)'} instalada=${current}`);
     } catch (err: any) {
-      const msg = err?.message || String(err);
-      console.warn('[AUTO-UPDATER] Falha ao buscar atualizações:', msg);
-      return { latestVersion: '', error: msg };
+      updaterError = err?.message || String(err);
+      updaterLog(`electron-updater falhou: ${updaterError}`);
+    }
+
+    // Fallback/confirmação direta pela API do GitHub (evita cache do feed atom e falhas do updater)
+    let apiVersion = '';
+    if (!updaterVersion || compareSemver(updaterVersion, current) <= 0) {
+      try {
+        apiVersion = await withTimeout(fetchLatestGithubVersion(), 15_000, 'Tempo esgotado ao consultar o GitHub.');
+        updaterLog(`GitHub API: versão publicada=${apiVersion || '(nenhuma)'}`);
+      } catch (err: any) {
+        updaterLog(`GitHub API falhou: ${err?.message || err}`);
+      }
+    }
+
+    try {
+      const candidates = [updaterVersion, apiVersion].filter(Boolean);
+      const latestVersion = candidates.sort((a, b) => compareSemver(b, a))[0] || '';
+      if (latestVersion && compareSemver(latestVersion, current) > 0) {
+        notifyUpdateAvailable(latestVersion);
+        return { latestVersion };
+      }
+      if (!latestVersion && updaterError) {
+        return { latestVersion: '', error: updaterError };
+      }
+      return { latestVersion: latestVersion || current };
     } finally {
       inFlightUpdateCheck = null;
     }
@@ -2797,10 +2872,12 @@ if (!gotTheLock) {
   });
 
   autoUpdater.on('error', (err) => {
+    const wasDownloading = isDownloadingUpdate;
     isDownloadingUpdate = false;
     const msg = err?.message || String(err);
-    console.warn('[AUTO-UPDATER] Erro ao verificar/baixar atualização:', msg);
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    updaterLog(`evento error (download=${wasDownloading}): ${msg}`);
+    // Erros de verificação já são tratados (com fallback) em performUpdateCheck
+    if (wasDownloading && mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-error', msg);
     }
   });
@@ -2808,15 +2885,17 @@ if (!gotTheLock) {
   ipcMain.on('iniciar-download-atualizacao', () => {
     if (isDownloadingUpdate) return;
     isDownloadingUpdate = true;
-    console.log('[AUTO-UPDATER] Iniciando download da atualização obrigatória...');
-    autoUpdater.downloadUpdate().catch((err) => {
-      isDownloadingUpdate = false;
-      const msg = err?.message || String(err);
-      console.error('[AUTO-UPDATER] Falha ao baixar atualização:', msg);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('update-error', msg);
-      }
-    });
+    updaterLog('Iniciando download da atualização...');
+    ensureUpdaterHasUpdateInfo()
+      .then(() => autoUpdater.downloadUpdate())
+      .catch((err) => {
+        isDownloadingUpdate = false;
+        const msg = err?.message || String(err);
+        updaterLog(`Falha ao baixar atualização: ${msg}`);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('update-error', msg);
+        }
+      });
   });
 
   if (mainWindow) {

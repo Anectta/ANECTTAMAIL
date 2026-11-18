@@ -54,11 +54,20 @@ export const VersionSettingsPanel: React.FC = () => {
   }, []);
 
   const handleCheckUpdates = async () => {
-    if (!window.updaterAPI?.checkForUpdatesManual) return;
+    if (!window.updaterAPI?.checkForUpdatesManual) {
+      setStatus('error');
+      setMessage('O módulo de atualização não está disponível nesta janela. Reinicie o Anectta MAIL e tente novamente.');
+      return;
+    }
     setStatus('checking');
     setMessage('');
     try {
-      const res = await window.updaterAPI.checkForUpdatesManual();
+      const res = await Promise.race([
+        window.updaterAPI.checkForUpdatesManual(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Tempo esgotado ao verificar atualizações. Verifique sua conexão/proxy.')), 60_000)
+        ),
+      ]);
       if (res?.currentVersion) setInstalledVersion(res.currentVersion);
 
       if (res?.status === 'available' && res.latestVersion) {
@@ -66,7 +75,12 @@ export const VersionSettingsPanel: React.FC = () => {
         setStatus('available');
       } else if (res?.status === 'up-to-date') {
         setStatus('up-to-date');
-        setMessage('Seu Anectta MAIL já está na versão mais recente.');
+        const checkedAt = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        setMessage(
+          `Seu Anectta MAIL já está na versão mais recente${
+            res.latestVersion ? ` (última publicada: v${res.latestVersion})` : ''
+          }. Verificado às ${checkedAt}.`
+        );
       } else if (res?.status === 'dev') {
         setStatus('dev');
         setMessage(res.message || 'Verificação de atualização disponível apenas no aplicativo instalado.');
