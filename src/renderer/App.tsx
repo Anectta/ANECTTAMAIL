@@ -2181,11 +2181,21 @@ export const App: React.FC = () => {
   const handleReply = () => {
     if (!selectedEmail) return;
     if (selectedEmail.folder === 'drafts') {
+      const fallbackBody =
+        selectedEmail.body ||
+        (selectedEmail.bodyHtml
+          ? selectedEmail.bodyHtml
+              .replace(/<br\s*\/?>/gi, '\n')
+              .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
+              .replace(/<[^>]*>/g, '')
+              .replace(/&nbsp;/gi, ' ')
+              .trim()
+          : '');
       setComposeDraftId(selectedEmail.id);
       setComposeDefaults({
         recipient: selectedEmail.recipient || '',
         subject: selectedEmail.subject === '(sem assunto)' ? '' : selectedEmail.subject,
-        body: selectedEmail.body || '',
+        body: fallbackBody,
       });
       setIsComposeOpen(true);
       return;

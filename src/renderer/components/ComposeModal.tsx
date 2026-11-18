@@ -234,6 +234,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [activeEmojiCategory, setActiveEmojiCategory] = useState<string>('faces');
   const bodyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
   const [isDispatching, setIsDispatching] = useState(false);
 
   const [isSending, setIsSending] = useState(false);
@@ -349,6 +350,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
       setErrorMessage('');
       setShowMissingAttachmentAlert(false);
       setIsDispatching(false);
+      setIsSending(false);
       setIsEmojiPickerOpen(false);
       setIsSnippetPickerOpen(false);
       setIsSchedulePickerOpen(false);
@@ -459,6 +461,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
     } catch (err: any) {
       setIsDispatching(false);
       setErrorMessage(err?.message || 'Erro ao enviar mensagem. Verifique as configurações do servidor SMTP.');
+      formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsSending(false);
     }
@@ -500,7 +503,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!recipient.trim() || !subject.trim() || !body.trim()) {
-      setErrorMessage('Por favor, preencha todos os campos obrigatórios.');
+      setErrorMessage('Por favor, preencha destinatário, assunto e mensagem antes de enviar.');
+      formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -508,6 +512,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
     const mentionsAttachment = /(anexo|anexei|anexado|segue anexo|em anexo|anexando|anexos)/i.test(body);
     if (mentionsAttachment && attachments.length === 0) {
       setShowMissingAttachmentAlert(true);
+      formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -606,7 +611,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-3 overflow-y-auto custom-scroll flex-1">
+        <form ref={formRef} onSubmit={handleSubmit} noValidate className="p-5 space-y-3 overflow-y-auto custom-scroll flex-1">
           {draftNotice && !errorMessage && (
             <div className="text-[11px] text-slate-400 flex items-center justify-between">
               <span>{draftNotice}</span>
@@ -706,7 +711,6 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               onChange={(e) => setRecipient(e.target.value)}
               placeholder="destinatario@empresa.com"
               className="flex-1 bg-transparent text-xs text-slate-100 placeholder-slate-600 focus:outline-none font-mono"
-              required
             />
             {contacts.length > 0 && (
               <>
@@ -749,7 +753,6 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Assunto do e-mail..."
               className="flex-1 bg-transparent text-xs text-slate-100 placeholder-slate-600 focus:outline-none"
-              required
             />
           </div>
 
