@@ -2014,20 +2014,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      QuickRepliesService.resetToDefaults();
-                      setQuickSnippetsList(QuickRepliesService.getSnippets());
-                      setEditingQuickReplyIdx(null);
-                    }}
-                    className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-900 transition-colors"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Restaurar Padrões</span>
-                  </button>
-
+                <div className="flex items-center justify-end pt-2">
                   <button
                     type="button"
                     onClick={() => {
