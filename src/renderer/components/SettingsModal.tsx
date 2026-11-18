@@ -343,197 +343,163 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Modal Body: Left Tabs + Right Content */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Navigation Tabs (Sidebar) */}
+          {/* Navigation Tabs (Sidebar) - Sempre classificado em ordem alfabética */}
           <div className="w-56 bg-slate-950/60 border-r border-slate-800/80 p-3 space-y-1 shrink-0 overflow-y-auto custom-scroll">
-            <button
-              onClick={() => setActiveTab('account')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'account'
-                  ? 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <Mail className="w-4 h-4" />
-              <span>Conta & Servidores</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('appearance')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'appearance'
-                  ? 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <Palette className="w-4 h-4" />
-              <span>Aparência & Skins</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('spellcheck')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'spellcheck'
-                  ? 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <SpellCheck2 className="w-4 h-4" />
-              <span>Corretor Ortográfico</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('backup')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'backup'
-                  ? 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <HardDriveDownload className="w-4 h-4" />
-              <span>Backup</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('storage')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'storage'
-                  ? 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <Network className="w-4 h-4" />
-              <span>Armazenamento</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('signature')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'signature'
-                  ? 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <FileSignature className="w-4 h-4" />
-              <span>Assinatura de E-mail</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('quickReplies')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'quickReplies'
-                  ? 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>Respostas Rápidas</span>
-            </button>
-
-            {onOpenRules && (
-              <button
-                type="button"
-                onClick={onOpenRules}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 transition-all"
-                title="Configurar Motor de Regras Automáticas"
-              >
-                <div className="flex items-center space-x-2.5">
-                  <SlidersHorizontal className="w-4 h-4 text-brand-400" />
-                  <span>Regras de e-mails</span>
-                </div>
-                {activeRulesCount > 0 && (
-                  <span className="px-1.5 py-0.5 bg-brand-600/30 text-brand-300 border border-brand-500/30 rounded-full text-[10px] font-bold">
-                    {activeRulesCount}
-                  </span>
-                )}
-              </button>
-            )}
-
-            <button
-              onClick={() => setActiveTab('notifications')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'notifications'
-                  ? 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <Bell className="w-4 h-4 text-brand-400" />
-              <span>Notificações & Avisos</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('calendar')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'calendar'
-                  ? 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <Calendar className="w-4 h-4 text-brand-400" />
-              <span>Calendário</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('apps')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'apps'
-                  ? 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <LayoutGrid className="w-4 h-4 text-brand-400" />
-              <span>Aplicativos</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('security')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'security'
-                  ? 'bg-emerald-600/20 text-emerald-400 font-semibold border border-emerald-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <Shield className="w-4 h-4" />
-              <span>Segurança & SOC2</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveTab('importExport');
-                setImportExportStatus(null);
-              }}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'importExport'
-                  ? 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <ArrowLeftRight className="w-4 h-4 text-sky-400" />
-              <span>Importar / Exportar</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('support')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'support'
-                  ? 'bg-sky-600/20 text-sky-400 font-semibold border border-sky-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <LifeBuoy className="w-4 h-4 text-sky-400" />
-              <span>Suporte & Ajuda</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('version')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                activeTab === 'version'
-                  ? 'bg-sky-600/20 text-sky-400 font-semibold border border-sky-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <DownloadCloud className="w-4 h-4 text-sky-400" />
-              <span>Versão</span>
-            </button>
+            {[
+              {
+                key: 'appearance',
+                label: 'Aparência & Skins',
+                icon: <Palette className="w-4 h-4" />,
+                isActive: activeTab === 'appearance',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => setActiveTab('appearance'),
+              },
+              {
+                key: 'apps',
+                label: 'Aplicativos',
+                icon: <LayoutGrid className="w-4 h-4 text-brand-400" />,
+                isActive: activeTab === 'apps',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => setActiveTab('apps'),
+              },
+              {
+                key: 'storage',
+                label: 'Armazenamento',
+                icon: <Network className="w-4 h-4" />,
+                isActive: activeTab === 'storage',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => setActiveTab('storage'),
+              },
+              {
+                key: 'signature',
+                label: 'Assinatura de E-mail',
+                icon: <FileSignature className="w-4 h-4" />,
+                isActive: activeTab === 'signature',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => setActiveTab('signature'),
+              },
+              {
+                key: 'backup',
+                label: 'Backup',
+                icon: <HardDriveDownload className="w-4 h-4" />,
+                isActive: activeTab === 'backup',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => setActiveTab('backup'),
+              },
+              {
+                key: 'calendar',
+                label: 'Calendário',
+                icon: <Calendar className="w-4 h-4 text-brand-400" />,
+                isActive: activeTab === 'calendar',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => setActiveTab('calendar'),
+              },
+              {
+                key: 'account',
+                label: 'Conta & Servidores',
+                icon: <Mail className="w-4 h-4" />,
+                isActive: activeTab === 'account',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => setActiveTab('account'),
+              },
+              {
+                key: 'spellcheck',
+                label: 'Corretor Ortográfico',
+                icon: <SpellCheck2 className="w-4 h-4" />,
+                isActive: activeTab === 'spellcheck',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => setActiveTab('spellcheck'),
+              },
+              {
+                key: 'importExport',
+                label: 'Importar / Exportar',
+                icon: <ArrowLeftRight className="w-4 h-4 text-sky-400" />,
+                isActive: activeTab === 'importExport',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => {
+                  setActiveTab('importExport');
+                  setImportExportStatus(null);
+                },
+              },
+              {
+                key: 'notifications',
+                label: 'Notificações & Avisos',
+                icon: <Bell className="w-4 h-4 text-brand-400" />,
+                isActive: activeTab === 'notifications',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => setActiveTab('notifications'),
+              },
+              ...(onOpenRules
+                ? [
+                    {
+                      key: 'rules',
+                      label: 'Regras de e-mails',
+                      icon: <SlidersHorizontal className="w-4 h-4 text-brand-400" />,
+                      isActive: false,
+                      activeClass: '',
+                      onClick: onOpenRules,
+                      title: 'Configurar Motor de Regras Automáticas',
+                      badge: activeRulesCount > 0 ? activeRulesCount : undefined,
+                    },
+                  ]
+                : []),
+              {
+                key: 'quickReplies',
+                label: 'Respostas Rápidas',
+                icon: <Sparkles className="w-4 h-4 text-amber-400" />,
+                isActive: activeTab === 'quickReplies',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => setActiveTab('quickReplies'),
+              },
+              {
+                key: 'security',
+                label: 'Segurança & SOC2',
+                icon: <Shield className="w-4 h-4" />,
+                isActive: activeTab === 'security',
+                activeClass: 'bg-emerald-600/20 text-emerald-400 font-semibold border border-emerald-500/30',
+                onClick: () => setActiveTab('security'),
+              },
+              {
+                key: 'support',
+                label: 'Suporte & Ajuda',
+                icon: <LifeBuoy className="w-4 h-4 text-sky-400" />,
+                isActive: activeTab === 'support',
+                activeClass: 'bg-sky-600/20 text-sky-400 font-semibold border border-sky-500/30',
+                onClick: () => setActiveTab('support'),
+              },
+              {
+                key: 'version',
+                label: 'Versão',
+                icon: <DownloadCloud className="w-4 h-4 text-sky-400" />,
+                isActive: activeTab === 'version',
+                activeClass: 'bg-sky-600/20 text-sky-400 font-semibold border border-sky-500/30',
+                onClick: () => setActiveTab('version'),
+              },
+            ]
+              .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { sensitivity: 'base' }))
+              .map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={item.onClick}
+                  title={item.title}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                    item.isActive
+                      ? item.activeClass
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5">
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </div>
+                  {item.badge !== undefined && (
+                    <span className="px-1.5 py-0.5 bg-brand-600/30 text-brand-300 border border-brand-500/30 rounded-full text-[10px] font-bold">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
 
             <div className="pt-2 mt-2 border-t border-slate-800/80 flex flex-col space-y-1">
               {onToggleTheme && (
