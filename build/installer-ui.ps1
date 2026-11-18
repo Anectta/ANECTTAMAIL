@@ -167,7 +167,7 @@ $xaml = @"
           </Image>
 
           <!-- Marca -->
-          <TextBlock Text="&#923;nectta Mail"
+          <TextBlock Text="&#923;NECTT&#923; M@il"
                      FontFamily="Segoe UI Light, Segoe UI"
                      FontSize="52"
                      FontWeight="Light"
