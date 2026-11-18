@@ -11,3 +11,8 @@
 ## Commit e Push Obrigatórios no GitHub ao Finalizar Atualizações
 - **Commit Obrigatório no GitHub:** Ao finalizar qualquer atualização no código-fonte, configuração ou versão do sistema, você **DEVE** registrar as alterações com `git add`, criar um `git commit` descritivo (mencionando a nova versão, ex.: `chore: release v1.0.122`) e enviar para o repositório remoto no GitHub (`git push origin <branch>`) antes de concluir a tarefa.
 - **Segurança:** Nunca inclua tokens, credenciais ou arquivos binários pesados ignorados pelo `.gitignore` (como `release/`) no commit. Caso o `git push` falhe por falta de autenticação ou conflito, informe o erro claramente ao usuário.
+
+## Proibição Absoluta de Plágio e Originalidade nas Implementações
+- **Zero Plágio:** **NUNCA** copie código proprietário, layouts, identidades visuais, textos, marcas, nomes comerciais, ícones ou assets protegidos por direitos autorais de terceiros ou concorrentes em nenhuma implementação do sistema.
+- **Implementação Original:** Todo código, design de interface, copy e solução técnica deve ser autoral e desenvolvido especificamente para o projeto. Referências externas, quando fornecidas pelo usuário, servem apenas como inspiração funcional ou conceitual — nunca para reprodução literal.
+- **Dependências e Licenças:** Utilize apenas bibliotecas open-source com licenças permissivas e compatíveis (ex.: MIT, Apache-2.0, BSD), respeitando integralmente os termos de licença.
