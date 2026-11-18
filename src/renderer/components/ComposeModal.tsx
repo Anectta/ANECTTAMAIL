@@ -581,10 +581,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
           <div className="flex items-center space-x-2.5">
             <span className="w-2.5 h-2.5 rounded-full bg-brand-500" />
             <span className="text-xs font-bold text-slate-100 tracking-wide uppercase">
-              Nova Mensagem Corporativa
-            </span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-500/15 text-brand-300 border border-brand-500/30">
-              HTML + CSS Inline Compilado
+              Nova Mensagem
             </span>
           </div>
           <div className="flex items-center space-x-2">
