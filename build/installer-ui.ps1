@@ -3,10 +3,27 @@
   [string]$PluginsDir = "",
   [string]$InstDir = "",
   [int]$NsisPid = 0,
-  [long]$TotalKB = 0
+  [long]$TotalKB = 0,
+  [int]$IsUpdate = 0
 )
 
 $ErrorActionPreference = "SilentlyContinue"
+
+if ($IsUpdate -eq 0) {
+  try {
+    if ($InstDir -and (Test-Path -LiteralPath (Join-Path $InstDir "Anectta MAIL.exe"))) {
+      $IsUpdate = 1
+    } else {
+      $defaultExe = Join-Path $env:LOCALAPPDATA "Programs\anectta-mail\Anectta MAIL.exe"
+      if (Test-Path -LiteralPath $defaultExe) {
+        $IsUpdate = 1
+      }
+    }
+  } catch {}
+}
+
+$windowTitleText = if ($IsUpdate -eq 1) { "Atualizando Anectta MAIL" } else { "Instalando Anectta MAIL" }
+$headingText = if ($IsUpdate -eq 1) { "Atualizando o Gerenciador de Email..." } else { "Instalando o Gerenciador de Email..." }
 
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
@@ -84,7 +101,7 @@ function Get-DirBytes([string]$Path) {
 $xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Instalando Anectta MAIL"
+        Title="$windowTitleText"
         Width="800" Height="550"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
@@ -160,7 +177,8 @@ $xaml = @"
                      Margin="0,0,0,10"/>
 
           <!-- Título -->
-          <TextBlock Text="Instalando o Gerenciador de Email..."
+          <TextBlock x:Name="TitleText"
+                     Text="$headingText"
                      FontFamily="Segoe UI"
                      FontSize="25"
                      FontWeight="Bold"

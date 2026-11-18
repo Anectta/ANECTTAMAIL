@@ -8,8 +8,26 @@
     File /oname=$PLUGINSDIR\installer-logo.png "${BUILD_RESOURCES_DIR}\icon.png"
     File /oname=$PLUGINSDIR\installer-ui.ps1 "${BUILD_RESOURCES_DIR}\installer-ui.ps1"
     File /oname=$PLUGINSDIR\launch-ui.vbs "${BUILD_RESOURCES_DIR}\launch-ui.vbs"
+
+    ; Detecta se é uma atualização (--updated na linha de comando ou versão anterior já instalada)
+    StrCpy $R3 "0"
+    ${GetParameters} $R1
+    ${WordFind} "$R1" "--updated" "E+1" $R2
+    ${IfNot} ${Errors}
+      StrCpy $R3 "1"
+    ${EndIf}
+    ${If} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+      StrCpy $R3 "1"
+    ${EndIf}
+    ReadRegStr $R4 HKCU "${INSTALL_REGISTRY_KEY}" "InstallLocation"
+    ${If} $R4 != ""
+      ${If} ${FileExists} "$R4\${APP_EXECUTABLE_FILENAME}"
+        StrCpy $R3 "1"
+      ${EndIf}
+    ${EndIf}
+
     System::Call 'kernel32::GetCurrentProcessId() i .R0'
-    Exec '"$SYSDIR\wscript.exe" //B //Nologo "$PLUGINSDIR\launch-ui.vbs" "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -STA -File "$PLUGINSDIR\installer-ui.ps1" -LogoPath "$PLUGINSDIR\installer-logo.png" -PluginsDir "$PLUGINSDIR" -InstDir "$INSTDIR" -NsisPid $R0 -TotalKB ${ESTIMATED_SIZE}'
+    Exec '"$SYSDIR\wscript.exe" //B //Nologo "$PLUGINSDIR\launch-ui.vbs" "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -STA -File "$PLUGINSDIR\installer-ui.ps1" -LogoPath "$PLUGINSDIR\installer-logo.png" -PluginsDir "$PLUGINSDIR" -InstDir "$INSTDIR" -NsisPid $R0 -TotalKB ${ESTIMATED_SIZE} -IsUpdate $R3'
   !endif
 !macroend
 
