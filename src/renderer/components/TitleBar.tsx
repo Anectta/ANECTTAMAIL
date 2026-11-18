@@ -49,8 +49,8 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           alt="Anectta MAIL"
           className="w-5 h-5 object-contain"
         />
-        <span className="text-xs font-semibold tracking-wide text-slate-200">
-          Anectta <span className="text-brand-400 font-normal">MAIL</span>
+        <span className="text-xs font-light tracking-[0.06em] text-slate-100 select-none">
+          &#923;NECTT&#923; M@il
         </span>
       </div>
 

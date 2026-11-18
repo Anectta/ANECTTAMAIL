@@ -120,7 +120,9 @@ export const VersionSettingsPanel: React.FC = () => {
             <img src={logoImg} alt="Anectta MAIL" className="w-8 h-8 object-contain" />
           </div>
           <div>
-            <div className="text-sm font-bold text-white">Anectta MAIL Corporate Desktop</div>
+            <div className="text-sm font-light tracking-[0.06em] text-white">
+              &#923;NECTT&#923; M@il <span className="font-semibold tracking-normal">Corporate Desktop</span>
+            </div>
             <div className="text-xs text-slate-400 mt-0.5">
               Versão instalada:{' '}
               <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-sky-500/15 border border-sky-500/30 font-mono font-semibold text-sky-300">

@@ -42,8 +42,8 @@ export const SplashScreenView: React.FC = () => {
           />
         </div>
 
-        <h1 className="text-[30px] font-light tracking-wide text-white leading-tight">
-          &#923;nectta Mail
+        <h1 className="text-[30px] font-light tracking-[0.06em] text-white leading-tight select-none">
+          &#923;NECTT&#923; M@il
         </h1>
 
         <div className="mt-2 flex items-center justify-center gap-2.5 text-xs font-normal tracking-wider text-slate-200">

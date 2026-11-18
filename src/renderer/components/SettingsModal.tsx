@@ -335,7 +335,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div>
               <h2 className="text-sm font-bold text-white tracking-wide">
-                Configurações Internas do Anectta MAIL
+                Configurações Internas do <span className="font-light tracking-[0.06em]">&#923;NECTT&#923; M@il</span>
               </h2>
               <p className="text-[11px] text-slate-400">
                 Gerenciamento de contas, servidores corporativos (IMAP/POP3/SMTP) e segurança

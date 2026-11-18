@@ -404,7 +404,7 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
       {/* Top Frameless Window Header - Compact (h-8) */}
       <div className="h-8 flex items-center justify-between px-3 app-drag-region border-b border-slate-100 bg-slate-50/70 shrink-0">
         <div className="flex items-center space-x-2 app-no-drag">
-          <span className="text-xs font-semibold text-slate-700">Anectta MAIL</span>
+          <span className="text-xs font-light tracking-[0.06em] text-slate-800">&#923;NECTT&#923; M@il</span>
           <span className="text-[10px] text-slate-400 font-medium">&bull; Assistente de Conexão</span>
         </div>
         <div className="flex items-center space-x-1 app-no-drag">
