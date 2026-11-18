@@ -37,11 +37,12 @@ import {
   GripVertical,
   DownloadCloud,
   Globe,
+  Pencil,
 } from 'lucide-react';
 import { EmailItem } from '@/types/email';
 import { AppSettings, EmailSignature } from '@/types/settings';
 import { OUTGOING_ANIMATIONS } from '../services/stationeryCompiler';
-import { QuickRepliesService } from '../services/quickRepliesService';
+import { QuickRepliesService, QuickSnippetItem } from '../services/quickRepliesService';
 import { EmailProviderNotice } from './EmailProviderNotice';
 import { SignatureEditorPanel } from './SignatureEditorPanel';
 import { PrivacyCenterPanel } from './PrivacyCenterPanel';
@@ -109,9 +110,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     'account' | 'appearance' | 'spellcheck' | 'backup' | 'storage' | 'signature' | 'quickReplies' | 'notifications' | 'calendar' | 'apps' | 'security' | 'importExport' | 'support' | 'version' | 'proxy'
   >(initialTab || 'account');
   const [formData, setFormData] = useState<AppSettings>(settings);
-  const [quickRepliesList, setQuickRepliesList] = useState<string[]>(() =>
-    QuickRepliesService.getReplies()
+  const [quickSnippetsList, setQuickSnippetsList] = useState<QuickSnippetItem[]>(() =>
+    QuickRepliesService.getSnippets()
   );
+  const [editingQuickReplyIdx, setEditingQuickReplyIdx] = useState<number | null>(null);
+  const quickReplyInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const [newQuickReplyTitle, setNewQuickReplyTitle] = useState('');
   const [newQuickReplyInput, setNewQuickReplyInput] = useState('');
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'error' | null>(null);
@@ -242,7 +246,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
 
       setFormData({ ...settings, signatures: initialSignatures });
-      setQuickRepliesList(QuickRepliesService.getReplies());
+      setQuickSnippetsList(QuickRepliesService.getSnippets());
+      setEditingQuickReplyIdx(null);
+      setNewQuickReplyTitle('');
       setNewQuickReplyInput('');
       setConnectionTestResult(null);
       setConnectionMessage('');
@@ -1838,56 +1844,129 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span>Personalização de Respostas Rápidas</span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Defina e edite os botões de resposta rápida (1 clique) exibidos ao visualizar e-mails.
+                    Defina e edite os Snippets e botões de resposta rápida (1 clique) sincronizados ao visualizar e compor e-mails.
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  {quickRepliesList.map((reply, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center space-x-2 p-2 rounded-xl bg-slate-950/70 border border-slate-800 focus-within:border-brand-500 transition-all"
-                    >
-                      <span className="text-[11px] font-mono text-slate-500 w-5 text-center shrink-0">
-                        {idx + 1}.
-                      </span>
-                      <input
-                        type="text"
-                        value={reply}
-                        onChange={(e) => {
-                          const updated = [...quickRepliesList];
-                          updated[idx] = e.target.value;
-                          setQuickRepliesList(updated);
-                        }}
-                        className="flex-1 bg-transparent text-xs text-slate-200 focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const ask =
-                            formData.notifications?.confirmations?.askBeforeDeleteQuickActions ??
-                            true;
-                          if (ask && !window.confirm('Deseja realmente apagar esta resposta rápida?')) {
-                            return;
-                          }
-                          const updated = quickRepliesList.filter((_, i) => i !== idx);
-                          setQuickRepliesList(updated);
-                        }}
-                        className="p-1 text-slate-500 hover:text-rose-400 hover:bg-slate-900 rounded transition-colors"
-                        title="Remover resposta"
+                  {quickSnippetsList.map((snip, idx) => {
+                    const isEditing = editingQuickReplyIdx === idx;
+                    return (
+                      <div
+                        key={snip.id || idx}
+                        className={`flex flex-col space-y-1.5 p-2.5 rounded-xl bg-slate-950/70 border transition-all ${
+                          isEditing ? 'border-brand-500 ring-1 ring-brand-500/30' : 'border-slate-800'
+                        }`}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[11px] font-mono text-slate-500 w-5 text-center shrink-0">
+                            {idx + 1}.
+                          </span>
+                          <input
+                            ref={(el) => {
+                              quickReplyInputRefs.current[idx] = el;
+                            }}
+                            type="text"
+                            readOnly={!isEditing}
+                            value={snip.content}
+                            onChange={(e) => {
+                              const updated = [...quickSnippetsList];
+                              updated[idx] = { ...updated[idx], content: e.target.value };
+                              setQuickSnippetsList(updated);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && isEditing) {
+                                e.preventDefault();
+                                setEditingQuickReplyIdx(null);
+                              }
+                            }}
+                            className={`flex-1 bg-transparent text-xs focus:outline-none ${
+                              isEditing ? 'text-white font-medium' : 'text-slate-200 cursor-default'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isEditing) {
+                                setEditingQuickReplyIdx(null);
+                              } else {
+                                setEditingQuickReplyIdx(idx);
+                                requestAnimationFrame(() => {
+                                  const el = quickReplyInputRefs.current[idx];
+                                  if (el) {
+                                    el.focus();
+                                    el.setSelectionRange(el.value.length, el.value.length);
+                                  }
+                                });
+                              }
+                            }}
+                            className={`p-1 rounded transition-colors ${
+                              isEditing
+                                ? 'text-emerald-400 bg-emerald-500/15 hover:bg-emerald-500/25'
+                                : 'text-slate-500 hover:text-brand-400 hover:bg-slate-900'
+                            }`}
+                            title={isEditing ? 'Concluir alteração da frase' : 'Alterar frase escrita'}
+                          >
+                            {isEditing ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              <Pencil className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ask =
+                                formData.notifications?.confirmations?.askBeforeDeleteQuickActions ??
+                                true;
+                              if (ask && !window.confirm('Deseja realmente apagar esta resposta rápida?')) {
+                                return;
+                              }
+                              const updated = quickSnippetsList.filter((_, i) => i !== idx);
+                              setQuickSnippetsList(updated);
+                              if (editingQuickReplyIdx === idx) setEditingQuickReplyIdx(null);
+                            }}
+                            className="p-1 text-slate-500 hover:text-rose-400 hover:bg-slate-900 rounded transition-colors"
+                            title="Remover resposta"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {isEditing && (
+                          <div className="pl-7 pr-2 pt-1 border-t border-slate-800/70 flex items-center space-x-2">
+                            <span className="text-[10px] text-slate-400 shrink-0">Título do Snippet:</span>
+                            <input
+                              type="text"
+                              value={snip.title}
+                              onChange={(e) => {
+                                const updated = [...quickSnippetsList];
+                                updated[idx] = { ...updated[idx], title: e.target.value };
+                                setQuickSnippetsList(updated);
+                              }}
+                              placeholder="Título exibido no painel de Snippets..."
+                              className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-emerald-300 focus:outline-none focus:border-brand-500"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Adicionar nova */}
-                <div className="pt-2 border-t border-slate-800">
-                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block">
+                <div className="pt-2 border-t border-slate-800 space-y-2">
+                  <label className="text-xs font-semibold text-slate-300 block">
                     Adicionar Nova Resposta:
                   </label>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <input
+                      type="text"
+                      value={newQuickReplyTitle}
+                      onChange={(e) => setNewQuickReplyTitle(e.target.value)}
+                      placeholder="Título (opcional, ex: Aprovação)"
+                      className="sm:w-52 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+                    />
                     <input
                       type="text"
                       value={newQuickReplyInput}
@@ -1897,7 +1976,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           e.preventDefault();
                           const clean = newQuickReplyInput.trim();
                           if (clean) {
-                            setQuickRepliesList([...quickRepliesList, clean]);
+                            const next: QuickSnippetItem = {
+                              id: `snip-${Date.now()}`,
+                              title: newQuickReplyTitle.trim() || clean.split(/\s+/).slice(0, 4).join(' '),
+                              content: clean,
+                            };
+                            setQuickSnippetsList([...quickSnippetsList, next]);
+                            setNewQuickReplyTitle('');
                             setNewQuickReplyInput('');
                           }
                         }
@@ -1910,12 +1995,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onClick={() => {
                         const clean = newQuickReplyInput.trim();
                         if (clean) {
-                          setQuickRepliesList([...quickRepliesList, clean]);
+                          const next: QuickSnippetItem = {
+                            id: `snip-${Date.now()}`,
+                            title: newQuickReplyTitle.trim() || clean.split(/\s+/).slice(0, 4).join(' '),
+                            content: clean,
+                          };
+                          setQuickSnippetsList([...quickSnippetsList, next]);
+                          setNewQuickReplyTitle('');
                           setNewQuickReplyInput('');
                         }
                       }}
                       disabled={!newQuickReplyInput.trim()}
-                      className="px-3 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white rounded-xl text-xs font-medium flex items-center space-x-1 transition-all shrink-0"
+                      className="px-3 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white rounded-xl text-xs font-medium flex items-center justify-center space-x-1 transition-all shrink-0"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Adicionar</span>
@@ -1927,8 +2018,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      const defs = QuickRepliesService.resetToDefaults();
-                      setQuickRepliesList(defs);
+                      QuickRepliesService.resetToDefaults();
+                      setQuickSnippetsList(QuickRepliesService.getSnippets());
+                      setEditingQuickReplyIdx(null);
                     }}
                     className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-900 transition-colors"
                   >
@@ -1939,10 +2031,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      const clean = quickRepliesList
-                        .map((r) => r.trim())
-                        .filter((r) => r.length > 0);
-                      QuickRepliesService.saveReplies(clean);
+                      const saved = QuickRepliesService.saveSnippets(quickSnippetsList);
+                      setQuickSnippetsList(saved);
+                      setEditingQuickReplyIdx(null);
                       setSavedSuccess(true);
                       setTimeout(() => setSavedSuccess(false), 3000);
                     }}

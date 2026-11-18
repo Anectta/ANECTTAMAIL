@@ -12,7 +12,6 @@ import {
   Shield,
   Zap,
   Clock,
-  Trash2,
   CheckCheck,
   Smile,
 } from 'lucide-react';
@@ -30,6 +29,7 @@ import {
   OutgoingAnimationType,
   compileToInlineHtml,
 } from '../services/stationeryCompiler';
+import { QuickRepliesService, QuickSnippetItem } from '../services/quickRepliesService';
 
 const EMOJI_CATEGORIES: Array<{ id: string; label: string; icon: string; emojis: string[] }> = [
   {
@@ -81,32 +81,6 @@ const EMOJI_CATEGORIES: Array<{ id: string; label: string; icon: string; emojis:
       '🔥', '⭐', '🌟', '✨', '🎉', '🎊', '👏', '🔔',
       '➡️', '⬅️', '⬆️', '⬇️', '🔄', '➕', '➖', '💬',
     ],
-  },
-];
-
-interface EmailSnippet {
-  id: string;
-  title: string;
-  content: string;
-}
-
-const SNIPPETS_STORAGE_KEY = 'anectta_mail_snippets_v1';
-
-const DEFAULT_SNIPPETS: EmailSnippet[] = [
-  {
-    id: 'snip-1',
-    title: 'Confirmação de Recebimento',
-    content: 'Olá,\n\nConfirmo o recebimento da sua mensagem e dos documentos encaminhados. Retornarei em breve com os próximos passos.\n\nAtenciosamente,',
-  },
-  {
-    id: 'snip-2',
-    title: 'Agendar Reunião',
-    content: 'Olá,\n\nPodemos agendar uma breve reunião para alinharmos os detalhes? Por favor, me informe os melhores horários na sua agenda.\n\nAtenciosamente,',
-  },
-  {
-    id: 'snip-3',
-    title: 'Encaminhando Documento',
-    content: 'Olá,\n\nSegue em anexo o documento solicitado para sua análise e validação.\n\nFico à disposição para qualquer dúvida.',
   },
 ];
 
@@ -258,20 +232,11 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Snippets de Resposta Rápida
-  const [snippets, setSnippets] = useState<EmailSnippet[]>(() => {
-    try {
-      const saved = localStorage.getItem(SNIPPETS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return DEFAULT_SNIPPETS;
-  });
+  // Snippets de Resposta Rápida (sincronizados com Personalização de Respostas Rápidas)
+  const [snippets, setSnippets] = useState<QuickSnippetItem[]>(() =>
+    QuickRepliesService.getSnippets()
+  );
   const [isSnippetPickerOpen, setIsSnippetPickerOpen] = useState(false);
-  const [newSnippetTitle, setNewSnippetTitle] = useState('');
-  const [newSnippetContent, setNewSnippetContent] = useState('');
 
   // Agendamento de Envio (Send Later)
   const [isSchedulePickerOpen, setIsSchedulePickerOpen] = useState(false);
@@ -341,10 +306,17 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
 
 
   useEffect(() => {
-    try {
-      localStorage.setItem(SNIPPETS_STORAGE_KEY, JSON.stringify(snippets));
-    } catch {}
-  }, [snippets]);
+    const syncSnippets = () => setSnippets(QuickRepliesService.getSnippets());
+    if (isOpen) {
+      syncSnippets();
+    }
+    window.addEventListener('anectta:snippets-updated', syncSnippets);
+    window.addEventListener('anectta:quick-replies-updated', syncSnippets);
+    return () => {
+      window.removeEventListener('anectta:snippets-updated', syncSnippets);
+      window.removeEventListener('anectta:quick-replies-updated', syncSnippets);
+    };
+  }, [isOpen]);
 
   const currentAccount =
     (fromAccountId && accounts.find((a) => a.id === fromAccountId)) || accounts[0];
@@ -539,20 +511,6 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const handleInsertSnippet = (content: string) => {
     setBody((prev) => (prev.trim() ? `${prev.trimEnd()}\n\n${content}` : content));
     setIsSnippetPickerOpen(false);
-  };
-
-  const handleSaveNewSnippet = () => {
-    if (!newSnippetTitle.trim() || !newSnippetContent.trim()) return;
-    setSnippets((prev) => [
-      ...prev,
-      {
-        id: `snip-${Date.now()}`,
-        title: newSnippetTitle.trim(),
-        content: newSnippetContent.trim(),
-      },
-    ]);
-    setNewSnippetTitle('');
-    setNewSnippetContent('');
   };
 
   const handleScheduleSend = async (timestampMs: number) => {
@@ -979,7 +937,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
             </div>
           )}
 
-          {/* Snippets Popover Drawer */}
+          {/* Snippets Popover Drawer (somente inserção — sem exclusão ou alteração) */}
           {isSnippetPickerOpen && (
             <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5 animate-in fade-in">
               <div className="flex items-center justify-between">
@@ -995,63 +953,22 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   Fechar
                 </button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 max-h-36 overflow-y-auto custom-scroll">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto custom-scroll">
                 {snippets.map((snip) => (
-                  <div
+                  <button
                     key={snip.id}
-                    className="p-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-emerald-500/50 transition-all flex flex-col justify-between gap-1.5 group"
+                    type="button"
+                    onClick={() => handleInsertSnippet(snip.content)}
+                    className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-emerald-500/50 hover:bg-slate-900/80 transition-all text-left flex flex-col justify-start gap-1"
                   >
-                    <button
-                      type="button"
-                      onClick={() => handleInsertSnippet(snip.content)}
-                      className="text-left flex-1"
-                    >
-                      <div className="text-xs font-semibold text-emerald-300 truncate">{snip.title}</div>
-                      <div className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">{snip.content}</div>
-                    </button>
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (effectiveConfirmations.askBeforeDeleteTextTemplate) {
-                            if (!window.confirm(`Deseja realmente apagar o modelo de texto "${snip.title}"?`)) {
-                              return;
-                            }
-                          }
-                          setSnippets((prev) => prev.filter((s) => s.id !== snip.id));
-                        }}
-                        className="p-1 text-slate-500 hover:text-rose-400 rounded"
-                        title="Excluir snippet"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                    <div className="text-xs font-semibold text-emerald-300 truncate w-full">
+                      {snip.title}
                     </div>
-                  </div>
+                    <div className="text-[10px] text-slate-400 line-clamp-2">
+                      {snip.content}
+                    </div>
+                  </button>
                 ))}
-              </div>
-              <div className="pt-2 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <input
-                  type="text"
-                  value={newSnippetTitle}
-                  onChange={(e) => setNewSnippetTitle(e.target.value)}
-                  placeholder="Título do novo snippet..."
-                  className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500"
-                />
-                <input
-                  type="text"
-                  value={newSnippetContent}
-                  onChange={(e) => setNewSnippetContent(e.target.value)}
-                  placeholder="Texto da resposta rápida..."
-                  className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveNewSnippet}
-                  disabled={!newSnippetTitle.trim() || !newSnippetContent.trim()}
-                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors"
-                >
-                  + Salvar Snippet
-                </button>
               </div>
             </div>
           )}
