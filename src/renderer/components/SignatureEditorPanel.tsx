@@ -86,33 +86,33 @@ function buildSignatureTemplateHtml(
     .join(' &nbsp;|&nbsp; ');
 
   if (template === 'modern') {
-    return `<table cellpadding="0" cellspacing="0" style="font-family:Inter,Arial,sans-serif;font-size:13px;color:#1e293b;border-collapse:collapse;">
+    return `<table cellpadding="0" cellspacing="0" style="font-family:Inter,Arial,sans-serif;font-size:13px;border-collapse:collapse;">
   <tr>
     <td style="border-left:4px solid ${color};padding-left:12px;">
-      <div style="font-size:15px;font-weight:700;color:#0f172a;">${safeName}</div>
+      <div style="font-size:15px;font-weight:700;">${safeName}</div>
       ${
         safeRole || safeCompany
-          ? `<div style="font-size:12px;color:#475569;margin-top:2px;">${[safeRole, safeCompany].filter(Boolean).join(' • ')}</div>`
+          ? `<div style="font-size:12px;margin-top:2px;">${[safeRole, safeCompany].filter(Boolean).join(' • ')}</div>`
           : ''
       }
-      ${contactParts ? `<div style="font-size:11px;color:#64748b;margin-top:6px;">${contactParts}</div>` : ''}
+      ${contactParts ? `<div style="font-size:11px;margin-top:6px;">${contactParts}</div>` : ''}
     </td>
   </tr>
 </table>`;
   }
 
   if (template === 'minimal') {
-    return `<div style="font-family:Inter,Arial,sans-serif;font-size:12px;color:#334155;line-height:1.5;">
-  <strong style="color:#0f172a;">${safeName}</strong>${safeRole ? ` — ${safeRole}` : ''}${safeCompany ? `, ${safeCompany}` : ''}<br/>
-  ${contactParts ? `<span style="font-size:11px;color:#64748b;">${contactParts}</span>` : ''}
+    return `<div style="font-family:Inter,Arial,sans-serif;font-size:12px;line-height:1.5;">
+  <strong>${safeName}</strong>${safeRole ? ` — ${safeRole}` : ''}${safeCompany ? `, ${safeCompany}` : ''}<br/>
+  ${contactParts ? `<span style="font-size:11px;">${contactParts}</span>` : ''}
 </div>`;
   }
 
-  return `<div style="font-family:Inter,Arial,sans-serif;font-size:13px;color:#1e293b;line-height:1.5;">
-  <div style="font-weight:700;font-size:14px;color:${color};">${safeName}</div>
-  ${safeRole ? `<div style="font-size:12px;color:#475569;">${safeRole}</div>` : ''}
-  ${safeCompany ? `<div style="font-size:12px;font-weight:600;color:#0f172a;">${safeCompany}</div>` : ''}
-  ${contactParts ? `<div style="font-size:11px;color:#64748b;margin-top:4px;">${contactParts}</div>` : ''}
+  return `<div style="font-family:Inter,Arial,sans-serif;font-size:13px;line-height:1.5;">
+  <div style="font-weight:700;font-size:14px;">${safeName}</div>
+  ${safeRole ? `<div style="font-size:12px;">${safeRole}</div>` : ''}
+  ${safeCompany ? `<div style="font-size:12px;font-weight:600;">${safeCompany}</div>` : ''}
+  ${contactParts ? `<div style="font-size:11px;margin-top:4px;">${contactParts}</div>` : ''}
 </div>`;
 }
 
@@ -151,6 +151,32 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
   const editorWrapperRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const lastLoadedSignatureIdRef = useRef<string | null>(null);
+  const savedSelectionRef = useRef<Range | null>(null);
+
+  const saveEditorSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
+      savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+    }
+  };
+
+  const restoreEditorSelection = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    const sel = window.getSelection();
+    if (!sel) return;
+    if (savedSelectionRef.current && editor.contains(savedSelectionRef.current.startContainer)) {
+      sel.removeAllRanges();
+      sel.addRange(savedSelectionRef.current);
+    } else if (!sel.rangeCount || !editor.contains(sel.anchorNode) || sel.isCollapsed) {
+      // Se nenhum trecho específico foi selecionado, aplica em toda a assinatura
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  };
 
   const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
   const [imgOverlayRect, setImgOverlayRect] = useState<{
@@ -415,8 +441,10 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
   };
 
   const execCommand = (command: string, value?: string) => {
-    editorRef.current?.focus();
+    restoreEditorSelection();
+    document.execCommand('styleWithCSS', false, 'true');
     document.execCommand(command, false, value);
+    saveEditorSelection();
     syncEditorToState();
   };
 
@@ -640,6 +668,9 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
                     contentEditable
                     suppressContentEditableWarning
                     onInput={syncEditorToState}
+                    onMouseUp={saveEditorSelection}
+                    onKeyUp={saveEditorSelection}
+                    onBlur={saveEditorSelection}
                     onScroll={() => {
                       if (selectedImg) updateImgOverlay(selectedImg);
                     }}
@@ -856,8 +887,17 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
                 </div>
               )}
 
-              {/* Bottom Formatting Toolbar */}
-              <div className="px-2.5 py-1.5 bg-slate-900/90 border-t border-slate-800 flex flex-wrap items-center gap-1 text-[11px] text-slate-300">
+                  {/* Bottom Formatting Toolbar */}
+              <div
+                onMouseDown={(e) => {
+                  const tag = (e.target as HTMLElement)?.tagName;
+                  if (tag !== 'SELECT' && tag !== 'OPTION' && tag !== 'INPUT') {
+                    e.preventDefault();
+                  }
+                  saveEditorSelection();
+                }}
+                className="px-2.5 py-1.5 bg-slate-900/90 border-t border-slate-800 flex flex-wrap items-center gap-1 text-[11px] text-slate-300"
+              >
                 <select
                   value={fontFamily}
                   onChange={(e) => {
@@ -1125,22 +1165,13 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
                       onChange={(e) => setGenFields({ ...genFields, email: e.target.value })}
                       className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
                     />
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="text"
-                        placeholder="Site (ex: anectta.com.br)"
-                        value={genFields.website}
-                        onChange={(e) => setGenFields({ ...genFields, website: e.target.value })}
-                        className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
-                      />
-                      <input
-                        type="color"
-                        value={genFields.accentColor}
-                        onChange={(e) => setGenFields({ ...genFields, accentColor: e.target.value })}
-                        title="Cor de destaque"
-                        className="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer shrink-0"
-                      />
-                    </div>
+                    <input
+                      type="text"
+                      placeholder="Site (ex: anectta.com.br)"
+                      value={genFields.website}
+                      onChange={(e) => setGenFields({ ...genFields, website: e.target.value })}
+                      className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+                    />
                   </div>
 
                   <div className="flex justify-end">
