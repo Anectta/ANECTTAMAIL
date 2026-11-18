@@ -698,6 +698,8 @@ export const App: React.FC = () => {
   const [isClosingSync, setIsClosingSync] = useState(false);
   const syncInFlightRef = useRef(false);
   const syncInFlightSilentRef = useRef(false);
+  const syncInFlightBackgroundRef = useRef(false);
+  const syncManualRequestedRef = useRef(false);
   const syncPromiseRef = useRef<Promise<void> | null>(null);
   const closingInProgressRef = useRef(false);
   const lastFocusSyncRef = useRef(0);
@@ -1273,8 +1275,9 @@ export const App: React.FC = () => {
         return syncPromiseRef.current ?? undefined;
       }
       // Clique manual enquanto uma sincronização em segundo plano já está em andamento:
-      // exibe feedback imediato, aguarda a atual terminar e executa sync completo se a anterior era apenas inboxOnly.
+      // sinaliza requisição manual para que o finally em segundo plano não desligue isSyncing prematuramente.
       const wasSilent = syncInFlightSilentRef.current;
+      syncManualRequestedRef.current = true;
       setIsSyncing(true);
       showToast(`Sincronizando ${allAccounts.length} conta(s) configurada(s)...`);
       try {
@@ -1283,6 +1286,7 @@ export const App: React.FC = () => {
         // segue para tentar sincronização completa se necessário
       }
       if (!wasSilent) {
+        syncManualRequestedRef.current = false;
         setIsSyncing(false);
         showToast('✓ Sincronização concluída.');
         return;
@@ -1294,7 +1298,11 @@ export const App: React.FC = () => {
 
     syncInFlightRef.current = true;
     syncInFlightSilentRef.current = silent;
-    if (!hideFeedback) setIsSyncing(true);
+    syncInFlightBackgroundRef.current = hideFeedback;
+    if (!hideFeedback) {
+      syncManualRequestedRef.current = false;
+      setIsSyncing(true);
+    }
 
     if (!hideFeedback) showToast(`Sincronizando ${allAccounts.length} conta(s) configurada(s)...`);
 
@@ -1543,8 +1551,11 @@ export const App: React.FC = () => {
     } finally {
       syncInFlightRef.current = false;
       syncInFlightSilentRef.current = false;
+      syncInFlightBackgroundRef.current = false;
       syncPromiseRef.current = null;
-      if (!hideFeedback) setIsSyncing(false);
+      if (!hideFeedback && !syncManualRequestedRef.current) {
+        setIsSyncing(false);
+      }
     }
     })();
 
@@ -3079,10 +3090,12 @@ export const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleSyncAll()}
-                  disabled={isSyncing}
-                  className="flex items-center space-x-1.5 px-3 py-1 bg-white hover:bg-slate-100 text-slate-800 rounded-md text-xs font-semibold shadow-sm transition-colors disabled:opacity-70"
+                  className="flex items-center space-x-1.5 px-3 py-1 bg-white hover:bg-slate-100 text-slate-800 rounded-md text-xs font-semibold shadow-sm transition-colors shrink-0"
                 >
-                  <RotateCw className={`w-3.5 h-3.5 text-[#1473E6] ${isSyncing ? 'animate-spin' : ''}`} />
+                  <RotateCw
+                    className={`w-3.5 h-3.5 shrink-0 text-[#1473E6] ${isSyncing ? 'animate-spin' : ''}`}
+                    style={{ width: '14px', height: '14px', transformOrigin: 'center' }}
+                  />
                   <span>Sincronizar / Enviar e Receber</span>
                 </button>
 
