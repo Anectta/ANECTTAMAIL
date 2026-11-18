@@ -324,15 +324,26 @@ export const QuickComposeView: React.FC = () => {
           </div>
         </div>
 
-        {/* Body Textarea */}
-        <div className="flex-1 min-h-0 pt-0.5">
+        {/* Body Textarea (Cor de fundo sempre fiel ao skin escolhido) */}
+        <div
+          style={{
+            backgroundColor: 'var(--bg-app)',
+            borderColor: 'var(--border-subtle)',
+            color: 'var(--text-primary)',
+          }}
+          className="compose-message-canvas flex-1 min-h-0 rounded-xl border p-3 flex flex-col"
+        >
           <textarea
             required
             value={body}
             onChange={(e) => setBody(e.target.value)}
             spellCheck={true}
             placeholder="Escreva sua mensagem rápida..."
-            className="w-full h-full bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-brand-500 resize-none font-sans leading-relaxed custom-scroll"
+            style={{
+              backgroundColor: 'transparent',
+              color: 'var(--text-primary)',
+            }}
+            className="compose-message-field w-full h-full bg-transparent border-0 text-xs focus:outline-none resize-none font-sans leading-relaxed custom-scroll"
           />
         </div>
 

@@ -1237,17 +1237,24 @@ export const EmailView: React.FC<EmailViewProps> = ({
                   }
                 }}
                 style={{
-                  backgroundColor: 'var(--bg-surface)',
+                  backgroundColor: 'var(--bg-app)',
                   color: 'var(--text-primary)',
                   borderColor: 'var(--border-subtle)',
                 }}
-                className={`text-sm leading-relaxed font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'} rounded-xl overflow-x-auto border shadow-md p-4`}
+                className={`compose-message-canvas text-sm leading-relaxed font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'} rounded-xl overflow-x-auto border shadow-md p-4`}
                 dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
               />
             </div>
           );
         })() : (
-          <div className={`text-slate-200 text-sm leading-relaxed whitespace-pre-wrap font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'}`}>
+          <div
+            style={{
+              backgroundColor: 'var(--bg-app)',
+              color: 'var(--text-primary)',
+              borderColor: 'var(--border-subtle)',
+            }}
+            className={`compose-message-canvas text-sm leading-relaxed whitespace-pre-wrap font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'} rounded-xl border p-4`}
+          >
             {email.body}
           </div>
         )}

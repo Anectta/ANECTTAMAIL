@@ -875,17 +875,17 @@ body.clean-white,
   color: #075985 !important;
 }
 .clean-white main textarea[class*="bg-slate-900"] {
-  background-color: #ffffff !important;
-  border: 1px solid #cbd5e1 !important;
-  color: #0f172a !important;
+  background-color: var(--bg-app) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-primary) !important;
 }
 .clean-white main textarea[class*="bg-slate-900"]:focus {
-  background-color: #ffffff !important;
-  border-color: #2563eb !important;
+  background-color: var(--bg-app) !important;
+  border-color: var(--border-highlight, #2563eb) !important;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
 }
 .clean-white main textarea[class*="bg-slate-900"]::placeholder {
-  color: #94a3b8 !important;
+  color: var(--text-muted, #94a3b8) !important;
 }
 
 /* Modais no Clean White */
@@ -895,16 +895,30 @@ body.clean-white,
 }
 .clean-white div[class*="max-w-"][class*="bg-slate-900"],
 .clean-white div[class*="max-w-"][class*="bg-slate-950"] {
-  background-color: #f3f5f7 !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
+  background-color: var(--bg-surface, #f3f5f7) !important;
+  border-color: var(--border-subtle, #cbd5e1) !important;
+  color: var(--text-primary, #0f172a) !important;
 }
-.clean-white div[class*="max-w-"] input,
-.clean-white div[class*="max-w-"] textarea,
-.clean-white div[class*="max-w-"] select {
-  background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
+.clean-white div[class*="max-w-"] input:not(.compose-message-field),
+.clean-white div[class*="max-w-"] textarea:not(.compose-message-field),
+.clean-white div[class*="max-w-"] select:not(.compose-message-field) {
+  background-color: var(--bg-input, #ffffff) !important;
+  border-color: var(--border-subtle, #cbd5e1) !important;
+  color: var(--text-primary, #0f172a) !important;
+}
+
+/* Cor de fundo da área de mensagem sempre fiel ao skin escolhido (todos os skins) */
+.compose-message-canvas {
+  background-color: var(--bg-app) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+}
+.compose-message-field {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+}
+.compose-message-field::placeholder {
+  color: var(--text-muted) !important;
 }
 
 /* Coluna lateral de anúncios no Clean White */

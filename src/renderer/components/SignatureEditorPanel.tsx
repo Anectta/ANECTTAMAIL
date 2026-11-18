@@ -17,6 +17,10 @@ import {
   Sparkles,
   X,
   Check,
+  Move,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
 } from 'lucide-react';
 import { AccountSettings, EmailSignature } from '@/types/settings';
 
@@ -157,6 +161,7 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
   } | null>(null);
   const [imgWidthValue, setImgWidthValue] = useState<number>(0);
   const [isResizingImg, setIsResizingImg] = useState(false);
+  const [isMovingImg, setIsMovingImg] = useState(false);
 
   const selectedSignature =
     signatures.find((s) => s.id === selectedId) || signatures[0] || null;
@@ -354,6 +359,61 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
     window.addEventListener('mouseup', onMouseUp);
   };
 
+  const startImageMove = (img: HTMLImageElement, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedImg(img);
+    updateImgOverlay(img);
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const prevLeft = parseFloat(img.style.marginLeft || '0') || 0;
+    const prevTop = parseFloat(img.style.marginTop || '0') || 0;
+    let moved = false;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+      moved = true;
+      setIsMovingImg(true);
+      img.style.position = 'relative';
+      img.style.marginLeft = `${Math.max(0, Math.round(prevLeft + dx))}px`;
+      img.style.marginTop = `${Math.round(prevTop + dy)}px`;
+      updateImgOverlay(img);
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      if (moved) {
+        setIsMovingImg(false);
+        updateImgOverlay(img);
+        syncEditorToState();
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const alignSelectedImage = (align: 'left' | 'center' | 'right') => {
+    if (!selectedImg || !editorRef.current?.contains(selectedImg)) return;
+    selectedImg.style.display = 'block';
+    if (align === 'left') {
+      selectedImg.style.marginLeft = '0px';
+      selectedImg.style.marginRight = 'auto';
+    } else if (align === 'center') {
+      selectedImg.style.marginLeft = 'auto';
+      selectedImg.style.marginRight = 'auto';
+    } else {
+      selectedImg.style.marginLeft = 'auto';
+      selectedImg.style.marginRight = '0px';
+    }
+    updateImgOverlay(selectedImg);
+    syncEditorToState();
+  };
+
   const execCommand = (command: string, value?: string) => {
     editorRef.current?.focus();
     document.execCommand(command, false, value);
@@ -529,15 +589,26 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
               </select>
             </div>
 
-            {/* Rich Text Signature Editor */}
-            <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950">
+            {/* Rich Text Signature Editor (Fundo sempre da cor do skin escolhido) */}
+            <div
+              style={{
+                backgroundColor: 'var(--bg-app)',
+                borderColor: 'var(--border-subtle)',
+                color: 'var(--text-primary)',
+              }}
+              className="compose-message-canvas border rounded-xl overflow-hidden"
+            >
               {isHtmlMode ? (
                 <textarea
                   rows={9}
                   value={selectedSignature.html}
                   onChange={(e) => updateSignature(selectedSignature.id, { html: e.target.value })}
                   placeholder="Cole ou edite o HTML da assinatura..."
-                  className="w-full bg-slate-950 p-3 text-xs text-slate-200 font-mono focus:outline-none resize-y min-h-[210px]"
+                  style={{
+                    backgroundColor: 'var(--bg-app)',
+                    color: 'var(--text-primary)',
+                  }}
+                  className="compose-message-field w-full p-3 text-xs font-mono focus:outline-none resize-y min-h-[210px]"
                 />
               ) : (
                 <div ref={editorWrapperRef} className="relative min-h-[210px] overflow-hidden">
@@ -554,6 +625,11 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
                     onScroll={() => {
                       if (selectedImg) updateImgOverlay(selectedImg);
                     }}
+                    onMouseDown={(e) => {
+                      if (e.target instanceof HTMLImageElement) {
+                        startImageMove(e.target, e);
+                      }
+                    }}
                     onClick={(e) => {
                       if (e.target instanceof HTMLImageElement) {
                         e.preventDefault();
@@ -564,7 +640,8 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
                         setImgOverlayRect(null);
                       }
                     }}
-                    className="w-full min-h-[210px] max-h-[280px] overflow-y-auto p-3.5 text-xs text-slate-200 focus:outline-none prose prose-invert prose-sm max-w-none [&_img]:cursor-pointer"
+                    style={{ color: 'var(--text-primary)' }}
+                    className="w-full min-h-[210px] max-h-[280px] overflow-y-auto p-3.5 text-xs focus:outline-none prose prose-sm max-w-none [&_img]:cursor-grab active:[&_img]:cursor-grabbing"
                   />
 
                   {/* Interactive Image Resize Overlay */}
@@ -607,16 +684,49 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
                     </div>
                   )}
 
-                  {isResizingImg && (
-                    <div className="fixed inset-0 z-50 cursor-nwse-resize" />
+                  {(isResizingImg || isMovingImg) && (
+                    <div
+                      className={`fixed inset-0 z-50 ${
+                        isMovingImg ? 'cursor-grabbing' : 'cursor-nwse-resize'
+                      }`}
+                    />
                   )}
                 </div>
               )}
 
-              {/* Contextual Image Resize Bar */}
+              {/* Contextual Image Resize & Move Bar */}
               {selectedImg && !isHtmlMode && (
                 <div className="px-3 py-2 bg-slate-900/95 border-t border-slate-800 flex flex-wrap items-center gap-2 text-[11px] text-slate-300">
-                  <span className="font-medium text-brand-400">Logo / Imagem:</span>
+                  <span className="font-medium text-brand-400 flex items-center gap-1">
+                    <Move className="w-3.5 h-3.5" />
+                    <span>Logo / Imagem (arraste para mover):</span>
+                  </span>
+                  <div className="flex items-center gap-1 border-r border-slate-700 pr-2">
+                    <button
+                      type="button"
+                      onClick={() => alignSelectedImage('left')}
+                      className="p-1 rounded bg-slate-950 border border-slate-700 hover:border-brand-500 text-slate-200"
+                      title="Alinhar à esquerda"
+                    >
+                      <AlignLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => alignSelectedImage('center')}
+                      className="p-1 rounded bg-slate-950 border border-slate-700 hover:border-brand-500 text-slate-200"
+                      title="Centralizar"
+                    >
+                      <AlignCenter className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => alignSelectedImage('right')}
+                      className="p-1 rounded bg-slate-950 border border-slate-700 hover:border-brand-500 text-slate-200"
+                      title="Alinhar à direita"
+                    >
+                      <AlignRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   <input
                     type="range"
                     min={16}
