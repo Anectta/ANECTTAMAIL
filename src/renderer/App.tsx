@@ -502,8 +502,16 @@ export const App: React.FC = () => {
 
   const [contacts, setContacts] = useState<CorporateContact[]>(() => {
     try {
+      // Limpeza geral única: remove todos os contatos existentes (inclusive os de demonstração)
+      const PURGE_FLAG = 'anectta_mail_contacts_purged_v2';
+      if (!localStorage.getItem(PURGE_FLAG)) {
+        localStorage.removeItem('anectta_mail_contacts_v1');
+        localStorage.setItem(PURGE_FLAG, '1');
+        return DEFAULT_CORPORATE_CONTACTS;
+      }
       const saved = localStorage.getItem('anectta_mail_contacts_v1');
-      return saved ? JSON.parse(saved) : DEFAULT_CORPORATE_CONTACTS;
+      const parsed = saved ? JSON.parse(saved) : DEFAULT_CORPORATE_CONTACTS;
+      return Array.isArray(parsed) ? parsed : DEFAULT_CORPORATE_CONTACTS;
     } catch {
       return DEFAULT_CORPORATE_CONTACTS;
     }

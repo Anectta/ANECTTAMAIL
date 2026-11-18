@@ -25,43 +25,8 @@ export interface CorporateContact {
   avatar?: string;
 }
 
-export const DEFAULT_CORPORATE_CONTACTS: CorporateContact[] = [
-  {
-    id: 'contact-marco',
-    name: 'Marco Aurélio Moreira',
-    email: 'marco.moreira@trinityti.com.br',
-    role: 'CEO & Founder',
-    company: 'TrinityTI Gestão de TI',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
-    phone: '+55 (11) 98823-1100',
-  },
-  {
-    id: 'contact-carlos',
-    name: 'Carlos Eduardo Mendes',
-    email: 'carlos.mendes@cyberdefense.io',
-    role: 'Lead Security Engineer',
-    company: 'CyberDefense Security',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
-    phone: '+55 (11) 97102-4491',
-  },
-  {
-    id: 'contact-beatriz',
-    name: 'Beatriz Vasconcelos',
-    email: 'beatriz.vasconcelos@anectta.com.br',
-    role: 'Vice-Presidente de Operações',
-    company: 'Anectta Corp',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80',
-    phone: '+55 (11) 99450-8822',
-  },
-  {
-    id: 'contact-coworking',
-    name: 'Coworking Smart Financeiro',
-    email: 'faturamento@coworkingsmart.conexa.app',
-    role: 'Faturamento & NFS-e',
-    company: 'Coworking Smart Gestão de Espaços',
-    phone: '+55 (11) 3200-5000',
-  },
-];
+// Nenhum contato pré-cadastrado: novas instalações e novos usuários iniciam com a lista vazia.
+export const DEFAULT_CORPORATE_CONTACTS: CorporateContact[] = [];
 
 interface ContactsViewProps {
   contacts?: CorporateContact[];
