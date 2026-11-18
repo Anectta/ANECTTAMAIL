@@ -17,7 +17,12 @@ import {
   Smile,
 } from 'lucide-react';
 import { PriorityLevel } from '@/types/email';
-import { AccountSettings, EmailSignature } from '@/types/settings';
+import {
+  AccountSettings,
+  EmailSignature,
+  ConfirmationSettings,
+  DEFAULT_CONFIRMATION_SETTINGS,
+} from '@/types/settings';
 import { RecentFileItem } from '../../types/electron';
 import { EmailSending } from './animated-icons';
 import { CorporateContact } from './ContactsView';
@@ -147,6 +152,7 @@ interface ComposeModalProps {
     attachments: Array<{ name: string; path: string; size: number }>;
   }) => void;
   onDiscardDraft?: (id: string) => void;
+  confirmations?: ConfirmationSettings;
 }
 
 const DRAFT_STORAGE_KEY = 'anectta-compose-draft-v1';
@@ -219,7 +225,12 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   draftAttachments,
   onSaveDraft,
   onDiscardDraft,
+  confirmations,
 }) => {
+  const effectiveConfirmations: ConfirmationSettings = {
+    ...DEFAULT_CONFIRMATION_SETTINGS,
+    ...(confirmations || {}),
+  };
   const [recipient, setRecipient] = useState(defaultRecipient);
   const [subject, setSubject] = useState(defaultSubject);
   const [body, setBody] = useState('');
@@ -400,6 +411,11 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   };
 
   const handleRemoveAttachment = (filePath: string) => {
+    if (effectiveConfirmations.askBeforeDeleteAttachment) {
+      if (!window.confirm('Deseja realmente remover este anexo da mensagem?')) {
+        return;
+      }
+    }
     setAttachments((prev) => prev.filter((a) => a.path !== filePath));
   };
 
@@ -502,18 +518,47 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!recipient.trim() || !subject.trim() || !body.trim()) {
-      setErrorMessage('Por favor, preencha destinatário, assunto e mensagem antes de enviar.');
+    if (!recipient.trim() || !body.trim()) {
+      setErrorMessage('Por favor, preencha destinatário e mensagem antes de enviar.');
       formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
+    // Aviso de assunto em branco
+    if (!subject.trim()) {
+      if (effectiveConfirmations.warnIfBlankSubjectOnSend) {
+        if (!window.confirm('O assunto desta mensagem está em branco. Deseja enviá-la mesmo assim?')) {
+          return;
+        }
+      }
+    }
+
+    // Aviso de tamanho máximo da mensagem
+    if (effectiveConfirmations.warnOnSendMessageLargerThanEnabled) {
+      const limitMb = Math.max(1, Number(effectiveConfirmations.warnOnSendMessageLargerThanMb) || 10);
+      const totalBytes =
+        new Blob([body || '']).size +
+        attachments.reduce((acc, item) => acc + (Number(item.size) || 0), 0);
+      const totalMb = totalBytes / (1024 * 1024);
+      if (totalMb > limitMb) {
+        if (
+          !window.confirm(
+            `Esta mensagem possui aproximadamente ${totalMb.toFixed(1)} MB, ultrapassando o limite configurado de ${limitMb} MB. Deseja enviar mesmo assim?`
+          )
+        ) {
+          return;
+        }
+      }
+    }
+
     // Detector de anexo esquecido
-    const mentionsAttachment = /(anexo|anexei|anexado|segue anexo|em anexo|anexando|anexos)/i.test(body);
-    if (mentionsAttachment && attachments.length === 0) {
-      setShowMissingAttachmentAlert(true);
-      formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
+    if (effectiveConfirmations.warnOnMissingAttachmentKeyword) {
+      const mentionsAttachment = /(anexo|anexei|anexado|segue anexo|em anexo|anexando|anexos)/i.test(body);
+      if (mentionsAttachment && attachments.length === 0) {
+        setShowMissingAttachmentAlert(true);
+        formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
     }
 
     await executeSend();
@@ -914,7 +959,14 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     <div className="flex justify-end">
                       <button
                         type="button"
-                        onClick={() => setSnippets((prev) => prev.filter((s) => s.id !== snip.id))}
+                        onClick={() => {
+                          if (effectiveConfirmations.askBeforeDeleteTextTemplate) {
+                            if (!window.confirm(`Deseja realmente apagar o modelo de texto "${snip.title}"?`)) {
+                              return;
+                            }
+                          }
+                          setSnippets((prev) => prev.filter((s) => s.id !== snip.id));
+                        }}
                         className="p-1 text-slate-500 hover:text-rose-400 rounded"
                         title="Excluir snippet"
                       >
@@ -964,6 +1016,17 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               rows={6}
               value={body}
               onChange={(e) => setBody(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  if (effectiveConfirmations.askBeforeSendOnCtrlEnter) {
+                    if (!window.confirm('Deseja enviar esta mensagem agora (Ctrl+Enter)?')) {
+                      return;
+                    }
+                  }
+                  void handleSubmit(e as unknown as React.FormEvent);
+                }
+              }}
               spellCheck={spellCheckEnabled}
               placeholder="Escreva sua mensagem..."
               className="w-full bg-transparent border-0 text-xs text-slate-100 placeholder-slate-600 focus:outline-none resize-none font-sans leading-relaxed custom-scroll"

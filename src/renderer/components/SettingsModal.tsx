@@ -1853,6 +1853,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <button
                         type="button"
                         onClick={() => {
+                          const ask =
+                            formData.notifications?.confirmations?.askBeforeDeleteQuickActions ??
+                            true;
+                          if (ask && !window.confirm('Deseja realmente apagar esta resposta rápida?')) {
+                            return;
+                          }
                           const updated = quickRepliesList.filter((_, i) => i !== idx);
                           setQuickRepliesList(updated);
                         }}

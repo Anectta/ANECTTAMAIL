@@ -329,6 +329,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const handleDeleteEvent = (id: string) => {
+    const ev = events.find((item) => item.id === id);
+    if (!window.confirm(`Deseja realmente excluir o compromisso "${ev?.title || ''}"?`)) {
+      return;
+    }
     setEvents((prev) => prev.filter((ev) => ev.id !== id));
     if (editingEventId === id) {
       setIsModalOpen(false);

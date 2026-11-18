@@ -18,7 +18,12 @@ import {
 } from '@/components/ContactsView';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount, PriorityLevel } from '@/types/email';
-import { AppSettings, DEFAULT_SETTINGS, AccountSettings } from '@/types/settings';
+import {
+  AppSettings,
+  DEFAULT_SETTINGS,
+  AccountSettings,
+  DEFAULT_CONFIRMATION_SETTINGS,
+} from '@/types/settings';
 import { EmailAnimationPreviewModal } from './components/animated-icons';
 import { SkinSelectorModal } from './components/SkinSelectorModal';
 import { AccountSetupWizardView } from './components/AccountSetupWizardView';
@@ -592,11 +597,23 @@ export const App: React.FC = () => {
     showToast(`✓ Contato "${updated.name}" atualizado!`);
   }, []);
 
-  const handleDeleteContact = useCallback((id: string) => {
-    setContacts((prev) => prev.filter((c) => c.id !== id));
-    soundService.play('click');
-    showToast('Contato removido.');
-  }, []);
+  const handleDeleteContact = useCallback(
+    (id: string) => {
+      const conf = {
+        ...DEFAULT_CONFIRMATION_SETTINGS,
+        ...(settings.notifications?.confirmations || {}),
+      };
+      if (conf.askBeforeDeleteContact) {
+        if (!window.confirm('Deseja realmente excluir este contato?')) {
+          return;
+        }
+      }
+      setContacts((prev) => prev.filter((c) => c.id !== id));
+      soundService.play('click');
+      showToast('Contato removido.');
+    },
+    [settings.notifications?.confirmations]
+  );
 
   const isEmailSavedAsContact = useCallback(
     (rawEmail?: string) => {
@@ -840,6 +857,15 @@ export const App: React.FC = () => {
 
   const handleMoveFolder = (folderId: string, newParentFolder?: MailFolder) => {
     if (folderId === newParentFolder) return;
+    const conf = {
+      ...DEFAULT_CONFIRMATION_SETTINGS,
+      ...(settings.notifications?.confirmations || {}),
+    };
+    if (conf.askBeforeDragDropFolder) {
+      if (!window.confirm('Deseja realmente mover esta pasta?')) {
+        return;
+      }
+    }
     setCustomFolders((prev) =>
       prev.map((f) => (f.id === folderId ? { ...f, parentFolder: newParentFolder } : f))
     );
@@ -849,6 +875,19 @@ export const App: React.FC = () => {
 
   const handleDeleteFolder = (folderId: string) => {
     const target = customFolders.find((f) => f.id === folderId);
+    const conf = {
+      ...DEFAULT_CONFIRMATION_SETTINGS,
+      ...(settings.notifications?.confirmations || {}),
+    };
+    if (conf.askBeforeDeleteFolder) {
+      if (
+        !window.confirm(
+          `Deseja realmente excluir a pasta "${target?.name || folderId}"?`
+        )
+      ) {
+        return;
+      }
+    }
     // Coleta recursivamente a pasta e todas as suas subpastas
     const idsToRemove = new Set<string>([folderId]);
     let added = true;
@@ -925,6 +964,23 @@ export const App: React.FC = () => {
   const handleEmptyFolder = (accountId: string, folderId: MailFolder) => {
     const targetAcc = settings.accounts.find((a) => a.id === accountId) || currentAccount;
     const isPermanent = folderId === 'trash' || folderId === 'junk';
+    const conf = {
+      ...DEFAULT_CONFIRMATION_SETTINGS,
+      ...(settings.notifications?.confirmations || {}),
+    };
+    if (folderId === 'trash' && conf.askBeforeEmptyTrash) {
+      if (!window.confirm('Deseja realmente esvaziar a Lixeira permanentemente?')) {
+        return;
+      }
+    } else if (isPermanent && conf.askBeforePermanentDeleteMessages) {
+      if (!window.confirm('Deseja realmente apagar as mensagens desta pasta de uma vez por todas?')) {
+        return;
+      }
+    } else if (!isPermanent && conf.askBeforeDeleteMessage) {
+      if (!window.confirm('Deseja realmente mover todas as mensagens desta pasta para a Lixeira?')) {
+        return;
+      }
+    }
     setEmails((prev) => {
       if (isPermanent) {
         return prev.filter((e) => !(e.folder === folderId && isEmailForAccount(e, targetAcc)));
@@ -1503,6 +1559,15 @@ export const App: React.FC = () => {
   };
 
   const handleRunRulesNow = () => {
+    const conf = {
+      ...DEFAULT_CONFIRMATION_SETTINGS,
+      ...(settings.notifications?.confirmations || {}),
+    };
+    if (conf.askBeforeApplyRuleOnMessages) {
+      if (!window.confirm('Deseja aplicar as regras ativas nas mensagens da Caixa de Entrada agora?')) {
+        return;
+      }
+    }
     const inboxIds = new Set(emails.filter((e) => e.folder === 'inbox').map((e) => e.id));
     if (inboxIds.size === 0) {
       showToast('Nenhuma mensagem na Caixa de Entrada para processar.');
@@ -2002,6 +2067,29 @@ export const App: React.FC = () => {
   const handleDeleteSelected = useCallback(
     (ids: string[]) => {
       if (!ids || ids.length === 0) return;
+      const conf = {
+        ...DEFAULT_CONFIRMATION_SETTINGS,
+        ...(settings.notifications?.confirmations || {}),
+      };
+      if (currentFolder === 'trash') {
+        if (conf.askBeforePermanentDeleteMessages) {
+          if (
+            !window.confirm(
+              `Deseja realmente apagar ${ids.length} ${ids.length === 1 ? 'mensagem' : 'mensagens'} de uma vez por todas?`
+            )
+          ) {
+            return;
+          }
+        }
+      } else if (conf.askBeforeDeleteMessage) {
+        if (
+          !window.confirm(
+            `Deseja realmente apagar ${ids.length} ${ids.length === 1 ? 'mensagem' : 'mensagens'}?`
+          )
+        ) {
+          return;
+        }
+      }
       const idSet = new Set(ids);
       if (currentFolder === 'trash') {
         setEmails((prev) => prev.filter((e) => !idSet.has(e.id)));
@@ -2023,7 +2111,7 @@ export const App: React.FC = () => {
         setSelectedEmailId(remaining.length > 0 ? remaining[0].id : null);
       }
     },
-    [currentFolder, currentFolderEmails, selectedEmailId]
+    [currentFolder, currentFolderEmails, selectedEmailId, settings.notifications?.confirmations]
   );
 
   const handleToggleSelectId = useCallback((id: string) => {
@@ -2083,32 +2171,72 @@ export const App: React.FC = () => {
   const handleMarkSpam = useCallback(
     (ids: string[]) => {
       if (!ids || ids.length === 0) return;
+      const conf = {
+        ...DEFAULT_CONFIRMATION_SETTINGS,
+        ...(settings.notifications?.confirmations || {}),
+      };
+      const junkAction = conf.junkMoveAction || 'always_ask';
+      let shouldBlacklistEmail = true;
+      let shouldBlacklistDomain = false;
+
+      if (junkAction === 'always_ask') {
+        if (
+          !window.confirm(
+            `Deseja mover ${ids.length} ${ids.length === 1 ? 'mensagem' : 'mensagens'} para o Lixo Eletrônico?`
+          )
+        ) {
+          return;
+        }
+      } else if (junkAction === 'move_to_spam') {
+        shouldBlacklistEmail = false;
+      } else if (junkAction === 'move_and_blacklist_email') {
+        shouldBlacklistEmail = true;
+      } else if (junkAction === 'move_and_blacklist_domain') {
+        shouldBlacklistEmail = false;
+        shouldBlacklistDomain = true;
+      }
+
       const idSet = new Set(ids);
       const blockedSenders = Array.from(
         new Set(
           emails
             .filter((e) => idSet.has(e.id) && e.senderEmail)
-            .map((e) => e.senderEmail.trim().toLowerCase())
+            .map((e) => {
+              const addr = e.senderEmail.trim().toLowerCase();
+              if (shouldBlacklistDomain && addr.includes('@')) {
+                return `@${addr.split('@')[1]}`;
+              }
+              return addr;
+            })
             .filter(Boolean)
         )
       );
 
-      if (blockedSenders.length > 0) {
+      if ((shouldBlacklistEmail || shouldBlacklistDomain) && blockedSenders.length > 0) {
         setSpamSenders((prev) => Array.from(new Set([...prev, ...blockedSenders])));
       }
 
-      const blockedSet = new Set(blockedSenders);
+      const blockedSet = new Set(
+        shouldBlacklistEmail || shouldBlacklistDomain ? blockedSenders : []
+      );
       setEmails((prev) =>
-        prev.map((e) =>
-          idSet.has(e.id) || (e.senderEmail && blockedSet.has(e.senderEmail.trim().toLowerCase()))
-            ? { ...e, folder: 'junk' }
-            : e
-        )
+        prev.map((e) => {
+          if (idSet.has(e.id)) return { ...e, folder: 'junk' };
+          const senderAddr = (e.senderEmail || '').trim().toLowerCase();
+          if (!senderAddr) return e;
+          const domainKey = senderAddr.includes('@') ? `@${senderAddr.split('@')[1]}` : '';
+          if (blockedSet.has(senderAddr) || (domainKey && blockedSet.has(domainKey))) {
+            return { ...e, folder: 'junk' };
+          }
+          return e;
+        })
       );
 
       soundService.play('click');
       showToast(
-        `✓ ${ids.length} ${ids.length === 1 ? 'e-mail movido' : 'e-mails movidos'} para Lixo Eletrônico e remetente(s) bloqueado(s).`
+        shouldBlacklistEmail || shouldBlacklistDomain
+          ? `✓ ${ids.length} ${ids.length === 1 ? 'e-mail movido' : 'e-mails movidos'} para Lixo Eletrônico e remetente(s)/domínio bloqueado(s).`
+          : `✓ ${ids.length} ${ids.length === 1 ? 'e-mail movido' : 'e-mails movidos'} para Lixo Eletrônico.`
       );
       setSelectedEmailIds([]);
       const remaining = currentFolderEmails.filter(
@@ -2118,7 +2246,7 @@ export const App: React.FC = () => {
         setSelectedEmailId(remaining.length > 0 ? remaining[0].id : null);
       }
     },
-    [emails, currentFolderEmails, selectedEmailId]
+    [emails, currentFolderEmails, selectedEmailId, settings.notifications?.confirmations]
   );
 
   const handleUnmarkSpam = useCallback(
@@ -3248,6 +3376,7 @@ export const App: React.FC = () => {
         draftAutoSaveMinutes={settings.drafts?.autoSaveMinutes ?? 3}
         spellCheckEnabled={(settings.spellcheck?.enabled ?? true) && (settings.spellcheck?.checkEmailCompose ?? true)}
         outgoingAnimation={settings.sending?.outgoingAnimation ?? 'airplane'}
+        confirmations={settings.notifications?.confirmations}
       />
 
       {/* Undo Send Floating Toast (8s) */}

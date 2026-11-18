@@ -263,6 +263,10 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
 
   const handleDeleteSignature = (id: string) => {
     setOpenMenuId(null);
+    const sig = signatures.find((s) => s.id === id);
+    if (!window.confirm(`Deseja realmente apagar a assinatura "${sig?.name || 'Sem título'}"?`)) {
+      return;
+    }
     if (signatures.length <= 1) {
       updateSignature(id, { name: 'Sem título', defaultAccountId: '', html: '' });
       if (editorRef.current) editorRef.current.innerHTML = '';

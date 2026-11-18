@@ -215,6 +215,10 @@ export const RulesModal: React.FC<RulesModalProps> = ({
   };
 
   const handleDeleteRule = (id: string) => {
+    const rule = rules.find((r) => r.id === id);
+    if (!window.confirm(`Deseja realmente apagar a regra "${rule?.name || id}"?`)) {
+      return;
+    }
     onSaveRules(rules.filter((r) => r.id !== id));
     if (editingRuleId === id) {
       setIsFormOpen(false);

@@ -95,10 +95,114 @@ export type NotificationSoundPreset =
   | 'bell'
   | 'none';
 
+export type ConversationDeleteArchiveAction =
+  | 'always_ask'
+  | 'current_folder_only'
+  | 'all_messages';
+
+export type JunkMoveAction =
+  | 'always_ask'
+  | 'move_to_spam'
+  | 'move_and_blacklist_email'
+  | 'move_and_blacklist_domain';
+
+export type DefaultFilterRulesApplyTarget =
+  | 'always_ask'
+  | 'local_accounts'
+  | 'server';
+
+export type DefaultRuleCreationMode =
+  | 'always_ask'
+  | 'from_library'
+  | 'custom_rule';
+
+export type RecipientVariableSubstitutionMode =
+  | 'always_ask'
+  | 'replace'
+  | 'do_not_replace';
+
+export interface ConfirmationSettings {
+  // Perguntar antes de...
+  askBeforeDeleteFolder: boolean;
+  askBeforeDragDropFolder: boolean;
+  askBeforeDeleteMessage: boolean;
+  askBeforePermanentDeleteMessages: boolean;
+  askBeforeDeleteAppointment: boolean;
+  askBeforeDeleteContact: boolean;
+  askBeforeDeleteTask: boolean;
+  askBeforeDeleteNote: boolean;
+  askBeforeDeleteAttachment: boolean;
+  askBeforeDeleteRule: boolean;
+  askBeforeDeleteQuickActions: boolean;
+  askBeforeDeleteTextTemplate: boolean;
+  askBeforeDeleteSignature: boolean;
+  askBeforeDeleteTemplates: boolean;
+  askBeforeEmptyTrash: boolean;
+  askBeforeApplyRuleOnMessages: boolean;
+  askBeforeModifyMessageProperties: boolean;
+  askBeforeChangeMessageCategory: boolean;
+  askBeforeSendOnCtrlEnter: boolean;
+  askBeforeDeleteOperationalLogFile: boolean;
+
+  // Avisar / Notificar...
+  warnIfBlankSubjectOnSend: boolean;
+  warnOnGroupHeaderSelectedForProcessing: boolean;
+  warnOnForwardOrReplyDecryptedText: boolean;
+  warnOnSendMessageLargerThanEnabled: boolean;
+  warnOnSendMessageLargerThanMb: number;
+  warnOnMissingAttachmentKeyword: boolean;
+  notifyOnGmailRateLimit: boolean;
+
+  // Ações padrão (Dropdowns)
+  conversationDeleteArchiveAction: ConversationDeleteArchiveAction;
+  junkMoveAction: JunkMoveAction;
+  defaultFilterRulesApplyTarget: DefaultFilterRulesApplyTarget;
+  defaultRuleCreationMode: DefaultRuleCreationMode;
+  recipientVariableSubstitutionMode: RecipientVariableSubstitutionMode;
+}
+
+export const DEFAULT_CONFIRMATION_SETTINGS: ConfirmationSettings = {
+  askBeforeDeleteFolder: true,
+  askBeforeDragDropFolder: true,
+  askBeforeDeleteMessage: true,
+  askBeforePermanentDeleteMessages: true,
+  askBeforeDeleteAppointment: true,
+  askBeforeDeleteContact: true,
+  askBeforeDeleteTask: true,
+  askBeforeDeleteNote: true,
+  askBeforeDeleteAttachment: true,
+  askBeforeDeleteRule: true,
+  askBeforeDeleteQuickActions: true,
+  askBeforeDeleteTextTemplate: true,
+  askBeforeDeleteSignature: true,
+  askBeforeDeleteTemplates: true,
+  askBeforeEmptyTrash: true,
+  askBeforeApplyRuleOnMessages: true,
+  askBeforeModifyMessageProperties: true,
+  askBeforeChangeMessageCategory: true,
+  askBeforeSendOnCtrlEnter: true,
+  askBeforeDeleteOperationalLogFile: true,
+
+  warnIfBlankSubjectOnSend: true,
+  warnOnGroupHeaderSelectedForProcessing: true,
+  warnOnForwardOrReplyDecryptedText: true,
+  warnOnSendMessageLargerThanEnabled: true,
+  warnOnSendMessageLargerThanMb: 10,
+  warnOnMissingAttachmentKeyword: true,
+  notifyOnGmailRateLimit: true,
+
+  conversationDeleteArchiveAction: 'always_ask',
+  junkMoveAction: 'always_ask',
+  defaultFilterRulesApplyTarget: 'always_ask',
+  defaultRuleCreationMode: 'always_ask',
+  recipientVariableSubstitutionMode: 'always_ask',
+};
+
 export interface NotificationSettings {
   notificationsEnabled: boolean;
   notificationSound: NotificationSoundPreset;
   unreadBadgeEnabled: boolean;
+  confirmations?: ConfirmationSettings;
 }
 
 export interface CalendarSettings {
@@ -252,6 +356,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     notificationsEnabled: true,
     notificationSound: 'theme',
     unreadBadgeEnabled: true,
+    confirmations: DEFAULT_CONFIRMATION_SETTINGS,
   },
   calendar: {
     connectedAccountIds: [],
