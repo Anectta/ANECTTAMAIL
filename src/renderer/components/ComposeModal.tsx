@@ -887,7 +887,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 title="Inserir resposta rápida (Snippet) ou criar novo modelo de texto"
               >
                 <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Snippets ({snippets.length})</span>
+                <span>Snippets (Respostas Rápidas) ({snippets.length})</span>
               </button>
 
               {/* Solicitação de Confirmação de Leitura (desmarcado por padrão) */}
