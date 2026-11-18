@@ -3034,30 +3034,6 @@ export const App: React.FC = () => {
                 </div>
               )}
 
-              {/* White Search Input (apenas no módulo E-mails) */}
-              {activeModule === 'mail' && (
-                <div className="relative w-64">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Pesquisar..."
-                    className="w-full bg-white text-slate-800 placeholder-slate-400 rounded-md pl-8 pr-7 py-1.5 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-                      title="Limpar pesquisa"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              )}
-
               {/* Window Controls + Theme Mode Toggle */}
               <div className="flex items-center space-x-0.5 pl-2">
                 <button
@@ -3116,12 +3092,35 @@ export const App: React.FC = () => {
                     setComposeDefaults({ recipient: '', subject: '' });
                     setIsComposeOpen(true);
                   }}
-                  className="flex items-center space-x-1.5 px-3 py-1 bg-white/15 hover:bg-white/25 text-white border border-white/25 rounded-md text-xs font-semibold transition-colors"
+                  className="flex items-center space-x-1.5 px-3 py-1 bg-white/15 hover:bg-white/25 text-white border border-white/25 rounded-md text-xs font-semibold transition-colors shrink-0"
                 >
                   <MailPlus className="w-3.5 h-3.5" />
                   <span>Novo E-mail</span>
                 </button>
 
+                {/* White Search Input (ao lado de Novo E-mail) */}
+                <div className="relative w-64 shrink-0">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Pesquisar..."
+                    className="w-full bg-white text-slate-800 placeholder-slate-400 rounded-md pl-8 pr-7 py-1 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                      title="Limpar pesquisa"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Frase motivacional à direita da pesquisa */}
                 <MotivationalBanner />
               </div>
 
