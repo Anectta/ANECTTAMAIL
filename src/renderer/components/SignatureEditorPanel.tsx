@@ -596,6 +596,87 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               <span>{isGeneratorOpen ? 'Fechar Gerador' : 'Abrir Gerador de Assinatura'}</span>
             </button>
+
+            {isGeneratorOpen && (
+              <div className="p-3 bg-slate-950/90 border border-slate-800 rounded-xl space-y-2.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400 font-medium">Modelo:</span>
+                  {(
+                    [
+                      { id: 'modern', label: 'Moderno' },
+                      { id: 'classic', label: 'Clássico' },
+                      { id: 'minimal', label: 'Minimalista' },
+                    ] as const
+                  ).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setGenTemplate(t.id)}
+                      className={`px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                        genTemplate === t.id
+                          ? 'bg-brand-600 text-white border-brand-500'
+                          : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Nome completo"
+                    value={genFields.name}
+                    onChange={(e) => setGenFields({ ...genFields, name: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Cargo"
+                    value={genFields.role}
+                    onChange={(e) => setGenFields({ ...genFields, role: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Empresa"
+                    value={genFields.company}
+                    onChange={(e) => setGenFields({ ...genFields, company: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Telefone / WhatsApp"
+                    value={genFields.phone}
+                    onChange={(e) => setGenFields({ ...genFields, phone: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+                  />
+                  <input
+                    type="email"
+                    placeholder="E-mail"
+                    value={genFields.email}
+                    onChange={(e) => setGenFields({ ...genFields, email: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Site (ex: anectta.com.br)"
+                    value={genFields.website}
+                    onChange={(e) => setGenFields({ ...genFields, website: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleApplyGeneratedTemplate}
+                  className="w-full px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-medium transition-colors"
+                >
+                  Aplicar Assinatura no Editor
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1100,92 +1181,6 @@ export const SignatureEditorPanel: React.FC<SignatureEditorPanelProps> = ({
               />
               <span>Anexar meu vCard às mensagens enviadas</span>
             </label>
-
-            {/* Quick Signature Generator Section (Flamingo-style) */}
-            <div className="space-y-2">
-              {isGeneratorOpen && (
-                <div className="p-3.5 bg-slate-950/90 border border-slate-800 rounded-xl space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] text-slate-400 font-medium">Modelo:</span>
-                    {(
-                      [
-                        { id: 'modern', label: 'Moderno' },
-                        { id: 'classic', label: 'Clássico' },
-                        { id: 'minimal', label: 'Minimalista' },
-                      ] as const
-                    ).map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => setGenTemplate(t.id)}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors ${
-                          genTemplate === t.id
-                            ? 'bg-brand-600 text-white border-brand-500'
-                            : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
-                        }`}
-                      >
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      placeholder="Nome completo"
-                      value={genFields.name}
-                      onChange={(e) => setGenFields({ ...genFields, name: e.target.value })}
-                      className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Cargo"
-                      value={genFields.role}
-                      onChange={(e) => setGenFields({ ...genFields, role: e.target.value })}
-                      className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Empresa"
-                      value={genFields.company}
-                      onChange={(e) => setGenFields({ ...genFields, company: e.target.value })}
-                      className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Telefone / WhatsApp"
-                      value={genFields.phone}
-                      onChange={(e) => setGenFields({ ...genFields, phone: e.target.value })}
-                      className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
-                    />
-                    <input
-                      type="email"
-                      placeholder="E-mail"
-                      value={genFields.email}
-                      onChange={(e) => setGenFields({ ...genFields, email: e.target.value })}
-                      className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Site (ex: anectta.com.br)"
-                      value={genFields.website}
-                      onChange={(e) => setGenFields({ ...genFields, website: e.target.value })}
-                      className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
-                    />
-                  </div>
-
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handleApplyGeneratedTemplate}
-                      className="px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-medium transition-colors"
-                    >
-                      Aplicar Assinatura no Editor
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         )}
       </div>
