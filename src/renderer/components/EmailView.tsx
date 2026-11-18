@@ -8,10 +8,8 @@ import {
   Maximize2,
   Clock,
   CheckCircle,
-  Send,
   Loader2,
   MailQuestion,
-  Sparkles,
   FileDown,
   Paperclip,
   Download,
@@ -22,7 +20,6 @@ import {
   File,
   AlertCircle,
   AlertOctagon,
-  SlidersHorizontal,
   UserPlus,
   UserCheck,
   ArrowLeft,
@@ -42,8 +39,6 @@ import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
 import { soundService } from '../services/soundService';
 import { filterRealAttachments } from '../utils/attachmentUtils';
-import { QuickRepliesService } from '../services/quickRepliesService';
-import { CustomizeQuickRepliesModal } from './CustomizeQuickRepliesModal';
 import DOMPurify from 'dompurify';
 import { formatReceivedLabel } from '../utils/dateSortUtils';
 
@@ -152,9 +147,6 @@ export const EmailView: React.FC<EmailViewProps> = ({
   onChangePrivacySetting,
   onSendReadReceipt,
 }) => {
-  const [inlineReplyText, setInlineReplyText] = useState('');
-  const [isSendingReply, setIsSendingReply] = useState(false);
-  const [replySentSuccess, setReplySentSuccess] = useState(false);
   const [revealedImagesEmailIds, setRevealedImagesEmailIds] = useState<Record<string, boolean>>({});
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -191,12 +183,10 @@ export const EmailView: React.FC<EmailViewProps> = ({
     setIsPrivacyPopoverOpen(false);
   }, [email?.id]);
 
-  // AI Assistant State
-  const [quickReplies, setQuickReplies] = useState<string[]>([]);
+  // Export & Print State
   const [isExportingEml, setIsExportingEml] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [emlToast, setEmlToast] = useState<string | null>(null);
-  const [isCustomizingReplies, setIsCustomizingReplies] = useState(false);
 
   const handlePrintEmail = async () => {
     if (!email || isPrinting) return;
@@ -338,43 +328,6 @@ export const EmailView: React.FC<EmailViewProps> = ({
     return <File className="w-4 h-4 text-brand-400 shrink-0" />;
   };
 
-  useEffect(() => {
-    setInlineReplyText('');
-    setReplySentSuccess(false);
-
-    // Carrega sugestões de respostas rápidas contextuais ou personalizadas
-    if (QuickRepliesService.isCustomized()) {
-      setQuickReplies(QuickRepliesService.getReplies());
-    } else if (email?.body && window.electronAPI?.suggestRepliesWithAI) {
-      window.electronAPI
-        .suggestRepliesWithAI(email.body)
-        .then((replies) => {
-          if (replies && replies.length > 0) {
-            setQuickReplies(replies);
-          } else {
-            setQuickReplies(QuickRepliesService.getReplies());
-          }
-        })
-        .catch(() => setQuickReplies(QuickRepliesService.getReplies()));
-    } else {
-      setQuickReplies(QuickRepliesService.getReplies());
-    }
-  }, [email?.id]);
-
-  useEffect(() => {
-    const handleQuickRepliesUpdated = (e: any) => {
-      if (e.detail && Array.isArray(e.detail)) {
-        setQuickReplies(e.detail);
-      } else {
-        setQuickReplies(QuickRepliesService.getReplies());
-      }
-    };
-    window.addEventListener('anectta:quick-replies-updated', handleQuickRepliesUpdated);
-    return () => {
-      window.removeEventListener('anectta:quick-replies-updated', handleQuickRepliesUpdated);
-    };
-  }, []);
-
   if (!email) {
     return (
       <main className="flex-1 bg-slate-950 flex flex-col items-center justify-center text-slate-500 p-8 select-text">
@@ -401,32 +354,6 @@ export const EmailView: React.FC<EmailViewProps> = ({
       </main>
     );
   }
-
-  const handleSendQuickReply = async () => {
-    if (!inlineReplyText.trim()) return;
-    setIsSendingReply(true);
-    try {
-      if (window.electronAPI) {
-        await window.electronAPI.sendEmail({
-          sender: 'Carlos Amoroso',
-          senderEmail: 'carlosamoroso@anectta.com.br',
-          recipient: email.senderEmail,
-          subject: `Re: ${email.subject}`,
-          snippet: inlineReplyText.slice(0, 80),
-          body: inlineReplyText,
-          period: 'today',
-          folder: 'sent',
-          priority: 'medium',
-          isRead: true,
-        });
-      }
-      setReplySentSuccess(true);
-      setInlineReplyText('');
-      setTimeout(() => setReplySentSuccess(false), 3000);
-    } finally {
-      setIsSendingReply(false);
-    }
-  };
 
   return (
     <main className="flex-1 bg-slate-950 flex flex-col h-full overflow-hidden select-text">
@@ -1259,92 +1186,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             {email.body}
           </div>
         )}
-
-        {/* Quick Inline Reply Box with AI suggestions */}
-        <div className="pt-6 border-t border-slate-800/80 space-y-3">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span className="font-semibold text-slate-300">
-              Resposta Rápida para {email.sender.split(' ')[0]}
-            </span>
-            {replySentSuccess && (
-              <span className="text-emerald-400 font-medium flex items-center space-x-1">
-                <CheckCircle className="w-3.5 h-3.5" />
-                <span>E-mail enviado com sucesso!</span>
-              </span>
-            )}
-          </div>
-
-          {/* AI Quick Reply Chips */}
-          {quickReplies.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <div className="flex items-center space-x-1.5">
-                  <Sparkles className="w-3 h-3 text-amber-400 shrink-0" />
-                  <span>Sugestões de Resposta Inteligente (1 clique para preencher):</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    soundService.play('pop');
-                    setIsCustomizingReplies(true);
-                  }}
-                  className="flex items-center space-x-1 text-slate-400 hover:text-brand-300 hover:bg-slate-900 px-2 py-0.5 rounded-lg border border-transparent hover:border-slate-800 transition-all font-medium"
-                  title="Personalizar minhas respostas rápidas"
-                >
-                  <SlidersHorizontal className="w-3 h-3 text-brand-400" />
-                  <span>Personalizar</span>
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {quickReplies.map((reply, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setInlineReplyText(reply)}
-                    className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 hover:border-brand-500/40 text-[11px] transition-all text-left shadow-sm"
-                  >
-                    "{reply}"
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="relative">
-            <textarea
-              rows={3}
-              value={inlineReplyText}
-              onChange={(e) => setInlineReplyText(e.target.value)}
-              placeholder="Digite sua resposta corporativa ou clique em uma sugestão acima..."
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all resize-none"
-            />
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-[11px] text-slate-500 font-mono">
-                Pressione Responder para editor avançado
-              </span>
-              <button
-                onClick={handleSendQuickReply}
-                disabled={isSendingReply || !inlineReplyText.trim()}
-                className="flex items-center space-x-2 px-4 py-1.5 bg-brand-600 hover:bg-brand-500 text-white font-medium text-xs rounded-lg transition-all disabled:opacity-50 disabled:pointer-events-none shadow-sm shadow-brand-600/30"
-              >
-                {isSendingReply ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Send className="w-3.5 h-3.5" />
-                )}
-                <span>Enviar</span>
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
-
-      {/* Modal de Personalização de Respostas Rápidas */}
-      <CustomizeQuickRepliesModal
-        isOpen={isCustomizingReplies}
-        onClose={() => setIsCustomizingReplies(false)}
-        onSaved={(updated) => setQuickReplies(updated)}
-      />
     </main>
   );
 };
