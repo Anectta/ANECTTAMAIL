@@ -70,7 +70,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   // =========================================================================
   {
     id: 'slate-teal',
-    name: '1. Slate + Teal',
+    name: 'Ardósia + Azul-petróleo',
     subtitle: 'Ardósia clara minimalista com destaque verde-azulado (Teal)',
     category: 'light',
     section: 'light',
