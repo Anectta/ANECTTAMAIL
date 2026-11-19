@@ -59,37 +59,52 @@ export const CALENDAR_CATEGORIES: CalendarCategory[] = [
 
 export const COLOR_STYLES: Record<
   CalendarColorKey,
-  { dot: string; pill: string; block: string; border: string }
+  { label: string; dot: string; pill: string; block: string; border: string; headerBg: string; rowSelectedBg: string }
 > = {
   blue: {
+    label: 'Trabalho / Reunião',
     dot: 'bg-blue-500',
     pill: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100',
     block: 'bg-blue-50/95 text-blue-900 border-l-4 border-l-blue-600 border-blue-200',
     border: 'border-blue-500',
+    headerBg: 'bg-sky-200/90 text-slate-900 border-b border-sky-300',
+    rowSelectedBg: 'bg-sky-200/80 text-slate-900',
   },
   emerald: {
+    label: 'Pessoal / Concluído',
     dot: 'bg-emerald-500',
     pill: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100',
     block: 'bg-emerald-50/95 text-emerald-900 border-l-4 border-l-emerald-600 border-emerald-200',
     border: 'border-emerald-500',
+    headerBg: 'bg-lime-200/90 text-slate-900 border-b border-lime-300',
+    rowSelectedBg: 'bg-lime-200/80 text-slate-900',
   },
   violet: {
+    label: 'Projeto / Estratégia',
     dot: 'bg-violet-500',
     pill: 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100',
     block: 'bg-violet-50/95 text-violet-900 border-l-4 border-l-violet-600 border-violet-200',
     border: 'border-violet-500',
+    headerBg: 'bg-violet-200/90 text-slate-900 border-b border-violet-300',
+    rowSelectedBg: 'bg-violet-200/80 text-slate-900',
   },
   amber: {
+    label: 'Atenção / Prazo',
     dot: 'bg-amber-500',
     pill: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100',
     block: 'bg-amber-50/95 text-amber-900 border-l-4 border-l-amber-500 border-amber-200',
     border: 'border-amber-500',
+    headerBg: 'bg-amber-200/90 text-slate-900 border-b border-amber-300',
+    rowSelectedBg: 'bg-amber-200/80 text-slate-900',
   },
   rose: {
+    label: 'Urgente / Importante',
     dot: 'bg-rose-500',
     pill: 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100',
     block: 'bg-rose-50/95 text-rose-900 border-l-4 border-l-rose-600 border-rose-200',
     border: 'border-rose-500',
+    headerBg: 'bg-rose-200/90 text-slate-900 border-b border-rose-300',
+    rowSelectedBg: 'bg-rose-200/80 text-slate-900',
   },
 };
 

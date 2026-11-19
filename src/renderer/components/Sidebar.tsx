@@ -804,7 +804,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             &#923;NECTT&#923; M@il
           </span>
           <div className="mt-1 flex items-center justify-center gap-2 text-[11px] font-normal tracking-wide text-slate-300">
-            <span>Simples</span>
+            <span>Ágil</span>
             <span
               style={{ backgroundColor: '#00a8ff' }}
               className="w-1.5 h-1.5 rounded-full shadow-[0_0_6px_rgba(0,168,255,0.9)] shrink-0"

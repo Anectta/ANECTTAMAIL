@@ -1,14 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { DownloadCloud, RefreshCw, ShieldCheck } from 'lucide-react';
+import { DownloadCloud, RefreshCw } from 'lucide-react';
+import logoImg from '../assets/logo.png';
 
 export const ForceUpdateModal: React.FC = () => {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [newVersion, setNewVersion] = useState<string>('');
+  const [currentVersion, setCurrentVersion] = useState<string>('');
   const [isDownloading, setIsDownloading] = useState(false);
   const [progress, setProgress] = useState<number>(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    window.electronAPI?.getAppVersion?.().then((v) => {
+      if (v) setCurrentVersion(v);
+    }).catch(() => {});
+
     const updater = window.updaterAPI;
     if (!updater) return;
 
@@ -55,86 +61,121 @@ export const ForceUpdateModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-slate-900 p-6 shadow-2xl text-slate-100">
-        <div className="flex items-center space-x-3 mb-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-400">
-            <DownloadCloud className="h-6 w-6" />
-          </div>
-          <div>
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-400 border border-amber-500/30">
-              <ShieldCheck className="h-3 w-3" />
-              Atualização Obrigatória
-            </span>
-            <h2 className="text-lg font-bold text-white mt-0.5">
-              Nova versão disponível
-            </h2>
-          </div>
+      <div className="splash-screen relative w-full max-w-[560px] min-h-[380px] overflow-hidden rounded-2xl bg-gradient-to-br from-[#091322] via-[#102036] to-[#08101d] text-slate-100 flex flex-col items-center justify-between p-8 border border-sky-500/25 shadow-2xl">
+        {/* Ambient glow */}
+        <div
+          className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full opacity-25 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #00a8ff 0%, transparent 70%)' }}
+          aria-hidden="true"
+        />
+
+        {/* Top Bar */}
+        <div className="w-full flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-slate-400/80 z-10">
+          <span>Corporate Desktop</span>
+          <span className="flex items-center gap-1.5 text-sky-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+            {newVersion
+              ? `Nova Versão v${newVersion}`
+              : currentVersion
+              ? `Versão Atual v${currentVersion}`
+              : 'Atualização Obrigatória'}
+          </span>
         </div>
 
-        <p className="text-sm text-slate-300 leading-relaxed mb-5">
-          Uma nova atualização crítica do <strong className="text-white">Anectta MAIL</strong>{' '}
-          {newVersion ? (
-            <span className="inline-block rounded bg-sky-500/20 px-1.5 py-0.5 font-mono text-xs font-semibold text-sky-300 border border-sky-500/30">
-              v{newVersion}
-            </span>
-          ) : null}{' '}
-          está disponível. Para continuar utilizando o sistema com segurança e estabilidade, atualize agora.
-        </p>
-
-        {errorMsg && (
-          <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
-            {errorMsg}
+        {/* Center Logo & Branding */}
+        <div className="flex flex-col items-center text-center z-10 my-5">
+          <div className="relative mb-3">
+            <div
+              className="absolute inset-0 rounded-full blur-xl opacity-45"
+              style={{ backgroundColor: '#00a8ff' }}
+              aria-hidden="true"
+            />
+            <img
+              src={logoImg}
+              alt="Anectta MAIL"
+              className="relative w-20 h-20 object-contain anectta-logo-spin drop-shadow-[0_0_16px_rgba(0,168,255,0.55)]"
+            />
           </div>
-        )}
 
-        {!isDownloading ? (
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={handleStartDownload}
-              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-sky-500 hover:bg-sky-400 active:bg-sky-600 px-4 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-sky-500/20 transition-all"
-            >
-              <DownloadCloud className="h-4 w-4" />
-              Atualizar Agora
-            </button>
+          <h1 className="text-[30px] font-light tracking-[0.06em] text-white leading-tight select-none">
+            &#923;NECTT&#923; M@il
+          </h1>
 
-            {errorMsg && (
+          <div className="mt-2 flex items-center justify-center gap-2.5 text-xs font-normal tracking-wider text-slate-200">
+            <span>Ágil</span>
+            <span
+              style={{ backgroundColor: '#00a8ff' }}
+              className="w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(0,168,255,0.95)] shrink-0"
+              aria-hidden="true"
+            />
+            <span>Seguro</span>
+            <span
+              style={{ backgroundColor: '#00a8ff' }}
+              className="w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(0,168,255,0.95)] shrink-0"
+              aria-hidden="true"
+            />
+            <span>Conectado</span>
+          </div>
+
+          <p className="mt-4 text-[13px] font-medium text-sky-200/95 tracking-wide max-w-md leading-relaxed">
+            {isDownloading
+              ? progress >= 100
+                ? 'Atualização concluída! Reiniciando o Anectta MAIL...'
+                : `Baixando Atualização Crítica do Sistema (${progress}%)`
+              : `Nova atualização ${newVersion ? `v${newVersion} ` : ''}disponível para instalação obrigatória`}
+          </p>
+
+          {errorMsg && (
+            <div className="mt-3 w-full max-w-sm rounded-xl border border-rose-500/40 bg-rose-500/15 px-3 py-2 text-xs text-rose-200">
+              {errorMsg}
+            </div>
+          )}
+        </div>
+
+        {/* Bottom Action / Progress Bar */}
+        <div className="w-full max-w-sm z-10 flex flex-col items-center gap-2.5">
+          {!isDownloading ? (
+            <div className="w-full flex items-center gap-2.5">
               <button
                 type="button"
-                onClick={() => {
-                  setErrorMsg(null);
-                  setUpdateAvailable(false);
-                }}
-                className="flex-1 flex items-center justify-center rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 hover:text-white transition-all"
+                onClick={handleStartDownload}
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0284c7] via-[#00a8ff] to-[#38bdf8] hover:brightness-110 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-lg shadow-sky-500/25 transition-all"
               >
-                Deixar para mais tarde
+                <DownloadCloud className="h-4 w-4" />
+                Atualizar Agora
               </button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between text-xs font-medium text-slate-300">
-              <span className="flex items-center gap-1.5">
-                <RefreshCw className="h-3.5 w-3.5 animate-spin text-sky-400" />
-                {progress >= 100
-                  ? 'Download concluído! Reiniciando aplicativo...'
-                  : 'Baixando atualização...'}
-              </span>
-              <span className="font-mono font-bold text-sky-400">{progress}%</span>
-            </div>
 
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-800 border border-slate-700">
-              <div
-                className="h-full bg-gradient-to-r from-sky-500 to-cyan-400 transition-all duration-200 ease-out"
-                style={{ width: `${progress}%` }}
-              />
+              {errorMsg && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMsg(null);
+                    setUpdateAvailable(false);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition-all"
+                >
+                  Mais tarde
+                </button>
+              )}
             </div>
-
-            <p className="text-[11px] text-center text-slate-400 pt-1">
-              O aplicativo será reiniciado automaticamente após a conclusão.
-            </p>
-          </div>
-        )}
+          ) : (
+            <>
+              <div className="w-full h-1.5 bg-slate-800/90 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-200 ease-out"
+                  style={{
+                    width: `${progress}%`,
+                    background: 'linear-gradient(90deg, #0284c7, #00a8ff, #38bdf8)',
+                  }}
+                />
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-300/90">
+                <RefreshCw className="h-3 w-3 animate-spin text-sky-400" />
+                <span>O aplicativo será reiniciado automaticamente após a conclusão.</span>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

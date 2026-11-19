@@ -47,7 +47,7 @@ export const SplashScreenView: React.FC = () => {
         </h1>
 
         <div className="mt-2 flex items-center justify-center gap-2.5 text-xs font-normal tracking-wider text-slate-200">
-          <span>Simples</span>
+          <span>Ágil</span>
           <span
             style={{ backgroundColor: '#00a8ff' }}
             className="w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(0,168,255,0.95)] shrink-0"

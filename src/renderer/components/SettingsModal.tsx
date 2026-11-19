@@ -17,8 +17,6 @@ import {
   Plus,
   Trash2,
   RotateCcw,
-  Sun,
-  Moon,
   FolderTree,
   Star,
   ArrowLeftRight,
@@ -63,8 +61,6 @@ interface SettingsModalProps {
   onClose: () => void;
   settings: AppSettings;
   onSaveSettings: (newSettings: AppSettings) => void;
-  isCleanWhite?: boolean;
-  onToggleTheme?: () => void;
   onOpenRules?: () => void;
   activeRulesCount?: number;
   onOpenSetupWizard?: () => void;
@@ -94,8 +90,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   settings,
   onSaveSettings,
-  isCleanWhite = false,
-  onToggleTheme,
   onOpenRules,
   activeRulesCount = 0,
   onOpenSetupWizard,
@@ -515,33 +509,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   )}
                 </button>
               ))}
-
-            <div className="pt-2 mt-2 border-t border-slate-800/80 flex flex-col space-y-1">
-              {onToggleTheme && (
-                <button
-                  type="button"
-                  onClick={onToggleTheme}
-                  className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all border ${
-                    isCleanWhite
-                      ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
-                      : 'text-slate-300 hover:text-white bg-slate-900/70 hover:bg-slate-800 border-slate-800'
-                  }`}
-                  title={isCleanWhite ? 'Alternar para último Tema Escuro' : 'Alternar para último Tema Claro'}
-                >
-                  {isCleanWhite ? (
-                    <>
-                      <Moon className="w-4 h-4 text-indigo-600 shrink-0" />
-                      <span>Modo Escuro</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sun className="w-4 h-4 text-amber-400 shrink-0" />
-                      <span>Modo Claro</span>
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
           </div>
 
           {/* Tab Content Panel */}

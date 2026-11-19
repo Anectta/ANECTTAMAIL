@@ -1,4 +1,4 @@
-﻿param(
+param(
   [string]$LogoPath = "",
   [string]$PluginsDir = "",
   [string]$InstDir = "",
@@ -109,15 +109,39 @@ $xaml = @"
         Background="Transparent"
         ResizeMode="NoResize"
         Topmost="True"
-        ShowInTaskbar="True">
+        ShowInTaskbar="True"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType">
   <Grid Margin="30">
-    <!-- Glow externo ciano sutil -->
-    <Border CornerRadius="14" Background="#15181C" BorderBrush="#2A323D" BorderThickness="1">
+    <!-- Glow externo ciano sutil em camada separada para não embaçar o texto -->
+    <Border CornerRadius="14" Background="#091322">
       <Border.Effect>
-        <DropShadowEffect Color="#00C4FF" BlurRadius="34" ShadowDepth="0" Opacity="0.38"/>
+        <DropShadowEffect Color="#00A8FF" BlurRadius="34" ShadowDepth="0" Opacity="0.35"/>
       </Border.Effect>
+    </Border>
+
+    <Border CornerRadius="14" BorderBrush="#330EA5E9" BorderThickness="1" ClipToBounds="True">
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+          <GradientStop Color="#091322" Offset="0"/>
+          <GradientStop Color="#102036" Offset="0.5"/>
+          <GradientStop Color="#08101D" Offset="1"/>
+        </LinearGradientBrush>
+      </Border.Background>
 
       <Grid>
+        <!-- Glow ambiente superior central igual à splash -->
+        <Ellipse Width="420" Height="420" Margin="0,-210,0,0" VerticalAlignment="Top" HorizontalAlignment="Center" IsHitTestVisible="False" Opacity="0.22">
+          <Ellipse.Fill>
+            <RadialGradientBrush>
+              <GradientStop Color="#00A8FF" Offset="0"/>
+              <GradientStop Color="#0000A8FF" Offset="1"/>
+            </RadialGradientBrush>
+          </Ellipse.Fill>
+        </Ellipse>
+
         <Grid.RowDefinitions>
           <RowDefinition Height="*"/>
           <RowDefinition Height="64"/>
@@ -169,29 +193,52 @@ $xaml = @"
           <!-- Marca -->
           <TextBlock Text="&#923;NECTT&#923; M@il"
                      FontFamily="Segoe UI Light, Segoe UI"
-                     FontSize="52"
+                     FontSize="46"
                      FontWeight="Light"
-                     Foreground="#E5E7EB"
+                     Foreground="#FFFFFF"
                      HorizontalAlignment="Center"
                      TextAlignment="Center"
                      Margin="0,0,0,10"/>
 
-          <!-- Título -->
+          <!-- Tagline: Ágil • Seguro • Conectado (igual à 1ª imagem) -->
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,22">
+            <TextBlock Text="&#193;gil"
+                       FontFamily="Segoe UI"
+                       FontSize="15"
+                       FontWeight="Normal"
+                       Foreground="#E2E8F0"
+                       VerticalAlignment="Center"/>
+            <Ellipse Width="7" Height="7" Fill="#00A8FF" Margin="12,1,12,0" VerticalAlignment="Center">
+              <Ellipse.Effect>
+                <DropShadowEffect Color="#00A8FF" BlurRadius="10" ShadowDepth="0" Opacity="0.95"/>
+              </Ellipse.Effect>
+            </Ellipse>
+            <TextBlock Text="Seguro"
+                       FontFamily="Segoe UI"
+                       FontSize="15"
+                       FontWeight="Normal"
+                       Foreground="#E2E8F0"
+                       VerticalAlignment="Center"/>
+            <Ellipse Width="7" Height="7" Fill="#00A8FF" Margin="12,1,12,0" VerticalAlignment="Center">
+              <Ellipse.Effect>
+                <DropShadowEffect Color="#00A8FF" BlurRadius="10" ShadowDepth="0" Opacity="0.95"/>
+              </Ellipse.Effect>
+            </Ellipse>
+            <TextBlock Text="Conectado"
+                       FontFamily="Segoe UI"
+                       FontSize="15"
+                       FontWeight="Normal"
+                       Foreground="#E2E8F0"
+                       VerticalAlignment="Center"/>
+          </StackPanel>
+
+          <!-- Título (mantendo os dizeres da 2ª imagem com tipologia/cor da 1ª) -->
           <TextBlock x:Name="TitleText"
                      Text="$headingText"
                      FontFamily="Segoe UI"
-                     FontSize="25"
-                     FontWeight="Bold"
-                     Foreground="#FFFFFF"
-                     HorizontalAlignment="Center"
-                     TextAlignment="Center"
-                     Margin="0,0,0,6"/>
-
-          <!-- Subtítulo -->
-          <TextBlock Text="Simples, f&#225;cil, conectado... do seu jeito!"
-                     FontFamily="Segoe UI"
-                     FontSize="19.5"
-                     Foreground="#9CA3AF"
+                     FontSize="17"
+                     FontWeight="Medium"
+                     Foreground="#F2BAE6FD"
                      HorizontalAlignment="Center"
                      TextAlignment="Center"
                      Margin="0,0,0,28"/>
@@ -234,7 +281,7 @@ $xaml = @"
         </StackPanel>
 
         <!-- Rodapé -->
-        <Border Grid.Row="1" Background="#1C2026" BorderBrush="#262B33" BorderThickness="0,1,0,0" CornerRadius="0,0,14,14" Padding="24,0">
+        <Border Grid.Row="1" Background="#0A1424" BorderBrush="#260EA5E9" BorderThickness="0,1,0,0" CornerRadius="0,0,14,14" Padding="24,0">
           <Button x:Name="CancelButton"
                   Content="Cancelar"
                   Width="104"

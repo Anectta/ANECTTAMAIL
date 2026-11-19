@@ -1708,7 +1708,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* Modal Criar / Editar Compromisso */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden text-slate-800">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden text-slate-800">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
               <h3 className="text-sm font-bold text-slate-900">
                 {editingEventId ? 'Editar Compromisso' : 'Novo Compromisso'}
@@ -1736,9 +1736,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 />
               </div>
 
-              {/* Datas & Dia inteiro */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
+              {/* Datas, Dia inteiro & Horário na mesma linha */}
+              <div className="flex items-end gap-2.5 flex-nowrap">
+                <div className="flex-1 min-w-0">
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Data de início
                   </label>
@@ -1749,10 +1749,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       setDate(e.target.value);
                       if (endDate < e.target.value) setEndDate(e.target.value);
                     }}
-                    className="w-full px-2.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    className="w-full h-[34px] px-2.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                   />
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Data de término
                   </label>
@@ -1761,24 +1761,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     value={endDate}
                     min={date}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-2.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    className="w-full h-[34px] px-2.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                   />
                 </div>
-              </div>
 
-              <div className="flex items-center justify-between gap-3">
-                <label className="flex items-center space-x-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                <label className="h-[34px] flex items-center space-x-1.5 text-xs font-semibold text-slate-700 cursor-pointer shrink-0 px-1">
                   <input
                     type="checkbox"
                     checked={allDay}
                     onChange={(e) => setAllDay(e.target.checked)}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    style={{ colorScheme: 'light' }}
+                    className="w-4 h-4 rounded border border-slate-300 bg-white accent-blue-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   />
-                  <span>Dia inteiro</span>
+                  <span className="whitespace-nowrap">Dia inteiro</span>
                 </label>
 
                 {!allDay && (
-                  <div className="flex items-center gap-2">
+                  <div className="h-[34px] flex items-center gap-1.5 shrink-0">
                     <input
                       type="time"
                       value={startTime}
@@ -1786,14 +1785,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         setStartTime(e.target.value);
                         setEndTime(addMinutesToTime(e.target.value, defaultDuration));
                       }}
-                      className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                      className="h-[34px] px-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                     />
                     <span className="text-xs text-slate-400">até</span>
                     <input
                       type="time"
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
-                      className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                      className="h-[34px] px-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                     />
                   </div>
                 )}

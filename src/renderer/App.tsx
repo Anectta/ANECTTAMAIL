@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { RotateCw, MailPlus, Search, Minus, Square, X, Moon, Sun } from 'lucide-react';
+import { RotateCw, MailPlus, Search, Minus, Square, X } from 'lucide-react';
 import { ActiveModule } from '@/components/AppRail';
 import { Sidebar } from '@/components/Sidebar';
 import { EmailList, EmailListRef, EmailLayoutMode } from '@/components/EmailList';
@@ -208,10 +208,6 @@ export const App: React.FC = () => {
     window.addEventListener('anectta:skin-change', onSkinChange);
     return () => window.removeEventListener('anectta:skin-change', onSkinChange);
   }, []);
-
-  const handleToggleTheme = () => {
-    themeService.toggleLightDark(true);
-  };
 
   const [activeModule, setActiveModule] = useState<ActiveModule>('mail');
   const [activeWebApp, setActiveWebApp] = useState<{ id: string; name: string; url: string } | null>(null);
@@ -3048,24 +3044,8 @@ export const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Window Controls + Theme Mode Toggle */}
+              {/* Window Controls */}
               <div className="flex items-center space-x-0.5 pl-2">
-                <button
-                  type="button"
-                  onClick={handleToggleTheme}
-                  className="p-1.5 rounded hover:bg-white/15 text-white/90 hover:text-white transition-colors"
-                  title={
-                    themeMode === 'clean'
-                      ? 'Alternar para último Tema Escuro selecionado'
-                      : 'Alternar para último Tema Claro selecionado'
-                  }
-                >
-                  {themeMode === 'clean' ? (
-                    <Moon className="w-3.5 h-3.5" />
-                  ) : (
-                    <Sun className="w-3.5 h-3.5" />
-                  )}
-                </button>
                 <button
                   type="button"
                   onClick={() => window.electronAPI?.minimizeWindow?.()}
@@ -3285,6 +3265,7 @@ export const App: React.FC = () => {
           <CalendarView
             calendarSettings={settings.calendar}
             defaultOrganizer={currentAccount?.displayName || currentAccount?.email}
+            accounts={settings.accounts}
           />
         )}
 
@@ -3444,8 +3425,6 @@ export const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onSaveSettings={handleSaveSettings}
-        isCleanWhite={themeMode === 'clean'}
-        onToggleTheme={handleToggleTheme}
         onOpenRules={() => {
           setIsSettingsOpen(false);
           setIsRulesModalOpen(true);
