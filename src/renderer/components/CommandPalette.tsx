@@ -205,7 +205,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     },
     {
       id: 'skin-midnight',
-      title: 'Ativar Tema: Meia-Noite Executivo (Tema Escuro)',
+      title: 'Ativar Tema: Marinho Profundo + Azul (Tema Escuro)',
       category: 'Sistema',
       icon: Palette,
       action: () => {

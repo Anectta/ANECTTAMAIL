@@ -25,7 +25,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   // =========================================================================
   {
     id: 'executive-midnight',
-    name: 'Meia-Noite Executivo',
+    name: 'Marinho Profundo + Azul',
     subtitle: 'Azul-marinho corporativo clássico com azul cobalto e dourado discreto',
     category: 'dark',
     section: 'default',
