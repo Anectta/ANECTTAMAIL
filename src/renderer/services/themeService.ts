@@ -193,7 +193,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   },
   {
     id: 'offwhite-coral',
-    name: '4. Off-white + Coral',
+    name: 'Branco Gelo + Coral',
     subtitle: 'Superfície marfim acolhedora com tipografia café e destaque coral quente',
     category: 'light',
     section: 'light',
