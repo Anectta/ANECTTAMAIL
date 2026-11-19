@@ -7,13 +7,10 @@ import {
 } from '../services/themeService';
 import { soundService } from '../services/soundService';
 
-type CategoryFilter = 'all' | 'dark' | 'light' | 'special';
-
 export const SkinGalleryPanel: React.FC = () => {
   const [activeSkin, setActiveSkin] = useState<SkinDefinition>(() =>
     themeService.getActiveSkin()
   );
-  const [filter, setFilter] = useState<CategoryFilter>('all');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() =>
     soundService.isEnabled()
   );
@@ -50,9 +47,7 @@ export const SkinGalleryPanel: React.FC = () => {
     soundService.play('click');
   };
 
-  const filteredSkins = AVAILABLE_SKINS.filter((s) =>
-    filter === 'all' ? true : s.category === filter
-  );
+  const filteredSkins = AVAILABLE_SKINS;
 
   return (
     <div className="space-y-4">
@@ -110,34 +105,11 @@ export const SkinGalleryPanel: React.FC = () => {
         )}
       </div>
 
-      {/* Category Filter */}
+      {/* Tema Ativo */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <span className="text-[11px] font-semibold text-slate-300">
-          Escolha uma Skin ({filteredSkins.length})
+          Tema Padrão ({filteredSkins.length})
         </span>
-        <div className="flex items-center space-x-1 bg-slate-900/60 p-1 rounded-lg border border-slate-800">
-          {(
-            [
-              { id: 'all', label: 'Todos' },
-              { id: 'dark', label: 'Escuros' },
-              { id: 'light', label: 'Claros' },
-              { id: 'special', label: 'Especiais' },
-            ] as const
-          ).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setFilter(tab.id)}
-              className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${
-                filter === tab.id
-                  ? 'bg-brand-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Visual Skin Grid */}

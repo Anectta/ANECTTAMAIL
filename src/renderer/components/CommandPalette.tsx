@@ -204,42 +204,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
     },
     {
-      id: 'skin-cyberpunk',
-      title: 'Ativar Skin: Cyberpunk Neon (High-tech, Ciano, Synth)',
-      category: 'Sistema',
-      icon: Palette,
-      action: () => {
-        themeService.setSkin('cyberpunk-neon');
-        onClose();
-      },
-    },
-    {
-      id: 'skin-nordic',
-      title: 'Ativar Skin: Nordic Frost (Ardósia, Gelo, Chime)',
-      category: 'Sistema',
-      icon: Palette,
-      action: () => {
-        themeService.setSkin('nordic-frost');
-        onClose();
-      },
-    },
-    {
       id: 'skin-midnight',
-      title: 'Ativar Skin: Executive Midnight (Navy, Cobalto, Vidro)',
+      title: 'Ativar Tema: Meia-Noite Executivo (Tema Escuro)',
       category: 'Sistema',
       icon: Palette,
       action: () => {
         themeService.setSkin('executive-midnight');
-        onClose();
-      },
-    },
-    {
-      id: 'skin-vintage',
-      title: 'Ativar Skin: Vintage Royale & Amber (Conhaque, Ouro)',
-      category: 'Sistema',
-      icon: Palette,
-      action: () => {
-        themeService.setSkin('vintage-parchment');
         onClose();
       },
     },

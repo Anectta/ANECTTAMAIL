@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { RotateCw, MailPlus, Search, Minus, Square, X, Moon, Sun } from 'lucide-react';
+import { RotateCw, MailPlus, Search, Minus, Square, X } from 'lucide-react';
 import { ActiveModule } from '@/components/AppRail';
 import { Sidebar } from '@/components/Sidebar';
 import { EmailList, EmailListRef, EmailLayoutMode } from '@/components/EmailList';
@@ -124,18 +124,8 @@ export const App: React.FC = () => {
     }
   });
 
-  // Tema Clean White vs Dark Mode (sincronizado com o ThemeService)
-  const [themeMode, setThemeMode] = useState<'dark' | 'clean'>(() => {
-    try {
-      const active = themeService.getActiveSkin();
-      if (active) return active.category === 'light' ? 'clean' : 'dark';
-      const saved = localStorage.getItem('anectta_theme_mode');
-      if (saved === 'clean' || saved === 'dark') return saved;
-      return 'clean';
-    } catch {
-      return 'clean';
-    }
-  });
+  // Tema Escuro Padrão (Meia-Noite Executivo)
+  const [themeMode, setThemeMode] = useState<'dark' | 'clean'>('dark');
 
   const [peopleOnly, setPeopleOnly] = useState(false);
   const [domainOnly, setDomainOnly] = useState(false);
@@ -215,9 +205,7 @@ export const App: React.FC = () => {
 
   const handleToggleTheme = () => {
     soundService.play('click');
-    const isCurrentlyLight = themeService.getActiveSkin().category === 'light';
-    const nextSkinId = isCurrentlyLight ? 'executive-midnight' : 'corporate-light';
-    themeService.setSkin(nextSkinId, false);
+    themeService.setSkin('executive-midnight', false);
   };
 
   const [activeModule, setActiveModule] = useState<ActiveModule>('mail');
@@ -3053,16 +3041,8 @@ export const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Window Controls + Theme Mode Toggle */}
+              {/* Window Controls */}
               <div className="flex items-center space-x-0.5 pl-2">
-                <button
-                  type="button"
-                  onClick={handleToggleTheme}
-                  className="p-1.5 rounded hover:bg-white/15 text-white/90 hover:text-white transition-colors"
-                  title={themeMode === 'clean' ? 'Alternar para Modo Escuro' : 'Alternar para Modo Claro'}
-                >
-                  {themeMode === 'clean' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-                </button>
                 <button
                   type="button"
                   onClick={() => window.electronAPI?.minimizeWindow?.()}
