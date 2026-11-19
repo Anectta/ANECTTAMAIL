@@ -1165,11 +1165,11 @@ export const EmailView: React.FC<EmailViewProps> = ({
                   }
                 }}
                 style={{
-                  backgroundColor: 'var(--bg-app)',
-                  color: 'var(--text-primary)',
+                  backgroundColor: '#FFFFFF',
+                  color: '#111827',
                   borderColor: 'var(--border-subtle)',
                 }}
-                className={`compose-message-canvas text-sm leading-relaxed font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'} rounded-xl overflow-x-auto border shadow-md p-4`}
+                className={`email-body-sanitized text-sm leading-relaxed font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'} rounded-xl overflow-x-auto border shadow-md p-4`}
                 dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
               />
             </div>
@@ -1177,11 +1177,11 @@ export const EmailView: React.FC<EmailViewProps> = ({
         })() : (
           <div
             style={{
-              backgroundColor: 'var(--bg-app)',
-              color: 'var(--text-primary)',
+              backgroundColor: '#FFFFFF',
+              color: '#111827',
               borderColor: 'var(--border-subtle)',
             }}
-            className={`compose-message-canvas text-sm leading-relaxed whitespace-pre-wrap font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'} rounded-xl border p-4`}
+            className={`email-body-sanitized text-sm leading-relaxed whitespace-pre-wrap font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'} rounded-xl border p-4`}
           >
             {email.body}
           </div>

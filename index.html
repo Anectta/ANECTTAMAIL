@@ -17,6 +17,25 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (function () {
+        try {
+          var lightIds = ['slate-teal', 'creme-sage', 'gray-indigo', 'offwhite-coral', 'lavender-purple', 'royal-cyan', 'red-offwhite'];
+          var skin = localStorage.getItem('anectta_active_skin') || 'executive-midnight';
+          var isLight = lightIds.indexOf(skin) !== -1;
+          var root = document.documentElement;
+          root.setAttribute('data-theme', skin);
+          root.style.colorScheme = isLight ? 'light' : 'dark';
+          if (isLight) {
+            root.classList.remove('dark');
+            root.classList.add('clean-white');
+          } else {
+            root.classList.add('dark');
+            root.classList.remove('clean-white');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased overflow-hidden">
     <div id="root"></div>
