@@ -1104,6 +1104,7 @@ ipcMain.handle('attachment:save-as', async (_event, payload: { sourcePath: strin
 
 const getSetupStateFilePath = () => path.join(app.getPath('userData'), 'setup_state.json');
 const getSettingsFilePath = () => path.join(app.getPath('userData'), 'settings.json');
+const getCalendarFilePath = () => path.join(app.getPath('userData'), 'calendar-data.json');
 
 // ---------------------------------------------------------------------------
 // Proteção de credenciais (DPAPI no Windows via Electron safeStorage)
@@ -1275,6 +1276,41 @@ ipcMain.handle('settings:save', async (_event, settingsObj: any) => {
     return { success: true };
   } catch (e: any) {
     console.warn('[MAIN] Erro ao salvar settings.json:', e?.message || e);
+    return { success: false, error: e?.message };
+  }
+});
+
+ipcMain.handle('calendar:load', async () => {
+  try {
+    const filePath = getCalendarFilePath();
+    if (!fs.existsSync(filePath)) {
+      return { success: false };
+    }
+    const content = await fs.promises.readFile(filePath, 'utf-8');
+    const parsed = JSON.parse(content);
+    if (!parsed || typeof parsed !== 'object') {
+      return { success: false };
+    }
+    return { success: true, data: parsed };
+  } catch (e: any) {
+    console.warn('[MAIN] Erro ao ler calendar-data.json:', e?.message || e);
+    return { success: false, error: e?.message };
+  }
+});
+
+ipcMain.handle('calendar:save', async (_event, dataObj: any) => {
+  try {
+    if (!dataObj || typeof dataObj !== 'object') {
+      return { success: false, error: 'Dados de calendário inválidos.' };
+    }
+    const filePath = getCalendarFilePath();
+    await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+    const tmpPath = `${filePath}.tmp`;
+    await fs.promises.writeFile(tmpPath, JSON.stringify(dataObj, null, 2), 'utf-8');
+    await fs.promises.rename(tmpPath, filePath);
+    return { success: true };
+  } catch (e: any) {
+    console.warn('[MAIN] Erro ao salvar calendar-data.json:', e?.message || e);
     return { success: false, error: e?.message };
   }
 });

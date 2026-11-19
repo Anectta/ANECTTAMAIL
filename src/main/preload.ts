@@ -346,6 +346,10 @@ const electronAPI = {
     ipcRenderer.invoke('settings:load'),
   saveAppSettings: (settingsObj: any) =>
     ipcRenderer.invoke('settings:save', settingsObj),
+  loadCalendarData: () =>
+    ipcRenderer.invoke('calendar:load'),
+  saveCalendarData: (dataObj: any) =>
+    ipcRenderer.invoke('calendar:save', dataObj),
 
   // Corretor ortográfico (Electron / Hunspell)
   getSpellcheckLanguages: () =>

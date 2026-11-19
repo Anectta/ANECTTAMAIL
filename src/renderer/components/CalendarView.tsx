@@ -2,13 +2,17 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   Calendar as CalendarIcon,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
+  Columns2,
   Download,
   Edit3,
   Eye,
   EyeOff,
+  Layers,
   MapPin,
   MoreVertical,
   Plus,
@@ -20,7 +24,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { CalendarSettings } from '@/types/settings';
+import { AccountSettings, CalendarSettings } from '@/types/settings';
 import {
   addDaysIso,
   addMinutesToTime,
@@ -53,6 +57,8 @@ type CalendarViewMode = 'month' | 'week' | 'day' | 'agenda';
 
 const EVENTS_STORAGE_KEY = 'anectta_mail_calendar_events_v1';
 const CALENDARS_STORAGE_KEY = 'anectta_mail_calendars_v1';
+const HIDDEN_CALENDARS_STORAGE_KEY = 'anectta_mail_hidden_calendars_v1';
+const ACCOUNT_COLOR_CYCLE: CalendarColorKey[] = ['blue', 'emerald', 'violet', 'amber', 'rose'];
 
 const MONTH_NAMES = [
   'Janeiro',
@@ -118,11 +124,13 @@ const DEFAULT_EVENTS: CalendarEvent[] = [
 interface CalendarViewProps {
   calendarSettings?: CalendarSettings;
   defaultOrganizer?: string;
+  accounts?: AccountSettings[];
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   calendarSettings,
   defaultOrganizer,
+  accounts,
 }) => {
   const use24HourFormat = calendarSettings?.use24HourFormat ?? true;
   const showWeekNumbers = calendarSettings?.showWeekNumbers ?? false;
@@ -155,7 +163,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return CALENDAR_CATEGORIES;
   });
 
-  const [hiddenCalendarIds, setHiddenCalendarIds] = useState<Record<string, boolean>>({});
+  const [hiddenCalendarIds, setHiddenCalendarIds] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(HIDDEN_CALENDARS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return {};
+  });
+  const [isMyCalendarsExpanded, setIsMyCalendarsExpanded] = useState(true);
+  const [multiDisplayMode, setMultiDisplayMode] = useState<'side-by-side' | 'merged'>('side-by-side');
   const [openCalMenuId, setOpenCalMenuId] = useState<string | null>(null);
   const [isAddingCal, setIsAddingCal] = useState(false);
   const [newCalName, setNewCalName] = useState('');
@@ -167,6 +188,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [anchorDate, setAnchorDate] = useState<string>(getTodayIso);
   const [miniMonthDate, setMiniMonthDate] = useState<string>(getTodayIso);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedColorFilter, setSelectedColorFilter] = useState<CalendarColorKey | 'all'>('all');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   // Event modal state (create or edit)
@@ -197,12 +219,50 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [meetingUrl, setMeetingUrl] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const diskHydratedRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadFromDisk = async () => {
+      try {
+        const res = await window.electronAPI?.loadCalendarData?.();
+        if (cancelled) return;
+        if (res?.success && res.data) {
+          if (Array.isArray(res.data.events)) setEvents(res.data.events);
+          if (Array.isArray(res.data.calendars) && res.data.calendars.length > 0) {
+            setCalendars(res.data.calendars);
+          }
+          if (res.data.hiddenCalendarIds && typeof res.data.hiddenCalendarIds === 'object') {
+            setHiddenCalendarIds(res.data.hiddenCalendarIds);
+          }
+        } else {
+          // Migra dados existentes do localStorage para disco na primeira execução
+          void window.electronAPI?.saveCalendarData?.({
+            events,
+            calendars,
+            hiddenCalendarIds,
+          });
+        }
+      } catch {
+        // ignore disk load error
+      } finally {
+        if (!cancelled) diskHydratedRef.current = true;
+      }
+    };
+    void loadFromDisk();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     try {
       localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(events));
     } catch {
       // ignore
+    }
+    if (diskHydratedRef.current) {
+      void window.electronAPI?.saveCalendarData?.({ events, calendars, hiddenCalendarIds });
     }
   }, [events]);
 
@@ -212,17 +272,62 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     } catch {
       // ignore
     }
+    if (diskHydratedRef.current) {
+      void window.electronAPI?.saveCalendarData?.({ events, calendars, hiddenCalendarIds });
+    }
   }, [calendars]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HIDDEN_CALENDARS_STORAGE_KEY, JSON.stringify(hiddenCalendarIds));
+    } catch {
+      // ignore
+    }
+    if (diskHydratedRef.current) {
+      void window.electronAPI?.saveCalendarData?.({ events, calendars, hiddenCalendarIds });
+    }
+  }, [hiddenCalendarIds]);
+
+  useEffect(() => {
+    if (!accounts || accounts.length === 0) return;
+    setCalendars((prev) => {
+      const next = [...prev];
+      let changed = false;
+      accounts.forEach((acc, idx) => {
+        const email = (acc.email || '').trim();
+        if (!email) return;
+        const accCalId = `acc:${email.toLowerCase()}`;
+        if (!next.some((c) => c.id === accCalId)) {
+          next.unshift({
+            id: accCalId,
+            name: `Calendário - ${email}`,
+            color: ACCOUNT_COLOR_CYCLE[idx % ACCOUNT_COLOR_CYCLE.length],
+            isDefault: idx === 0 && !next.some((c) => c.id.startsWith('acc:')),
+          });
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [accounts]);
 
   const showToast = (msg: string) => {
     setStatusMsg(msg);
     window.setTimeout(() => setStatusMsg(null), 3500);
   };
 
-  const openNewEventModal = (presetDate?: string, presetStartTime?: string) => {
+  const openNewEventModal = (
+    presetDate?: string,
+    presetStartTime?: string,
+    presetCalendarId?: string
+  ) => {
     const targetDate = presetDate || anchorDate || getTodayIso();
     const targetStart = presetStartTime || '09:00';
-    const defCal = calendars.find((c) => c.isDefault) || calendars[0];
+    const defCal =
+      (presetCalendarId ? calendars.find((c) => c.id === presetCalendarId) : undefined) ||
+      calendars.find((c) => c.isDefault && !hiddenCalendarIds[c.id]) ||
+      calendars.find((c) => !hiddenCalendarIds[c.id]) ||
+      calendars[0];
     setEditingEventId(null);
     setTitle('');
     setDate(targetDate);
@@ -283,7 +388,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const handleSaveEvent = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      showToast('Informe um título para o compromisso.');
+      return;
+    }
+
+    const pendingParticipant = participantInput.trim();
+    const finalParticipants =
+      pendingParticipant && !participants.includes(pendingParticipant)
+        ? [...participants, pendingParticipant]
+        : participants;
 
     const recurrence: RecurrenceRule | undefined =
       recurrencePreset === 'none'
@@ -307,7 +421,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       startTime: allDay ? '00:00' : startTime || '09:00',
       endTime: allDay ? '23:59' : endTime || '10:00',
       organizer: organizer.trim() || defaultOrganizer || 'Você',
-      participants,
+      participants: finalParticipants,
       location: location.trim() || 'Online / A definir',
       badge: badge.trim() || 'Reunião',
       calendarId,
@@ -319,11 +433,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     };
 
     if (editingEventId) {
-      setEvents((prev) => prev.map((item) => (item.id === editingEventId ? payload : item)));
+      const nextEvents = events.map((item) => (item.id === editingEventId ? payload : item));
+      setEvents(nextEvents);
+      void window.electronAPI?.saveCalendarData?.({ events: nextEvents, calendars, hiddenCalendarIds });
       showToast('Compromisso atualizado.');
     } else {
-      setEvents((prev) => [...prev, payload]);
-      showToast('Compromisso salvo no calendário local.');
+      const nextEvents = [...events, payload];
+      setEvents(nextEvents);
+      void window.electronAPI?.saveCalendarData?.({ events: nextEvents, calendars, hiddenCalendarIds });
+      showToast('Compromisso salvo no calendário.');
     }
     setIsModalOpen(false);
   };
@@ -402,12 +520,34 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setMiniMonthDate(today);
   };
 
-  // Filtered events by visible calendars and search query
+  // Visible calendars & multi-calendar helpers
+  const visibleCalendars = useMemo(
+    () => calendars.filter((c) => !hiddenCalendarIds[c.id]),
+    [calendars, hiddenCalendarIds]
+  );
+
+  const allCalendarsSelected = calendars.length > 0 && visibleCalendars.length === calendars.length;
+  const someCalendarsSelected = visibleCalendars.length > 0 && !allCalendarsSelected;
+
+  const handleToggleAllCalendars = () => {
+    if (allCalendarsSelected) {
+      const nextHidden: Record<string, boolean> = {};
+      calendars.forEach((c) => {
+        nextHidden[c.id] = true;
+      });
+      setHiddenCalendarIds(nextHidden);
+    } else {
+      setHiddenCalendarIds({});
+    }
+  };
+
+  // Filtered events by visible calendars, color category and search query
   const visibleEvents = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return events.filter((ev) => {
       const calKey = ev.calendarId || 'default';
       if (hiddenCalendarIds[calKey]) return false;
+      if (selectedColorFilter !== 'all' && getEventColor(ev) !== selectedColorFilter) return false;
       if (!q) return true;
       return (
         ev.title.toLowerCase().includes(q) ||
@@ -417,7 +557,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         (ev.participants || []).some((p) => p.toLowerCase().includes(q))
       );
     });
-  }, [events, hiddenCalendarIds, searchQuery]);
+  }, [events, hiddenCalendarIds, selectedColorFilter, searchQuery]);
 
   // Date grids
   const anchorParsed = parseIsoDate(anchorDate);
@@ -462,15 +602,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     () => expandEventsForRange(visibleEvents, rangeBounds.start, rangeBounds.end),
     [visibleEvents, rangeBounds]
   );
-
-  const occurrencesByDate = useMemo(() => {
-    const map: Record<string, typeof expandedOccurrences> = {};
-    for (const occ of expandedOccurrences) {
-      if (!map[occ.occurrenceDate]) map[occ.occurrenceDate] = [];
-      map[occ.occurrenceDate].push(occ);
-    }
-    return map;
-  }, [expandedOccurrences]);
 
   // Mini-calendar event dots
   const miniEventDays = useMemo(() => {
@@ -620,6 +751,75 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             ))}
           </div>
 
+          {/* Multi-Calendar Display Mode (Lado a Lado vs Sobreposto) */}
+          {visibleCalendars.length > 1 && (
+            <div
+              className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200"
+              title="Modo de exibição para múltiplos calendários selecionados"
+            >
+              <button
+                type="button"
+                onClick={() => setMultiDisplayMode('side-by-side')}
+                className={`flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md transition-all ${
+                  multiDisplayMode === 'side-by-side'
+                    ? 'bg-white text-blue-600 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Exibir calendários selecionados lado a lado"
+              >
+                <Columns2 className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">Lado a Lado</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMultiDisplayMode('merged')}
+                className={`flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md transition-all ${
+                  multiDisplayMode === 'merged'
+                    ? 'bg-white text-blue-600 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Mesclar eventos dos calendários selecionados"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">Mesclado</span>
+              </button>
+            </div>
+          )}
+
+          {/* Color Category Filter */}
+          <div
+            className="inline-flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200"
+            title="Filtrar eventos por categoria de cor"
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedColorFilter('all')}
+              className={`px-1.5 py-0.5 text-[10px] font-semibold rounded transition-colors ${
+                selectedColorFilter === 'all'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Exibir todas as cores"
+            >
+              Todas
+            </button>
+            {(['blue', 'emerald', 'violet', 'amber', 'rose'] as CalendarColorKey[]).map((c) => {
+              const st = COLOR_STYLES[c];
+              const isSelected = selectedColorFilter === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setSelectedColorFilter((prev) => (prev === c ? 'all' : c))}
+                  className={`w-4 h-4 rounded-full ${st.dot} transition-transform ${
+                    isSelected ? 'ring-2 ring-offset-1 ring-slate-800 scale-110' : 'opacity-75 hover:opacity-100'
+                  }`}
+                  title={`Filtrar: ${st.label}`}
+                />
+              );
+            })}
+          </div>
+
           {/* Search */}
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -755,16 +955,49 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
           </div>
 
-          {/* Calendars List */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Meus Calendários
-              </span>
+          {/* Calendars List (Meus Calendários) */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between px-1.5 py-1 rounded-md bg-sky-50/80 border border-sky-100">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setIsMyCalendarsExpanded((p) => !p)}
+                  className="p-0.5 text-slate-600 hover:text-slate-900 rounded"
+                  title={isMyCalendarsExpanded ? 'Recolher' : 'Expandir'}
+                >
+                  {isMyCalendarsExpanded ? (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleToggleAllCalendars}
+                  className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center shrink-0 transition-colors ${
+                    allCalendarsSelected
+                      ? 'bg-white border-slate-400 text-slate-700'
+                      : someCalendarsSelected
+                      ? 'bg-sky-100 border-slate-400 text-slate-700'
+                      : 'bg-white border-slate-300'
+                  }`}
+                  title={allCalendarsSelected ? 'Desmarcar todos' : 'Marcar todos'}
+                >
+                  {allCalendarsSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                  {someCalendarsSelected && <span className="w-1.5 h-0.5 bg-slate-600 rounded" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsMyCalendarsExpanded((p) => !p)}
+                  className="text-xs font-semibold text-slate-700 truncate text-left"
+                >
+                  Meus Calendários
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsAddingCal((p) => !p)}
-                className="p-1 text-slate-500 hover:text-blue-600 rounded hover:bg-slate-200/60"
+                className="p-1 text-slate-500 hover:text-blue-600 rounded hover:bg-white/70 shrink-0"
                 title="Criar novo calendário"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -806,71 +1039,74 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
             )}
 
-            <div className="space-y-1">
-              {calendars.map((cal) => {
-                const isHidden = Boolean(hiddenCalendarIds[cal.id]);
-                const style = COLOR_STYLES[cal.color] || COLOR_STYLES.blue;
-                return (
-                  <div
-                    key={cal.id}
-                    className="relative group flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-slate-200/60 transition-colors"
-                  >
-                    {renamingCalId === cal.id ? (
-                      <input
-                        type="text"
-                        autoFocus
-                        value={renamingCalValue}
-                        onChange={(e) => setRenamingCalValue(e.target.value)}
-                        onBlur={() => {
-                          if (renamingCalValue.trim()) {
-                            setCalendars((prev) =>
-                              prev.map((c) =>
-                                c.id === cal.id ? { ...c, name: renamingCalValue.trim() } : c
-                              )
-                            );
-                          }
-                          setRenamingCalId(null);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                          if (e.key === 'Escape') setRenamingCalId(null);
-                        }}
-                        className="flex-1 text-xs px-1.5 py-0.5 bg-white border border-blue-400 rounded focus:outline-none"
-                      />
-                    ) : (
-                      <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+            {isMyCalendarsExpanded && (
+              <div className="space-y-0.5 pl-1">
+                {calendars.map((cal) => {
+                  const isHidden = Boolean(hiddenCalendarIds[cal.id]);
+                  const style = COLOR_STYLES[cal.color] || COLOR_STYLES.blue;
+                  return (
+                    <div
+                      key={cal.id}
+                      className={`relative group flex items-center justify-between px-2.5 py-1.5 rounded-md transition-colors ${
+                        !isHidden
+                          ? style.rowSelectedBg
+                          : 'hover:bg-slate-200/60 text-slate-600'
+                      }`}
+                    >
+                      {renamingCalId === cal.id ? (
                         <input
-                          type="checkbox"
-                          checked={!isHidden}
-                          onChange={() =>
-                            setHiddenCalendarIds((prev) => ({
-                              ...prev,
-                              [cal.id]: !prev[cal.id],
-                            }))
-                          }
-                          className="sr-only"
+                          type="text"
+                          autoFocus
+                          value={renamingCalValue}
+                          onChange={(e) => setRenamingCalValue(e.target.value)}
+                          onBlur={() => {
+                            if (renamingCalValue.trim()) {
+                              setCalendars((prev) =>
+                                prev.map((c) =>
+                                  c.id === cal.id ? { ...c, name: renamingCalValue.trim() } : c
+                                )
+                              );
+                            }
+                            setRenamingCalId(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                            if (e.key === 'Escape') setRenamingCalId(null);
+                          }}
+                          className="flex-1 text-xs px-1.5 py-0.5 bg-white border border-blue-400 rounded focus:outline-none"
                         />
-                        <span
-                          className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center shrink-0 ${
-                            isHidden
-                              ? 'bg-white border-slate-300'
-                              : `${style.dot} border-transparent`
-                          }`}
-                        >
-                          {!isHidden && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                          )}
-                        </span>
-                        <span className="text-xs text-slate-700 truncate font-medium">
-                          {cal.name}
-                        </span>
-                        {cal.isDefault && (
-                          <span className="text-[9px] px-1.5 py-0.2 bg-slate-200 text-slate-600 rounded font-semibold shrink-0">
-                            Padrão
+                      ) : (
+                        <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!isHidden}
+                            onChange={() =>
+                              setHiddenCalendarIds((prev) => ({
+                                ...prev,
+                                [cal.id]: !prev[cal.id],
+                              }))
+                            }
+                            className="sr-only"
+                          />
+                          <span
+                            className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center shrink-0 transition-colors ${
+                              isHidden
+                                ? 'bg-white border-slate-300'
+                                : 'bg-white border-slate-400 text-slate-700'
+                            }`}
+                          >
+                            {!isHidden && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                           </span>
-                        )}
-                      </label>
-                    )}
+                          <span
+                            className={`text-xs truncate ${
+                              !isHidden ? 'font-semibold text-slate-900' : 'font-medium text-slate-600'
+                            }`}
+                            title={cal.name}
+                          >
+                            {cal.name}
+                          </span>
+                        </label>
+                      )}
 
                     <button
                       type="button"
@@ -970,431 +1206,502 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </div>
                 );
               })}
-            </div>
+              </div>
+            )}
           </div>
         </aside>
 
         {/* Right Main View Area */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-white">
-          {/* VIEW 1: MONTH */}
-          {viewMode === 'month' && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <div
-                className={`grid border-b border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wide shrink-0 ${
-                  showWeekNumbers ? 'grid-cols-[44px_repeat(7,minmax(0,1fr))]' : 'grid-cols-7'
-                }`}
+        <div className="flex-1 flex overflow-x-auto overflow-y-hidden bg-white">
+          {visibleCalendars.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500">
+              <CalendarIcon className="w-10 h-10 text-slate-300 mb-3" />
+              <p className="text-sm font-semibold text-slate-700">
+                Nenhum calendário selecionado para exibição
+              </p>
+              <p className="text-xs text-slate-500 mt-1 mb-4 max-w-sm">
+                Marque um ou mais calendários na lista &ldquo;Meus Calendários&rdquo; à esquerda para visualizar seus compromissos.
+              </p>
+              <button
+                type="button"
+                onClick={() => setHiddenCalendarIds({})}
+                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors"
               >
-                {showWeekNumbers && <div className="py-2 text-center border-r border-slate-200">Sem</div>}
-                {weekdayHeaders.map((day) => (
-                  <div key={day} className="py-2 text-center border-r border-slate-100 last:border-r-0">
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex-1 grid grid-rows-6 overflow-y-auto">
-                {Array.from({ length: 6 }, (_, weekIdx) => {
-                  const rowDates = monthGridDates.slice(weekIdx * 7, weekIdx * 7 + 7);
-                  return (
-                    <div
-                      key={weekIdx}
-                      className={`grid border-b border-slate-200 last:border-b-0 min-h-[96px] ${
-                        showWeekNumbers
-                          ? 'grid-cols-[44px_repeat(7,minmax(0,1fr))]'
-                          : 'grid-cols-7'
-                      }`}
-                    >
-                      {showWeekNumbers && (
-                        <div className="border-r border-slate-200 bg-slate-50/70 flex items-start justify-center pt-2 text-[10px] font-mono text-slate-400">
-                          {getIsoWeekNumber(rowDates[0])}
-                        </div>
-                      )}
-                      {rowDates.map((iso) => {
-                        const d = parseIsoDate(iso);
-                        const inMonth = d.getMonth() === anchorMonth;
-                        const isToday = iso === todayIso;
-                        const dayOccs = occurrencesByDate[iso] || [];
-                        return (
-                          <div
-                            key={iso}
-                            onClick={() => openNewEventModal(iso)}
-                            className={`border-r border-slate-100 last:border-r-0 p-1.5 flex flex-col gap-1 cursor-pointer transition-colors hover:bg-blue-50/30 ${
-                              inMonth ? 'bg-white' : 'bg-slate-50/60'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span
-                                className={`text-xs w-6 h-6 rounded-full flex items-center justify-center font-semibold ${
-                                  isToday
-                                    ? 'bg-blue-600 text-white'
-                                    : inMonth
-                                    ? 'text-slate-700'
-                                    : 'text-slate-400'
-                                }`}
-                              >
-                                {d.getDate()}
-                              </span>
-                            </div>
-
-                            <div className="space-y-1 overflow-hidden">
-                              {dayOccs.slice(0, 3).map((occ, idx) => {
-                                const style = COLOR_STYLES[getEventColor(occ.event)];
-                                return (
-                                  <button
-                                    key={`${occ.event.id}-${idx}`}
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openEditEventModal(occ.event);
-                                    }}
-                                    className={`w-full text-left px-1.5 py-0.5 rounded border text-[11px] font-medium truncate flex items-center gap-1 ${style.pill}`}
-                                  >
-                                    {!occ.event.allDay && (
-                                      <span className="text-[10px] opacity-75 shrink-0">
-                                        {formatTimeDisplay(occ.event.startTime, use24HourFormat)}
-                                      </span>
-                                    )}
-                                    <span className="truncate">{occ.event.title}</span>
-                                  </button>
-                                );
-                              })}
-                              {dayOccs.length > 3 && (
-                                <div className="text-[10px] font-semibold text-blue-600 px-1">
-                                  +{dayOccs.length - 3} mais
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
+                Exibir todos os calendários
+              </button>
             </div>
-          )}
+          ) : (() => {
+            const panes =
+              visibleCalendars.length > 1 && multiDisplayMode === 'merged'
+                ? [{ cal: null as CalendarCategory | null }]
+                : visibleCalendars.map((cal) => ({ cal: cal as CalendarCategory | null }));
 
-          {/* VIEW 2: WEEK */}
-          {viewMode === 'week' && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Day headers */}
-              <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] border-b border-slate-200 bg-slate-50 shrink-0">
-                <div className="border-r border-slate-200 py-2 text-center text-[10px] font-semibold text-slate-400">
-                  {showWeekNumbers ? `S${getIsoWeekNumber(weekDates[0])}` : 'Hora'}
-                </div>
-                {weekDates.map((iso) => {
-                  const d = parseIsoDate(iso);
-                  const isToday = iso === todayIso;
-                  return (
+            return panes.map(({ cal }) => {
+              const paneId = cal ? cal.id : 'merged';
+              const paneOccs = cal
+                ? expandedOccurrences.filter((occ) => {
+                    const evCalId = occ.event.calendarId || 'default';
+                    if (evCalId === cal.id) return true;
+                    if (cal.isDefault && !calendars.some((c) => c.id === evCalId)) return true;
+                    return false;
+                  })
+                : expandedOccurrences;
+
+              const paneOccsByDate: Record<string, typeof expandedOccurrences> = {};
+              for (const occ of paneOccs) {
+                if (!paneOccsByDate[occ.occurrenceDate]) paneOccsByDate[occ.occurrenceDate] = [];
+                paneOccsByDate[occ.occurrenceDate].push(occ);
+              }
+
+              const calStyle = cal ? COLOR_STYLES[cal.color] || COLOR_STYLES.blue : null;
+
+              return (
+                <div
+                  key={paneId}
+                  className={`flex-1 flex flex-col overflow-hidden bg-white ${
+                    panes.length > 1 ? 'min-w-[440px] border-r border-slate-200 last:border-r-0' : ''
+                  }`}
+                >
+                  {cal && calStyle && (
                     <div
-                      key={iso}
-                      className={`py-2 text-center border-r border-slate-100 last:border-r-0 ${
-                        isToday ? 'bg-blue-50/70' : ''
-                      }`}
+                      className={`px-3.5 py-1.5 flex items-center justify-between gap-2 shrink-0 ${calStyle.headerBg}`}
                     >
-                      <div className="text-[10px] font-bold uppercase text-slate-500">
-                        {weekdayHeaders[(weekDates.indexOf(iso))]}
-                      </div>
+                      <span className="text-xs font-bold truncate">{cal.name}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setHiddenCalendarIds((prev) => ({
+                            ...prev,
+                            [cal.id]: true,
+                          }))
+                        }
+                        className="p-0.5 rounded hover:bg-black/10 text-slate-700 transition-colors shrink-0"
+                        title={`Ocultar ${cal.name}`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* VIEW 1: MONTH */}
+                  {viewMode === 'month' && (
+                    <div className="flex-1 flex flex-col overflow-hidden">
                       <div
-                        className={`text-sm font-bold mx-auto w-7 h-7 rounded-full flex items-center justify-center mt-0.5 ${
-                          isToday ? 'bg-blue-600 text-white' : 'text-slate-800'
+                        className={`grid border-b border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wide shrink-0 ${
+                          showWeekNumbers ? 'grid-cols-[44px_repeat(7,minmax(0,1fr))]' : 'grid-cols-7'
                         }`}
                       >
-                        {d.getDate()}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* All-day row */}
-              <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] border-b border-slate-200 bg-slate-50/40 shrink-0">
-                <div className="border-r border-slate-200 px-1 py-1.5 text-[10px] text-slate-400 text-center">
-                  Dia todo
-                </div>
-                {weekDates.map((iso) => {
-                  const allDayOccs = (occurrencesByDate[iso] || []).filter((o) => o.event.allDay);
-                  return (
-                    <div
-                      key={iso}
-                      className="border-r border-slate-100 last:border-r-0 p-1 space-y-1 min-h-[28px]"
-                    >
-                      {allDayOccs.map((occ, i) => {
-                        const style = COLOR_STYLES[getEventColor(occ.event)];
-                        return (
-                          <button
-                            key={`${occ.event.id}-${i}`}
-                            type="button"
-                            onClick={() => openEditEventModal(occ.event)}
-                            className={`w-full text-left px-1.5 py-0.5 rounded border text-[10px] font-semibold truncate ${style.pill}`}
-                          >
-                            {occ.event.title}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Hourly grid */}
-              <div className="flex-1 overflow-y-auto custom-scroll">
-                {HOURS.map((hour) => {
-                  const hourStr = `${String(hour).padStart(2, '0')}:00`;
-                  return (
-                    <div
-                      key={hour}
-                      className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] border-b border-slate-100 min-h-[52px]"
-                    >
-                      <div className="border-r border-slate-200 pr-2 pt-1 text-right text-[10px] font-mono text-slate-400">
-                        {formatTimeDisplay(hourStr, use24HourFormat)}
-                      </div>
-                      {weekDates.map((iso) => {
-                        const slotOccs = (occurrencesByDate[iso] || []).filter((o) => {
-                          if (o.event.allDay) return false;
-                          const h = parseInt((o.event.startTime || '09:00').split(':')[0], 10);
-                          return h === hour;
-                        });
-                        return (
-                          <div
-                            key={iso}
-                            onClick={() => openNewEventModal(iso, hourStr)}
-                            className="border-r border-slate-100 last:border-r-0 p-1 space-y-1 cursor-pointer hover:bg-blue-50/30"
-                          >
-                            {slotOccs.map((occ, idx) => {
-                              const style = COLOR_STYLES[getEventColor(occ.event)];
-                              return (
-                                <button
-                                  key={`${occ.event.id}-${idx}`}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openEditEventModal(occ.event);
-                                  }}
-                                  className={`w-full text-left px-2 py-1 rounded-md border text-[11px] shadow-2xs ${style.block}`}
-                                >
-                                  <div className="font-bold truncate">{occ.event.title}</div>
-                                  <div className="text-[10px] opacity-80">
-                                    {formatTimeDisplay(occ.event.startTime, use24HourFormat)} –{' '}
-                                    {formatTimeDisplay(occ.event.endTime, use24HourFormat)}
-                                  </div>
-                                </button>
-                              );
-                            })}
+                        {showWeekNumbers && <div className="py-2 text-center border-r border-slate-200">Sem</div>}
+                        {weekdayHeaders.map((day) => (
+                          <div key={day} className="py-2 text-center border-r border-slate-100 last:border-r-0">
+                            {day}
                           </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* VIEW 3: DAY */}
-          {viewMode === 'day' && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="px-5 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
-                <div className="text-xs font-bold text-slate-700">
-                  {formatDisplayDate(anchorDate)}
-                  {anchorDate === todayIso && (
-                    <span className="ml-2 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px]">
-                      Hoje
-                    </span>
-                  )}
-                </div>
-                {showWeekNumbers && (
-                  <span className="text-[11px] font-mono text-slate-500">
-                    Semana {getIsoWeekNumber(anchorDate)}
-                  </span>
-                )}
-              </div>
-
-              {/* All-day events */}
-              {(occurrencesByDate[anchorDate] || []).some((o) => o.event.allDay) && (
-                <div className="px-5 py-2 border-b border-slate-200 bg-slate-50/50 flex flex-wrap gap-2 shrink-0">
-                  <span className="text-[11px] font-semibold text-slate-500 self-center">
-                    Dia inteiro:
-                  </span>
-                  {(occurrencesByDate[anchorDate] || [])
-                    .filter((o) => o.event.allDay)
-                    .map((occ, i) => {
-                      const style = COLOR_STYLES[getEventColor(occ.event)];
-                      return (
-                        <button
-                          key={`${occ.event.id}-${i}`}
-                          type="button"
-                          onClick={() => openEditEventModal(occ.event)}
-                          className={`px-2.5 py-1 rounded-lg border text-xs font-semibold ${style.pill}`}
-                        >
-                          {occ.event.title}
-                        </button>
-                      );
-                    })}
-                </div>
-              )}
-
-              <div className="flex-1 overflow-y-auto custom-scroll">
-                {HOURS.map((hour) => {
-                  const hourStr = `${String(hour).padStart(2, '0')}:00`;
-                  const slotOccs = (occurrencesByDate[anchorDate] || []).filter((o) => {
-                    if (o.event.allDay) return false;
-                    const h = parseInt((o.event.startTime || '09:00').split(':')[0], 10);
-                    return h === hour;
-                  });
-                  return (
-                    <div
-                      key={hour}
-                      className="grid grid-cols-[72px_1fr] border-b border-slate-100 min-h-[56px]"
-                    >
-                      <div className="border-r border-slate-200 pr-3 pt-2 text-right text-xs font-mono text-slate-400">
-                        {formatTimeDisplay(hourStr, use24HourFormat)}
+                        ))}
                       </div>
-                      <div
-                        onClick={() => openNewEventModal(anchorDate, hourStr)}
-                        className="p-1.5 space-y-1.5 cursor-pointer hover:bg-blue-50/30"
-                      >
-                        {slotOccs.map((occ, idx) => {
-                          const style = COLOR_STYLES[getEventColor(occ.event)];
+
+                      <div className="flex-1 grid grid-rows-6 overflow-y-auto">
+                        {Array.from({ length: 6 }, (_, weekIdx) => {
+                          const rowDates = monthGridDates.slice(weekIdx * 7, weekIdx * 7 + 7);
                           return (
-                            <button
-                              key={`${occ.event.id}-${idx}`}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditEventModal(occ.event);
-                              }}
-                              className={`w-full text-left px-3 py-2 rounded-lg border flex items-center justify-between gap-3 ${style.block}`}
+                            <div
+                              key={weekIdx}
+                              className={`grid border-b border-slate-200 last:border-b-0 min-h-[96px] ${
+                                showWeekNumbers
+                                  ? 'grid-cols-[44px_repeat(7,minmax(0,1fr))]'
+                                  : 'grid-cols-7'
+                              }`}
                             >
-                              <div className="min-w-0">
-                                <div className="text-xs font-bold truncate">{occ.event.title}</div>
-                                <div className="text-[11px] opacity-80 flex items-center gap-3 mt-0.5">
-                                  <span>
-                                    {formatTimeDisplay(occ.event.startTime, use24HourFormat)} –{' '}
-                                    {formatTimeDisplay(occ.event.endTime, use24HourFormat)}
-                                  </span>
-                                  {occ.event.location && <span>• {occ.event.location}</span>}
+                              {showWeekNumbers && (
+                                <div className="border-r border-slate-200 bg-slate-50/70 flex items-start justify-center pt-2 text-[10px] font-mono text-slate-400">
+                                  {getIsoWeekNumber(rowDates[0])}
                                 </div>
-                              </div>
-                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white/70 shrink-0">
-                                {occ.event.badge}
-                              </span>
-                            </button>
+                              )}
+                              {rowDates.map((iso) => {
+                                const d = parseIsoDate(iso);
+                                const inMonth = d.getMonth() === anchorMonth;
+                                const isToday = iso === todayIso;
+                                const dayOccs = paneOccsByDate[iso] || [];
+                                return (
+                                  <div
+                                    key={iso}
+                                    onClick={() => openNewEventModal(iso, undefined, cal?.id)}
+                                    className={`border-r border-slate-100 last:border-r-0 p-1.5 flex flex-col gap-1 cursor-pointer transition-colors hover:bg-blue-50/30 ${
+                                      inMonth ? 'bg-white' : 'bg-slate-50/60'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span
+                                        className={`text-xs w-6 h-6 rounded-full flex items-center justify-center font-semibold ${
+                                          isToday
+                                            ? 'bg-blue-600 text-white'
+                                            : inMonth
+                                            ? 'text-slate-700'
+                                            : 'text-slate-400'
+                                        }`}
+                                      >
+                                        {d.getDate()}
+                                      </span>
+                                    </div>
+
+                                    <div className="space-y-1 overflow-hidden">
+                                      {dayOccs.slice(0, 3).map((occ, idx) => {
+                                        const style = COLOR_STYLES[getEventColor(occ.event)];
+                                        return (
+                                          <button
+                                            key={`${occ.event.id}-${idx}`}
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openEditEventModal(occ.event);
+                                            }}
+                                            className={`w-full text-left px-1.5 py-0.5 rounded border text-[11px] font-medium truncate flex items-center gap-1 ${style.pill}`}
+                                          >
+                                            {!occ.event.allDay && (
+                                              <span className="text-[10px] opacity-75 shrink-0">
+                                                {formatTimeDisplay(occ.event.startTime, use24HourFormat)}
+                                              </span>
+                                            )}
+                                            <span className="truncate">{occ.event.title}</span>
+                                          </button>
+                                        );
+                                      })}
+                                      {dayOccs.length > 3 && (
+                                        <div className="text-[10px] font-semibold text-blue-600 px-1">
+                                          +{dayOccs.length - 3} mais
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           );
                         })}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                  )}
 
-          {/* VIEW 4: AGENDA */}
-          {viewMode === 'agenda' && (
-            <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scroll">
-              {expandedOccurrences.length === 0 ? (
-                <div className="p-8 rounded-2xl border border-dashed border-slate-300 text-center text-slate-500 text-sm max-w-2xl mx-auto">
-                  Nenhum compromisso encontrado neste período. Clique em{' '}
-                  <strong>Novo Compromisso</strong> ou importe um arquivo <code>.ics</code>.
-                </div>
-              ) : (
-                <div className="max-w-4xl space-y-3">
-                  {expandedOccurrences.map((occ, idx) => {
-                    const ev = occ.event;
-                    const style = COLOR_STYLES[getEventColor(ev)];
-                    return (
-                      <div
-                        key={`${ev.id}-${occ.occurrenceDate}-${idx}`}
-                        onClick={() => openEditEventModal(ev)}
-                        className="p-4 rounded-xl bg-white border border-slate-200 hover:border-blue-300 shadow-xs transition-all flex items-center justify-between gap-4 cursor-pointer"
-                      >
-                        <div className="space-y-1.5 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${style.dot}`} />
-                            <span className="text-sm font-bold text-slate-800">{ev.title}</span>
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${style.pill}`}>
-                              {ev.badge}
-                            </span>
-                            {ev.recurrence && ev.recurrence.preset !== 'none' && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                                <Repeat className="w-3 h-3" />
-                                <span>{getRecurrenceLabel(ev.recurrence)}</span>
-                              </span>
-                            )}
-                            {ev.reminderMinutes !== null && ev.reminderMinutes !== undefined && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                                <Bell className="w-3 h-3" />
-                                <span>
-                                  {ev.reminderMinutes === 0
-                                    ? 'Na hora'
-                                    : `${ev.reminderMinutes} min`}
-                                </span>
-                              </span>
-                            )}
-                            {showWeekNumbers && (
-                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                                Sem. {getIsoWeekNumber(occ.occurrenceDate)}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                            <span className="flex items-center space-x-1">
-                              <Clock className="w-3.5 h-3.5 text-slate-400" />
-                              <span>
-                                {formatDisplayDate(occ.occurrenceDate)} •{' '}
-                                {ev.allDay
-                                  ? 'Dia inteiro'
-                                  : `${formatTimeDisplay(ev.startTime, use24HourFormat)} - ${formatTimeDisplay(ev.endTime, use24HourFormat)}`}
-                              </span>
-                            </span>
-                            <span className="flex items-center space-x-1">
-                              <Users className="w-3.5 h-3.5 text-slate-400" />
-                              <span>
-                                {ev.organizer}
-                                {ev.participants && ev.participants.length > 0
-                                  ? ` (+${ev.participants.length})`
-                                  : ''}
-                              </span>
-                            </span>
-                            <span className="flex items-center space-x-1">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{ev.location}</span>
-                            </span>
-                          </div>
+                  {/* VIEW 2: WEEK */}
+                  {viewMode === 'week' && (
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                      <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] border-b border-slate-200 bg-slate-50 shrink-0">
+                        <div className="border-r border-slate-200 py-2 text-center text-[10px] font-semibold text-slate-400">
+                          {showWeekNumbers ? `S${getIsoWeekNumber(weekDates[0])}` : 'Hora'}
                         </div>
-
-                        <div
-                          className="flex items-center gap-2 shrink-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {ev.meetingUrl && (
-                            <a
-                              href={ev.meetingUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-lg transition-colors"
+                        {weekDates.map((iso) => {
+                          const d = parseIsoDate(iso);
+                          const isToday = iso === todayIso;
+                          return (
+                            <div
+                              key={iso}
+                              className={`py-2 text-center border-r border-slate-100 last:border-r-0 ${
+                                isToday ? 'bg-blue-50/70' : ''
+                              }`}
                             >
-                              <Video className="w-3.5 h-3.5" />
-                              <span>Entrar</span>
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteEvent(ev.id)}
-                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            title="Excluir compromisso"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                              <div className="text-[10px] font-bold uppercase text-slate-500">
+                                {weekdayHeaders[weekDates.indexOf(iso)]}
+                              </div>
+                              <div
+                                className={`text-sm font-bold mx-auto w-7 h-7 rounded-full flex items-center justify-center mt-0.5 ${
+                                  isToday ? 'bg-blue-600 text-white' : 'text-slate-800'
+                                }`}
+                              >
+                                {d.getDate()}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+
+                      <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] border-b border-slate-200 bg-slate-50/40 shrink-0">
+                        <div className="border-r border-slate-200 px-1 py-1.5 text-[10px] text-slate-400 text-center">
+                          Dia todo
+                        </div>
+                        {weekDates.map((iso) => {
+                          const allDayOccs = (paneOccsByDate[iso] || []).filter((o) => o.event.allDay);
+                          return (
+                            <div
+                              key={iso}
+                              className="border-r border-slate-100 last:border-r-0 p-1 space-y-1 min-h-[28px]"
+                            >
+                              {allDayOccs.map((occ, i) => {
+                                const style = COLOR_STYLES[getEventColor(occ.event)];
+                                return (
+                                  <button
+                                    key={`${occ.event.id}-${i}`}
+                                    type="button"
+                                    onClick={() => openEditEventModal(occ.event)}
+                                    className={`w-full text-left px-1.5 py-0.5 rounded border text-[10px] font-semibold truncate ${style.pill}`}
+                                  >
+                                    {occ.event.title}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto custom-scroll">
+                        {HOURS.map((hour) => {
+                          const hourStr = `${String(hour).padStart(2, '0')}:00`;
+                          return (
+                            <div
+                              key={hour}
+                              className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] border-b border-slate-100 min-h-[52px]"
+                            >
+                              <div className="border-r border-slate-200 pr-2 pt-1 text-right text-[10px] font-mono text-slate-400">
+                                {formatTimeDisplay(hourStr, use24HourFormat)}
+                              </div>
+                              {weekDates.map((iso) => {
+                                const slotOccs = (paneOccsByDate[iso] || []).filter((o) => {
+                                  if (o.event.allDay) return false;
+                                  const h = parseInt((o.event.startTime || '09:00').split(':')[0], 10);
+                                  return h === hour;
+                                });
+                                return (
+                                  <div
+                                    key={iso}
+                                    onClick={() => openNewEventModal(iso, hourStr, cal?.id)}
+                                    className="border-r border-slate-100 last:border-r-0 p-1 space-y-1 cursor-pointer hover:bg-blue-50/30"
+                                  >
+                                    {slotOccs.map((occ, idx) => {
+                                      const style = COLOR_STYLES[getEventColor(occ.event)];
+                                      return (
+                                        <button
+                                          key={`${occ.event.id}-${idx}`}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openEditEventModal(occ.event);
+                                          }}
+                                          className={`w-full text-left px-2 py-1 rounded-md border text-[11px] shadow-2xs ${style.block}`}
+                                        >
+                                          <div className="font-bold truncate">{occ.event.title}</div>
+                                          <div className="text-[10px] opacity-80">
+                                            {formatTimeDisplay(occ.event.startTime, use24HourFormat)} –{' '}
+                                            {formatTimeDisplay(occ.event.endTime, use24HourFormat)}
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* VIEW 3: DAY */}
+                  {viewMode === 'day' && (
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                      <div className="px-5 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
+                        <div className="text-xs font-bold text-slate-700">
+                          {formatDisplayDate(anchorDate)}
+                          {anchorDate === todayIso && (
+                            <span className="ml-2 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px]">
+                              Hoje
+                            </span>
+                          )}
+                        </div>
+                        {showWeekNumbers && (
+                          <span className="text-[11px] font-mono text-slate-500">
+                            Semana {getIsoWeekNumber(anchorDate)}
+                          </span>
+                        )}
+                      </div>
+
+                      {(paneOccsByDate[anchorDate] || []).some((o) => o.event.allDay) && (
+                        <div className="px-5 py-2 border-b border-slate-200 bg-slate-50/50 flex flex-wrap gap-2 shrink-0">
+                          <span className="text-[11px] font-semibold text-slate-500 self-center">
+                            Dia inteiro:
+                          </span>
+                          {(paneOccsByDate[anchorDate] || [])
+                            .filter((o) => o.event.allDay)
+                            .map((occ, i) => {
+                              const style = COLOR_STYLES[getEventColor(occ.event)];
+                              return (
+                                <button
+                                  key={`${occ.event.id}-${i}`}
+                                  type="button"
+                                  onClick={() => openEditEventModal(occ.event)}
+                                  className={`px-2.5 py-1 rounded-lg border text-xs font-semibold ${style.pill}`}
+                                >
+                                  {occ.event.title}
+                                </button>
+                              );
+                            })}
+                        </div>
+                      )}
+
+                      <div className="flex-1 overflow-y-auto custom-scroll">
+                        {HOURS.map((hour) => {
+                          const hourStr = `${String(hour).padStart(2, '0')}:00`;
+                          const slotOccs = (paneOccsByDate[anchorDate] || []).filter((o) => {
+                            if (o.event.allDay) return false;
+                            const h = parseInt((o.event.startTime || '09:00').split(':')[0], 10);
+                            return h === hour;
+                          });
+                          return (
+                            <div
+                              key={hour}
+                              className="grid grid-cols-[72px_1fr] border-b border-slate-100 min-h-[56px]"
+                            >
+                              <div className="border-r border-slate-200 pr-3 pt-2 text-right text-xs font-mono text-slate-400">
+                                {formatTimeDisplay(hourStr, use24HourFormat)}
+                              </div>
+                              <div
+                                onClick={() => openNewEventModal(anchorDate, hourStr, cal?.id)}
+                                className="p-1.5 space-y-1.5 cursor-pointer hover:bg-blue-50/30"
+                              >
+                                {slotOccs.map((occ, idx) => {
+                                  const style = COLOR_STYLES[getEventColor(occ.event)];
+                                  return (
+                                    <button
+                                      key={`${occ.event.id}-${idx}`}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openEditEventModal(occ.event);
+                                      }}
+                                      className={`w-full text-left px-3 py-2 rounded-lg border flex items-center justify-between gap-3 ${style.block}`}
+                                    >
+                                      <div className="min-w-0">
+                                        <div className="text-xs font-bold truncate">{occ.event.title}</div>
+                                        <div className="text-[11px] opacity-80 flex items-center gap-3 mt-0.5">
+                                          <span>
+                                            {formatTimeDisplay(occ.event.startTime, use24HourFormat)} –{' '}
+                                            {formatTimeDisplay(occ.event.endTime, use24HourFormat)}
+                                          </span>
+                                          {occ.event.location && <span>• {occ.event.location}</span>}
+                                        </div>
+                                      </div>
+                                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white/70 shrink-0">
+                                        {occ.event.badge}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* VIEW 4: AGENDA */}
+                  {viewMode === 'agenda' && (
+                    <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scroll">
+                      {paneOccs.length === 0 ? (
+                        <div className="p-8 rounded-2xl border border-dashed border-slate-300 text-center text-slate-500 text-sm max-w-2xl mx-auto">
+                          Nenhum compromisso encontrado neste período. Clique em{' '}
+                          <strong>Novo Compromisso</strong> ou importe um arquivo <code>.ics</code>.
+                        </div>
+                      ) : (
+                        <div className="max-w-4xl space-y-3">
+                          {paneOccs.map((occ, idx) => {
+                            const ev = occ.event;
+                            const style = COLOR_STYLES[getEventColor(ev)];
+                            return (
+                              <div
+                                key={`${ev.id}-${occ.occurrenceDate}-${idx}`}
+                                onClick={() => openEditEventModal(ev)}
+                                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-blue-300 shadow-xs transition-all flex items-center justify-between gap-4 cursor-pointer"
+                              >
+                                <div className="space-y-1.5 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${style.dot}`} />
+                                    <span className="text-sm font-bold text-slate-800">{ev.title}</span>
+                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${style.pill}`}>
+                                      {ev.badge}
+                                    </span>
+                                    {ev.recurrence && ev.recurrence.preset !== 'none' && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                        <Repeat className="w-3 h-3" />
+                                        <span>{getRecurrenceLabel(ev.recurrence)}</span>
+                                      </span>
+                                    )}
+                                    {ev.reminderMinutes !== null && ev.reminderMinutes !== undefined && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                        <Bell className="w-3 h-3" />
+                                        <span>
+                                          {ev.reminderMinutes === 0
+                                            ? 'Na hora'
+                                            : `${ev.reminderMinutes} min`}
+                                        </span>
+                                      </span>
+                                    )}
+                                    {showWeekNumbers && (
+                                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                        Sem. {getIsoWeekNumber(occ.occurrenceDate)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                                    <span className="flex items-center space-x-1">
+                                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                      <span>
+                                        {formatDisplayDate(occ.occurrenceDate)} •{' '}
+                                        {ev.allDay
+                                          ? 'Dia inteiro'
+                                          : `${formatTimeDisplay(ev.startTime, use24HourFormat)} - ${formatTimeDisplay(ev.endTime, use24HourFormat)}`}
+                                      </span>
+                                    </span>
+                                    <span className="flex items-center space-x-1">
+                                      <Users className="w-3.5 h-3.5 text-slate-400" />
+                                      <span>
+                                        {ev.organizer}
+                                        {ev.participants && ev.participants.length > 0
+                                          ? ` (+${ev.participants.length})`
+                                          : ''}
+                                      </span>
+                                    </span>
+                                    <span className="flex items-center space-x-1">
+                                      <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                      <span>{ev.location}</span>
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div
+                                  className="flex items-center gap-2 shrink-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {ev.meetingUrl && (
+                                    <a
+                                      href={ev.meetingUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-lg transition-colors"
+                                    >
+                                      <Video className="w-3.5 h-3.5" />
+                                      <span>Entrar</span>
+                                    </a>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteEvent(ev.id)}
+                                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                    title="Excluir compromisso"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+              );
+            });
+          })()}
         </div>
       </div>
 
@@ -1415,7 +1722,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSaveEvent} className="p-5 space-y-3.5 overflow-y-auto custom-scroll">
+            <form onSubmit={handleSaveEvent} noValidate className="p-5 space-y-3.5 overflow-y-auto custom-scroll">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Título *</label>
                 <input
@@ -1571,7 +1878,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
               )}
 
-              {/* Calendário e Cor */}
+              {/* Calendário e Tag */}
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -1606,6 +1913,36 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     placeholder="Reunião, Cliente..."
                     className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                   />
+                </div>
+              </div>
+
+              {/* Categorização por Cor */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Categoria por Cor
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {(['blue', 'emerald', 'violet', 'amber', 'rose'] as CalendarColorKey[]).map(
+                    (c) => {
+                      const st = COLOR_STYLES[c];
+                      const active = color === c;
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setColor(c)}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-all ${
+                            active
+                              ? `${st.pill} ring-2 ring-offset-1 ring-slate-700`
+                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${st.dot}`} />
+                          <span>{st.label}</span>
+                        </button>
+                      );
+                    }
+                  )}
                 </div>
               </div>
 

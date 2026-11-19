@@ -140,6 +140,8 @@ export interface ElectronAPI {
   importSettingsFile?: () => Promise<{ success: boolean; canceled?: boolean; settings?: any; filePath?: string; error?: string }>;
   loadAppSettings?: () => Promise<{ success: boolean; settings?: any; error?: string }>;
   saveAppSettings?: (settingsObj: any) => Promise<{ success: boolean; error?: string }>;
+  loadCalendarData?: () => Promise<{ success: boolean; data?: any; error?: string }>;
+  saveCalendarData?: (dataObj: any) => Promise<{ success: boolean; error?: string }>;
   getSpellcheckLanguages?: () => Promise<{ available: string[]; active: string[]; enabled: boolean }>;
   configureSpellcheck?: (payload: { enabled?: boolean; languages?: string[] }) => Promise<{ success: boolean; enabled?: boolean; active?: string[]; error?: string }>;
   addWordToDictionary?: (word: string) => Promise<{ success: boolean }>;
