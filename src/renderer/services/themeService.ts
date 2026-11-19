@@ -484,7 +484,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   },
   {
     id: 'deepblue-teal',
-    name: '11. Deep Blue + Teal',
+    name: 'Azul Profundo + Turquesa',
     subtitle: 'Azul oceânico profundo com ciano-esmeralda (Teal) luminoso',
     category: 'dark',
     section: 'dark',
