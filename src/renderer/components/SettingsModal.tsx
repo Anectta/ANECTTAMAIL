@@ -65,7 +65,6 @@ interface SettingsModalProps {
   onSaveSettings: (newSettings: AppSettings) => void;
   isCleanWhite?: boolean;
   onToggleTheme?: () => void;
-  onOpenSkins?: () => void;
   onOpenRules?: () => void;
   activeRulesCount?: number;
   onOpenSetupWizard?: () => void;
@@ -97,7 +96,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSaveSettings,
   isCleanWhite = false,
   onToggleTheme,
-  onOpenSkins,
   onOpenRules,
   activeRulesCount = 0,
   onOpenSetupWizard,
@@ -541,18 +539,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <span>Modo Claro</span>
                     </>
                   )}
-                </button>
-              )}
-
-              {onOpenSkins && (
-                <button
-                  type="button"
-                  onClick={onOpenSkins}
-                  className="w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white bg-slate-900/70 hover:bg-slate-800 border border-slate-800 transition-all"
-                  title="Skins, Temas & Ambientação Sonora (Alt+S)"
-                >
-                  <Palette className="w-4 h-4 text-brand-400 shrink-0" />
-                  <span>Skins & Sons</span>
                 </button>
               )}
             </div>

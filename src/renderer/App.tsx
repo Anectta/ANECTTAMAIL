@@ -25,7 +25,6 @@ import {
   DEFAULT_CONFIRMATION_SETTINGS,
 } from '@/types/settings';
 import { EmailAnimationPreviewModal } from './components/animated-icons';
-import { SkinSelectorModal } from './components/SkinSelectorModal';
 import { AccountSetupWizardView } from './components/AccountSetupWizardView';
 import { RulesModal } from './components/RulesModal';
 import { MotivationalBanner } from './components/MotivationalBanner';
@@ -632,11 +631,10 @@ export const App: React.FC = () => {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<'account' | 'security'>('account');
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'account' | 'appearance' | 'security'>('account');
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const [rules, setRules] = useState<MailRule[]>(() => loadMailRules());
   const [isAnimationPreviewOpen, setIsAnimationPreviewOpen] = useState(false);
-  const [isSkinSelectorOpen, setIsSkinSelectorOpen] = useState(false);
 
   // O assistente de conexão de contas somente deve aparecer automaticamente no primeiro lançamento pós-instalação.
   // Em qualquer inicialização posterior, a tela NÃO reaparece, abrindo diretamente na Caixa de Entrada.
@@ -2877,7 +2875,10 @@ export const App: React.FC = () => {
     onOpenCommandPalette: () => {
       emailListRef.current?.focusSearch();
     },
-    onOpenSkins: () => setIsSkinSelectorOpen((prev) => !prev),
+    onOpenSkins: () => {
+      setSettingsInitialTab('appearance');
+      setIsSettingsOpen(true);
+    },
     onCompose: () => {
       setComposeDefaults({ recipient: '', subject: '' });
       setIsComposeOpen(true);
@@ -3369,7 +3370,10 @@ export const App: React.FC = () => {
         onRefresh={() => handleSyncAll()}
         onOpenAnimationPreview={() => setIsAnimationPreviewOpen(true)}
         onOpenSetupWizard={() => setIsSetupWizardOpen(true)}
-        onOpenSkins={() => setIsSkinSelectorOpen(true)}
+        onOpenSkins={() => {
+          setSettingsInitialTab('appearance');
+          setIsSettingsOpen(true);
+        }}
         isDark={true}
       />
 
@@ -3442,10 +3446,6 @@ export const App: React.FC = () => {
         onSaveSettings={handleSaveSettings}
         isCleanWhite={themeMode === 'clean'}
         onToggleTheme={handleToggleTheme}
-        onOpenSkins={() => {
-          setIsSettingsOpen(false);
-          setIsSkinSelectorOpen(true);
-        }}
         onOpenRules={() => {
           setIsSettingsOpen(false);
           setIsRulesModalOpen(true);
@@ -3476,11 +3476,6 @@ export const App: React.FC = () => {
         customFolders={customFolders}
         accounts={settings.accounts}
       />
-
-      {/* Seletor de Skins, Temas e Áudio */}
-      {isSkinSelectorOpen && (
-        <SkinSelectorModal onClose={() => setIsSkinSelectorOpen(false)} />
-      )}
 
       {/* Assistente de Conexão de Contas (Primeiro Acesso ou ao Adicionar Nova Conta) */}
       {isSetupWizardOpen && (

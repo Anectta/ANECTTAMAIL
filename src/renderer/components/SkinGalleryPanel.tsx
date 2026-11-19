@@ -3,6 +3,7 @@ import { Check, Volume2, VolumeX } from 'lucide-react';
 import {
   AVAILABLE_SKINS,
   SkinDefinition,
+  SkinSection,
   themeService,
 } from '../services/themeService';
 import { soundService } from '../services/soundService';
@@ -10,6 +11,9 @@ import { soundService } from '../services/soundService';
 export const SkinGalleryPanel: React.FC = () => {
   const [activeSkin, setActiveSkin] = useState<SkinDefinition>(() =>
     themeService.getActiveSkin()
+  );
+  const [activeTab, setActiveTab] = useState<SkinSection>(() =>
+    themeService.getActiveSkin().section
   );
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() =>
     soundService.isEnabled()
@@ -50,6 +54,7 @@ export const SkinGalleryPanel: React.FC = () => {
   const defaultSkins = AVAILABLE_SKINS.filter((s) => s.section === 'default');
   const lightSkins = AVAILABLE_SKINS.filter((s) => s.section === 'light');
   const darkSkins = AVAILABLE_SKINS.filter((s) => s.section === 'dark');
+  const visibleSkins = AVAILABLE_SKINS.filter((s) => s.section === activeTab);
 
   const renderSkinCard = (skin: SkinDefinition) => {
     const isSelected = skin.id === activeSkin.id;
@@ -329,39 +334,33 @@ export const SkinGalleryPanel: React.FC = () => {
         )}
       </div>
 
-      {/* Seção 1: Tema Padrão (1) */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-slate-300">
-            Tema Padrão ({defaultSkins.length})
-          </span>
+      {/* Abas de Temas: Padrão, Claros e Escuros */}
+      <div className="space-y-3">
+        <div className="flex items-center space-x-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800 w-fit">
+          {(
+            [
+              { id: 'default', label: `Padrão (${defaultSkins.length})` },
+              { id: 'light', label: `Claros (${lightSkins.length})` },
+              { id: 'dark', label: `Escuros (${darkSkins.length})` },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === tab.id
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {defaultSkins.map(renderSkinCard)}
-        </div>
-      </div>
 
-      {/* Seção 2: Temas Claros (7) */}
-      <div className="space-y-2.5 pt-2 border-t border-slate-800/70">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-slate-300">
-            Temas Claros ({lightSkins.length})
-          </span>
-        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {lightSkins.map(renderSkinCard)}
-        </div>
-      </div>
-
-      {/* Seção 3: Temas Escuros (8) */}
-      <div className="space-y-2.5 pt-2 border-t border-slate-800/70">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-slate-300">
-            Temas Escuros ({darkSkins.length})
-          </span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {darkSkins.map(renderSkinCard)}
+          {visibleSkins.map(renderSkinCard)}
         </div>
       </div>
     </div>

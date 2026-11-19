@@ -320,7 +320,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
                   className="flex items-center space-x-2 px-3.5 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-semibold shadow-md shadow-brand-600/30 transition-all"
                 >
                   <Palette className="w-4 h-4" />
-                  <span>Skins, Temas & Sons</span>
+                  <span>Aparência & Sons</span>
                 </button>
               )}
               <button

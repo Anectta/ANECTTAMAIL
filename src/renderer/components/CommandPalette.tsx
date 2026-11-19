@@ -194,7 +194,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     },
     {
       id: 'open-skins',
-      title: 'Skins, Temas & Ambientação Sonora (Cores, Ícones e Sons)',
+      title: 'Aparência & Sons (Temas, Cores e Efeitos Sonoros)',
       category: 'Sistema',
       icon: Palette,
       shortcut: 'Alt+S',
