@@ -316,7 +316,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   },
   {
     id: 'red-offwhite',
-    name: '10. Vermelho + Off-white',
+    name: 'Vermelho + Branco Gelo',
     subtitle: 'Off-white rosado suave com contraste carvão e vermelho carmim executivo',
     category: 'light',
     section: 'light',
