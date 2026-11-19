@@ -9,7 +9,6 @@ import {
   Clock,
   CheckCircle,
   Loader2,
-  MailQuestion,
   FileDown,
   Paperclip,
   Download,
@@ -34,6 +33,7 @@ import {
   ImageOff,
   Printer,
   MoreHorizontal,
+  Plus,
 } from 'lucide-react';
 import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
@@ -119,6 +119,7 @@ interface EmailViewProps {
     value: boolean
   ) => void;
   onSendReadReceipt?: (email: EmailItem) => Promise<void> | void;
+  onComposeNewEmail?: () => void;
 }
 
 export const EmailView: React.FC<EmailViewProps> = ({
@@ -146,6 +147,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
   blockBlockedSenders = true,
   onChangePrivacySetting,
   onSendReadReceipt,
+  onComposeNewEmail,
 }) => {
   const [revealedImagesEmailIds, setRevealedImagesEmailIds] = useState<Record<string, boolean>>({});
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
@@ -331,26 +333,45 @@ export const EmailView: React.FC<EmailViewProps> = ({
   if (!email) {
     return (
       <main className="flex-1 bg-slate-950 flex flex-col items-center justify-center text-slate-500 p-8 select-text">
-        <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-4 text-slate-600 shadow-xl">
-          <MailQuestion className="w-8 h-8" />
-        </div>
-        <h3 className="text-sm font-semibold text-slate-300 mb-1">
-          Nenhum e-mail selecionado
+        <svg
+          width="136"
+          height="114"
+          viewBox="0 0 136 114"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="mb-4 text-slate-400"
+          aria-hidden="true"
+        >
+          <line x1="18" y1="22" x2="32" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.45" />
+          <line x1="24" y1="30" x2="34" y2="30" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.3" />
+          <rect x="39" y="12" width="58" height="40" rx="5" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeWidth="2" />
+          <path d="M41 16L68 36L95 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <line x1="48" y1="43" x2="57" y2="35" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" opacity="0.55" />
+          <line x1="88" y1="43" x2="79" y2="35" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" opacity="0.55" />
+          <path d="M32 58C32 54.6863 34.6863 52 38 52H98C101.314 52 104 54.6863 104 58V62H32V58Z" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="2" />
+          <path d="M27 68C27 64.6863 29.6863 62 33 62H103C106.314 62 109 64.6863 109 68V73H27V68Z" fill="currentColor" fillOpacity="0.18" stroke="currentColor" strokeWidth="2" />
+          <path d="M21 50C21 47.7909 22.7909 46 25 46H29M115 50C115 47.7909 113.209 46 111 46H107" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d="M21 50V94C21 98.4183 24.5817 102 29 102H107C111.418 102 115 98.4183 115 94V50" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d="M21 73H50C51.6569 73 53 74.3431 53 76C53 80.4183 56.5817 84 61 84H75C79.4183 84 83 80.4183 83 76C83 74.3431 84.3431 73 86 73H115" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+        </svg>
+        <h3 className="text-base font-bold text-slate-200 mb-1">
+          Tudo pronto por aqui
         </h3>
-        <p className="text-xs text-slate-500 text-center max-w-sm mb-6">
-          Navegue pelas mensagens usando a lista ou atalhos de teclado.
+        <p className="text-xs text-slate-500 text-center max-w-sm mb-5">
+          Escolha uma mensagem na lista ao lado ou comece uma nova ação.
         </p>
-        <div className="flex items-center space-x-3 text-[11px] text-slate-400 font-mono">
-          <span className="px-2 py-1 rounded bg-slate-900 border border-slate-800">
-            J / K Navegar
-          </span>
-          <span className="px-2 py-1 rounded bg-slate-900 border border-slate-800">
-            C Escrever
-          </span>
-          <span className="px-2 py-1 rounded bg-slate-900 border border-slate-800">
-            Ctrl + K Comandos
-          </span>
-        </div>
+        {onComposeNewEmail && (
+          <div className="flex items-center justify-center gap-2.5 flex-wrap">
+            <button
+              type="button"
+              onClick={onComposeNewEmail}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Escrever novo e-mail</span>
+            </button>
+          </div>
+        )}
       </main>
     );
   }

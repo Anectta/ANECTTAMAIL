@@ -626,6 +626,7 @@ export const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [composeAccountId, setComposeAccountId] = useState<string | undefined>(undefined);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'account' | 'appearance' | 'security'>('account');
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
@@ -3250,6 +3251,16 @@ export const App: React.FC = () => {
                 blockBlockedSenders={settings.security.blockBlockedSenders ?? true}
                 onChangePrivacySetting={handleQuickPrivacyChange}
                 onSendReadReceipt={handleSendReadReceipt}
+                onComposeNewEmail={() => {
+                  const defaultAcc =
+                    settings.accounts?.find((a) => a.isDefault) ||
+                    settings.accounts?.[0] ||
+                    currentAccount;
+                  setComposeDraftId(undefined);
+                  setComposeDefaults({ recipient: '', subject: '', body: '' });
+                  setComposeAccountId(defaultAcc?.id);
+                  setIsComposeOpen(true);
+                }}
                 onBackToList={
                   emailLayoutMode === 'fullscreen'
                     ? () => setIsFullscreenReading(false)
@@ -3370,6 +3381,7 @@ export const App: React.FC = () => {
         onClose={() => {
           setIsComposeOpen(false);
           setComposeDraftId(undefined);
+          setComposeAccountId(undefined);
         }}
         onSend={handleSendEmail}
         draftId={composeDraftId}
@@ -3380,7 +3392,7 @@ export const App: React.FC = () => {
         defaultSubject={composeDefaults.subject}
         defaultBody={composeDefaults.body}
         accounts={settings.accounts}
-        activeAccountId={currentAccount.id}
+        activeAccountId={composeAccountId || currentAccount.id}
         signatures={settings.signatures || []}
         contacts={contacts}
         draftAutoSaveEnabled={settings.drafts?.autoSaveEnabled ?? true}
