@@ -25,6 +25,8 @@ import {
   X,
   Save,
   GripVertical,
+  Smartphone,
+  Copy,
 } from 'lucide-react';
 import { AccountSettings, AppSettings } from '@/types/settings';
 import { EmailProviderNotice } from './EmailProviderNotice';
@@ -70,6 +72,18 @@ export const AccountManagerView: React.FC<AccountManagerViewProps> = ({
   // Modals
   const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<AccountSettings | null>(null);
+  const [isPairMobileOpen, setIsPairMobileOpen] = useState(false);
+  const [pairingGatewayUrl, setPairingGatewayUrl] = useState<string>(() => {
+    try {
+      return localStorage.getItem('anectta_mobile_gateway_url') || 'http://localhost:8787';
+    } catch {
+      return 'http://localhost:8787';
+    }
+  });
+  const [pairingCodeResult, setPairingCodeResult] = useState<string | null>(null);
+  const [pairingLoading, setPairingLoading] = useState(false);
+  const [pairingError, setPairingError] = useState<string | null>(null);
+  const [pairingCopied, setPairingCopied] = useState(false);
 
   // Form fields for adding new account
   const [newAccName, setNewAccName] = useState('');
@@ -510,6 +524,20 @@ export const AccountManagerView: React.FC<AccountManagerViewProps> = ({
             >
               <Plus className="w-4 h-4" />
               <span>Adicionar conta</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPairingCodeResult(null);
+                setPairingError(null);
+                setPairingCopied(false);
+                setIsPairMobileOpen(true);
+              }}
+              className="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+            >
+              <Smartphone className="w-4 h-4 text-brand-400" />
+              <span>Parear Mobile</span>
             </button>
 
             {/* List of Accounts with Sub-items */}
@@ -2738,6 +2766,134 @@ export const AccountManagerView: React.FC<AccountManagerViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: PAREAMENTO MOBILE (ZERO-PASSWORD) ================= */}
+      {isPairMobileOpen && selectedAccount && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-600/20 border border-brand-500/30 flex items-center justify-center">
+                  <Smartphone className="w-5 h-5 text-brand-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Parear com Anectta MAIL Mobile</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Transfere apenas servidores IMAP/SMTP — sua senha nunca sai do aparelho
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPairMobileOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-1">
+              <div className="font-semibold text-white">{selectedAccount.email}</div>
+              <div className="text-[11px] text-slate-400">
+                IMAP: {selectedAccount.incomingServer?.host || '—'}:{selectedAccount.incomingServer?.port || 993} • SMTP:{' '}
+                {selectedAccount.outgoingServer?.host || '—'}:{selectedAccount.outgoingServer?.port || 465}
+              </div>
+            </div>
+
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-slate-300">URL do Gateway Mobile</span>
+              <input
+                type="url"
+                value={pairingGatewayUrl}
+                onChange={(e) => {
+                  setPairingGatewayUrl(e.target.value);
+                  try {
+                    localStorage.setItem('anectta_mobile_gateway_url', e.target.value);
+                  } catch {
+                    // ignore
+                  }
+                }}
+                placeholder="http://localhost:8787"
+                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-brand-500"
+              />
+            </label>
+
+            {pairingError && (
+              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+                {pairingError}
+              </div>
+            )}
+
+            {pairingCodeResult ? (
+              <div className="p-4 rounded-xl bg-slate-950 border border-brand-500/40 text-center space-y-2">
+                <div className="text-[11px] uppercase tracking-wider text-slate-400">
+                  Código temporário (expira em 3 minutos • uso único)
+                </div>
+                <div className="text-3xl font-mono font-bold tracking-[0.25em] text-brand-400">
+                  {pairingCodeResult}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(pairingCodeResult).catch(() => {});
+                    setPairingCopied(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>{pairingCopied ? 'Código copiado!' : 'Copiar código'}</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={pairingLoading}
+                onClick={async () => {
+                  setPairingLoading(true);
+                  setPairingError(null);
+                  try {
+                    const url = `${pairingGatewayUrl.replace(/\/+$/, '')}/api/pairing/create`;
+                    const resp = await fetch(url, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        accounts: [
+                          {
+                            displayName: selectedAccount.displayName || selectedAccount.email,
+                            email: selectedAccount.email,
+                            protocol: selectedAccount.incomingServer?.protocol || 'imap',
+                            imapHost: selectedAccount.incomingServer?.host || '',
+                            imapPort: Number(selectedAccount.incomingServer?.port || 993),
+                            imapSecure: selectedAccount.incomingServer?.security !== 'none',
+                            smtpHost: selectedAccount.outgoingServer?.host || '',
+                            smtpPort: Number(selectedAccount.outgoingServer?.port || 465),
+                            smtpSecure: selectedAccount.outgoingServer?.security !== 'none',
+                          },
+                        ],
+                      }),
+                    });
+                    const data = await resp.json();
+                    if (data.success && data.code) {
+                      setPairingCodeResult(String(data.code));
+                    } else {
+                      setPairingError(data.error || 'Não foi possível gerar o código no Gateway.');
+                    }
+                  } catch (err: any) {
+                    setPairingError(
+                      err?.message || 'Gateway inacessível. Verifique se o Anectta MAIL Gateway está rodando.'
+                    );
+                  } finally {
+                    setPairingLoading(false);
+                  }
+                }}
+                className="w-full py-2.5 px-4 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold rounded-xl transition-all"
+              >
+                {pairingLoading ? 'Gerando código...' : 'Gerar código de pareamento (6 dígitos)'}
+              </button>
+            )}
           </div>
         </div>
       )}
