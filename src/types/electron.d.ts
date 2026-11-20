@@ -286,6 +286,33 @@ export interface ElectronAPI {
     password?: string;
     event: any;
   }) => Promise<{ success: boolean; remoteId?: string; error?: string }>;
+  updateCloudCalendarEvent?: (payload: {
+    provider: 'google' | 'microsoft' | 'caldav';
+    accessToken?: string;
+    caldavUrl?: string;
+    username?: string;
+    password?: string;
+    remoteId: string;
+    calendarId?: string;
+    event: any;
+  }) => Promise<{ success: boolean; error?: string }>;
+  deleteCloudCalendarEvent?: (payload: {
+    provider: 'google' | 'microsoft' | 'caldav';
+    accessToken?: string;
+    caldavUrl?: string;
+    username?: string;
+    password?: string;
+    remoteId: string;
+    calendarId?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  listCloudCalendars?: (payload: {
+    provider: 'google' | 'microsoft';
+    accessToken: string;
+  }) => Promise<{
+    success: boolean;
+    calendars?: Array<{ id: string; name: string; primary?: boolean; color?: string }>;
+    error?: string;
+  }>;
   syncCloudContacts?: (payload: {
     provider: 'google' | 'microsoft' | 'carddav';
     accessToken?: string;
@@ -294,6 +321,18 @@ export interface ElectronAPI {
     password?: string;
     sourceLabel?: string;
   }) => Promise<{ success: boolean; contacts?: any[]; error?: string }>;
+  importMigrationFolder?: (payload: {
+    accountId: string;
+    mode?: 'folder' | 'pst' | 'mbox' | 'eml';
+  }) => Promise<{
+    success: boolean;
+    canceled?: boolean;
+    emails: EmailItem[];
+    count: number;
+    filesScanned?: number;
+    sourceLabel?: string;
+    error?: string;
+  }>;
   oneClickUnsubscribe?: (url: string) => Promise<{ success: boolean; status?: number; error?: string }>;
   pgpGenerateKey?: (payload: { name: string; email: string; passphrase?: string }) => Promise<{
     success: boolean;

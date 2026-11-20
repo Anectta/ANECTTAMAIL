@@ -423,8 +423,16 @@ const electronAPI = {
     ipcRenderer.invoke('sync:calendar', payload),
   pushCloudCalendarEvent: (payload: any) =>
     ipcRenderer.invoke('sync:push-calendar-event', payload),
+  updateCloudCalendarEvent: (payload: any) =>
+    ipcRenderer.invoke('sync:update-calendar-event', payload),
+  deleteCloudCalendarEvent: (payload: any) =>
+    ipcRenderer.invoke('sync:delete-calendar-event', payload),
+  listCloudCalendars: (payload: any) =>
+    ipcRenderer.invoke('sync:list-calendars', payload),
   syncCloudContacts: (payload: any) =>
     ipcRenderer.invoke('sync:contacts', payload),
+  importMigrationFolder: (payload: { accountId: string; mode?: 'folder' | 'pst' | 'mbox' | 'eml' }) =>
+    ipcRenderer.invoke('mail:import-migration', payload),
   oneClickUnsubscribe: (url: string) =>
     ipcRenderer.invoke('mail:one-click-unsubscribe', url),
   pgpGenerateKey: (payload: { name: string; email: string; passphrase?: string }) =>

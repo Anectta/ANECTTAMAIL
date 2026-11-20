@@ -635,4 +635,248 @@ export class CloudSyncService {
       return { success: false, error: err?.message || 'Erro ao sincronizar contatos na nuvem.' };
     }
   }
+
+  /**
+   * Atualiza um evento existente no Google Calendar, Microsoft Graph ou CalDAV.
+   */
+  public static async updateCalendarEvent(req: {
+    provider: 'google' | 'microsoft' | 'caldav';
+    accessToken?: string;
+    caldavUrl?: string;
+    username?: string;
+    password?: string;
+    remoteId: string;
+    calendarId?: string;
+    event: {
+      id: string;
+      title: string;
+      date: string;
+      endDate?: string;
+      startTime?: string;
+      endTime?: string;
+      allDay?: boolean;
+      location?: string;
+      description?: string;
+    };
+  }): Promise<{ success: boolean; error?: string }> {
+    const ev = req.event;
+    const rawId = req.remoteId.replace(/^(google|ms|caldav)-/, '');
+    try {
+      if (req.provider === 'google') {
+        if (!req.accessToken) return { success: false, error: 'Token OAuth2 do Google ausente.' };
+        const calId = encodeURIComponent(req.calendarId || 'primary');
+        const startObj = ev.allDay
+          ? { date: ev.date }
+          : { dateTime: `${ev.date}T${ev.startTime || '09:00'}:00` };
+        const endObj = ev.allDay
+          ? { date: ev.endDate || ev.date }
+          : { dateTime: `${ev.endDate || ev.date}T${ev.endTime || '10:00'}:00` };
+
+        const res = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${calId}/events/${encodeURIComponent(rawId)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${req.accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              summary: ev.title,
+              location: ev.location || undefined,
+              description: ev.description || undefined,
+              start: startObj,
+              end: endObj,
+            }),
+          }
+        );
+        if (!res.ok) {
+          const data: any = await res.json().catch(() => ({}));
+          return { success: false, error: data?.error?.message || `HTTP ${res.status}` };
+        }
+        return { success: true };
+      }
+
+      if (req.provider === 'microsoft') {
+        if (!req.accessToken) return { success: false, error: 'Token OAuth2 Microsoft ausente.' };
+        const res = await fetch(
+          `https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(rawId)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${req.accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              subject: ev.title,
+              isAllDay: Boolean(ev.allDay),
+              location: ev.location ? { displayName: ev.location } : undefined,
+              body: ev.description ? { contentType: 'Text', content: ev.description } : undefined,
+              start: {
+                dateTime: `${ev.date}T${ev.startTime || '09:00'}:00`,
+                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo',
+              },
+              end: {
+                dateTime: `${ev.endDate || ev.date}T${ev.endTime || '10:00'}:00`,
+                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo',
+              },
+            }),
+          }
+        );
+        if (!res.ok) {
+          const data: any = await res.json().catch(() => ({}));
+          return { success: false, error: data?.error?.message || `HTTP ${res.status}` };
+        }
+        return { success: true };
+      }
+
+      // CalDAV PUT overwrite
+      const base = (req.caldavUrl || '').trim().replace(/\/+$/, '');
+      if (!base || !req.username || !req.password) {
+        return { success: false, error: 'Credenciais CalDAV incompletas.' };
+      }
+      const uid = rawId || `${ev.id}@anectta.mail`;
+      const dtStart = ev.allDay
+        ? `DTSTART;VALUE=DATE:${ev.date.replace(/-/g, '')}`
+        : `DTSTART:${ev.date.replace(/-/g, '')}T${(ev.startTime || '09:00').replace(':', '')}00`;
+      const dtEnd = ev.allDay
+        ? `DTEND;VALUE=DATE:${(ev.endDate || ev.date).replace(/-/g, '')}`
+        : `DTEND:${(ev.endDate || ev.date).replace(/-/g, '')}T${(ev.endTime || '10:00').replace(':', '')}00`;
+      const ics = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Anectta MAIL//CalDAV Sync V2//PT',
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')}`,
+        dtStart,
+        dtEnd,
+        `SUMMARY:${ev.title}`,
+        ev.location ? `LOCATION:${ev.location}` : '',
+        ev.description ? `DESCRIPTION:${ev.description.replace(/\r?\n/g, '\\n')}` : '',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ]
+        .filter(Boolean)
+        .join('\r\n');
+
+      const putRes = await fetch(`${base}/${encodeURIComponent(uid)}.ics`, {
+        method: 'PUT',
+        headers: {
+          Authorization: basicAuthHeader(req.username, req.password),
+          'Content-Type': 'text/calendar; charset=utf-8',
+        },
+        body: ics,
+      });
+      if (!putRes.ok) return { success: false, error: `CalDAV PUT retornou HTTP ${putRes.status}` };
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Erro ao atualizar evento na nuvem.' };
+    }
+  }
+
+  /**
+   * Exclui um evento no Google Calendar, Microsoft Graph ou CalDAV.
+   */
+  public static async deleteCalendarEvent(req: {
+    provider: 'google' | 'microsoft' | 'caldav';
+    accessToken?: string;
+    caldavUrl?: string;
+    username?: string;
+    password?: string;
+    remoteId: string;
+    calendarId?: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    const rawId = req.remoteId.replace(/^(google|ms|caldav)-/, '');
+    try {
+      if (req.provider === 'google') {
+        if (!req.accessToken) return { success: false, error: 'Token OAuth2 do Google ausente.' };
+        const calId = encodeURIComponent(req.calendarId || 'primary');
+        const res = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${calId}/events/${encodeURIComponent(rawId)}`,
+          {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${req.accessToken}` },
+          }
+        );
+        if (!res.ok && res.status !== 404 && res.status !== 410) {
+          return { success: false, error: `Google Calendar DELETE retornou HTTP ${res.status}` };
+        }
+        return { success: true };
+      }
+
+      if (req.provider === 'microsoft') {
+        if (!req.accessToken) return { success: false, error: 'Token OAuth2 Microsoft ausente.' };
+        const res = await fetch(
+          `https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(rawId)}`,
+          {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${req.accessToken}` },
+          }
+        );
+        if (!res.ok && res.status !== 404) {
+          return { success: false, error: `Microsoft Graph DELETE retornou HTTP ${res.status}` };
+        }
+        return { success: true };
+      }
+
+      const base = (req.caldavUrl || '').trim().replace(/\/+$/, '');
+      if (!base || !req.username || !req.password) {
+        return { success: false, error: 'Credenciais CalDAV incompletas.' };
+      }
+      const delRes = await fetch(`${base}/${encodeURIComponent(rawId)}.ics`, {
+        method: 'DELETE',
+        headers: { Authorization: basicAuthHeader(req.username, req.password) },
+      });
+      if (!delRes.ok && delRes.status !== 404) {
+        return { success: false, error: `CalDAV DELETE retornou HTTP ${delRes.status}` };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Erro ao excluir evento na nuvem.' };
+    }
+  }
+
+  /**
+   * Lista calendários remotos disponíveis na conta Google ou Microsoft 365.
+   */
+  public static async listRemoteCalendars(req: {
+    provider: 'google' | 'microsoft';
+    accessToken: string;
+  }): Promise<{
+    success: boolean;
+    calendars?: Array<{ id: string; name: string; primary?: boolean; color?: string }>;
+    error?: string;
+  }> {
+    try {
+      if (req.provider === 'google') {
+        const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+          headers: { Authorization: `Bearer ${req.accessToken}` },
+        });
+        const data: any = await res.json();
+        if (!res.ok) return { success: false, error: data?.error?.message || `HTTP ${res.status}` };
+        const calendars = (data.items || []).map((c: any) => ({
+          id: String(c.id),
+          name: String(c.summary || c.id),
+          primary: Boolean(c.primary),
+          color: c.backgroundColor,
+        }));
+        return { success: true, calendars };
+      }
+
+      const res = await fetch('https://graph.microsoft.com/v1.0/me/calendars', {
+        headers: { Authorization: `Bearer ${req.accessToken}` },
+      });
+      const data: any = await res.json();
+      if (!res.ok) return { success: false, error: data?.error?.message || `HTTP ${res.status}` };
+      const calendars = (data.value || []).map((c: any) => ({
+        id: String(c.id),
+        name: String(c.name || c.id),
+        primary: Boolean(c.isDefaultCalendar),
+        color: c.hexColor,
+      }));
+      return { success: true, calendars };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Erro ao listar calendários remotos.' };
+    }
+  }
 }

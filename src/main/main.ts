@@ -1970,6 +1970,18 @@ ipcMain.handle('sync:push-calendar-event', async (_event, payload: any) => {
   return await CloudSyncService.pushCalendarEvent(payload);
 });
 
+ipcMain.handle('sync:update-calendar-event', async (_event, payload: any) => {
+  return await CloudSyncService.updateCalendarEvent(payload);
+});
+
+ipcMain.handle('sync:delete-calendar-event', async (_event, payload: any) => {
+  return await CloudSyncService.deleteCalendarEvent(payload);
+});
+
+ipcMain.handle('sync:list-calendars', async (_event, payload: any) => {
+  return await CloudSyncService.listRemoteCalendars(payload);
+});
+
 ipcMain.handle('sync:contacts', async (_event, payload: any) => {
   return await CloudSyncService.syncContacts(payload);
 });
@@ -2527,6 +2539,143 @@ ipcMain.handle('mail:import-emails', async (_event, payload: { accountId: string
     return { success: false, emails: [], count: 0, error: err?.message || 'Erro ao importar e-mails.' };
   }
 });
+
+// Assistente de Migração Guiado (.PST Outlook, .MBOX Thunderbird/Apple Mail, .EML em lote ou Pasta de Perfil)
+ipcMain.handle(
+  'mail:import-migration',
+  async (_event, payload: { accountId: string; mode?: 'folder' | 'pst' | 'mbox' | 'eml' }) => {
+    try {
+      const accountId = payload?.accountId || 'acc-default';
+      const mode = payload?.mode || 'folder';
+      const targetWin = BrowserWindow.getFocusedWindow() || mainWindow;
+
+      const dialogOptions: Electron.OpenDialogOptions =
+        mode === 'folder'
+          ? {
+              title: 'Selecionar Pasta de Perfil / E-mails (Thunderbird, Apple Mail ou pasta .EML)',
+              properties: ['openDirectory'],
+            }
+          : mode === 'pst'
+          ? {
+              title: 'Selecionar Arquivo Outlook (.PST)',
+              properties: ['openFile', 'multiSelections'],
+              filters: [{ name: 'Microsoft Outlook (*.pst)', extensions: ['pst'] }],
+            }
+          : mode === 'mbox'
+          ? {
+              title: 'Selecionar Arquivo Thunderbird / Apple Mail (.MBOX)',
+              properties: ['openFile', 'multiSelections'],
+              filters: [
+                { name: 'Caixa MBOX (*.mbox)', extensions: ['mbox'] },
+                { name: 'Arquivos Thunderbird sem extensão (*)', extensions: ['*'] },
+              ],
+            }
+          : {
+              title: 'Selecionar Arquivos .EML em Lote',
+              properties: ['openFile', 'multiSelections'],
+              filters: [{ name: 'Mensagens EML (*.eml)', extensions: ['eml'] }],
+            };
+
+      const res = await dialog.showOpenDialog(targetWin!, dialogOptions);
+      if (res.canceled || res.filePaths.length === 0) {
+        return { success: false, canceled: true, emails: [], count: 0 };
+      }
+
+      const candidateFiles: Array<{ filePath: string; folderHint?: string }> = [];
+
+      const collectFromDir = async (dirPath: string, depth: number, relFolder?: string) => {
+        if (depth > 4) return;
+        const entries = await fs.promises.readdir(dirPath, { withFileTypes: true }).catch(() => []);
+        for (const entry of entries) {
+          const full = path.join(dirPath, entry.name);
+          if (entry.isDirectory()) {
+            const cleanFolder = entry.name.replace(/\.sbd$/i, '');
+            await collectFromDir(full, depth + 1, relFolder ? `${relFolder}/${cleanFolder}` : cleanFolder);
+          } else if (entry.isFile()) {
+            const ext = path.extname(entry.name).toLowerCase();
+            if (ext === '.eml' || ext === '.mbox' || ext === '.pst') {
+              candidateFiles.push({ filePath: full, folderHint: relFolder });
+            } else if (!ext && !entry.name.startsWith('.')) {
+              // Possível arquivo MBOX sem extensão do Thunderbird (ex.: Inbox, Sent)
+              try {
+                const fd = await fs.promises.open(full, 'r');
+                const buf = Buffer.alloc(64);
+                const { bytesRead } = await fd.read(buf, 0, 64, 0);
+                await fd.close();
+                if (bytesRead > 5 && buf.toString('utf8', 0, bytesRead).startsWith('From ')) {
+                  candidateFiles.push({ filePath: full, folderHint: entry.name });
+                }
+              } catch {
+                // ignore unreadable
+              }
+            }
+          }
+        }
+      };
+
+      if (mode === 'folder') {
+        await collectFromDir(res.filePaths[0], 0);
+      } else {
+        for (const fp of res.filePaths) {
+          candidateFiles.push({ filePath: fp, folderHint: path.basename(fp, path.extname(fp)) });
+        }
+      }
+
+      const importedEmails: any[] = [];
+      for (const item of candidateFiles) {
+        const { filePath, folderHint } = item;
+        const ext = path.extname(filePath).toLowerCase();
+        try {
+          const stat = await fs.promises.stat(filePath);
+          if (stat.size === 0 || stat.size > MAX_STREAM_IMPORT_BYTES) continue;
+
+          if (ext === '.pst' && (await isOutlookBinaryPst(filePath))) {
+            const pstItems = importOutlookPst(filePath, accountId, importedEmails.length);
+            importedEmails.push(...pstItems);
+          } else if (ext === '.mbox' || !ext) {
+            const mboxItems = await importMboxStream(filePath, accountId, importedEmails.length);
+            for (const m of mboxItems) {
+              if (folderHint) {
+                m.tags = Array.from(new Set([...(m.tags || []), `Migração: ${folderHint}`]));
+              }
+            }
+            importedEmails.push(...mboxItems);
+          } else if (ext === '.eml' && stat.size <= MAX_READFILE_BYTES) {
+            const raw = await fs.promises.readFile(filePath, 'utf-8');
+            const parsed = await simpleParser(raw);
+            const emailObj: any = parsedMailToEmailItem(
+              parsed,
+              accountId,
+              importedEmails.length,
+              path.basename(filePath)
+            );
+            if (folderHint) {
+              emailObj.tags = Array.from(new Set([...(emailObj.tags || []), `Migração: ${folderHint}`]));
+            }
+            importedEmails.push(emailObj);
+          }
+        } catch {
+          // continua para próximo arquivo
+        }
+      }
+
+      return {
+        success: true,
+        emails: importedEmails,
+        count: importedEmails.length,
+        filesScanned: candidateFiles.length,
+        sourceLabel: path.basename(res.filePaths[0]),
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        emails: [],
+        count: 0,
+        error: err?.message || 'Erro ao executar migração de e-mails.',
+      };
+    }
+  }
+);
 
 ipcMain.handle('settings:export', async (_event, settingsObj: any) => {
   try {

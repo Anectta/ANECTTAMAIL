@@ -128,6 +128,8 @@ interface CalendarViewProps {
   accounts?: AccountSettings[];
   onSyncCloudCalendar?: () => Promise<string>;
   onPushEventToCloud?: (event: CalendarEvent) => Promise<void>;
+  onUpdateEventInCloud?: (event: CalendarEvent) => Promise<void>;
+  onDeleteEventInCloud?: (event: CalendarEvent) => Promise<void>;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -136,6 +138,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   accounts,
   onSyncCloudCalendar,
   onPushEventToCloud,
+  onUpdateEventInCloud,
+  onDeleteEventInCloud,
 }) => {
   const use24HourFormat = calendarSettings?.use24HourFormat ?? true;
   const showWeekNumbers = calendarSettings?.showWeekNumbers ?? false;
@@ -458,6 +462,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       const nextEvents = events.map((item) => (item.id === editingEventId ? payload : item));
       setEvents(nextEvents);
       void window.electronAPI?.saveCalendarData?.({ events: nextEvents, calendars, hiddenCalendarIds });
+      void onUpdateEventInCloud?.(payload);
       showToast('Compromisso atualizado.');
     } else {
       const nextEvents = [...events, payload];
@@ -474,7 +479,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     if (!window.confirm(`Deseja realmente excluir o compromisso "${ev?.title || ''}"?`)) {
       return;
     }
-    setEvents((prev) => prev.filter((ev) => ev.id !== id));
+    const nextEvents = events.filter((item) => item.id !== id);
+    setEvents(nextEvents);
+    void window.electronAPI?.saveCalendarData?.({ events: nextEvents, calendars, hiddenCalendarIds });
+    if (ev) {
+      void onDeleteEventInCloud?.(ev);
+    }
     if (editingEventId === id) {
       setIsModalOpen(false);
     }

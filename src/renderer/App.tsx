@@ -1506,6 +1506,98 @@ export const App: React.FC = () => {
     [settings.accounts, settings.calendar, ensureFreshAccessToken]
   );
 
+  const handleUpdateCalendarEventInCloud = useCallback(
+    async (event: any): Promise<void> => {
+      if (!window.electronAPI?.updateCloudCalendarEvent || !event?.id) return;
+      const evId = String(event.id);
+      const isGoogle = evId.startsWith('google-');
+      const isMs = evId.startsWith('ms-');
+      const isCaldav = evId.startsWith('caldav-');
+
+      if (isGoogle || isMs) {
+        const targetProvider = isGoogle ? 'google' : 'microsoft';
+        const acc = (settings.accounts || []).find(
+          (a) => a.authType === 'oauth2' && a.oauthProvider === targetProvider && (a.oauthAccessToken || a.oauthRefreshToken)
+        );
+        if (!acc) return;
+        const accessToken = await ensureFreshAccessToken(acc);
+        if (!accessToken) return;
+        const res = await window.electronAPI.updateCloudCalendarEvent({
+          provider: targetProvider,
+          accessToken,
+          remoteId: evId,
+          event,
+        });
+        if (res.success) {
+          showToast(`☁️ Compromisso atualizado em ${isGoogle ? 'Google Calendar' : 'Microsoft 365'}.`);
+        }
+        return;
+      }
+
+      if (isCaldav) {
+        const src = (settings.calendar?.davSources || []).find((s) => s.syncCalendar && s.caldavUrl);
+        if (!src?.caldavUrl) return;
+        const res = await window.electronAPI.updateCloudCalendarEvent({
+          provider: 'caldav',
+          caldavUrl: src.caldavUrl,
+          username: src.username,
+          password: src.password,
+          remoteId: evId,
+          event,
+        });
+        if (res.success) {
+          showToast(`☁️ Compromisso atualizado no CalDAV (${src.name}).`);
+        }
+      }
+    },
+    [settings.accounts, settings.calendar, ensureFreshAccessToken]
+  );
+
+  const handleDeleteCalendarEventInCloud = useCallback(
+    async (event: any): Promise<void> => {
+      if (!window.electronAPI?.deleteCloudCalendarEvent || !event?.id) return;
+      const evId = String(event.id);
+      const isGoogle = evId.startsWith('google-');
+      const isMs = evId.startsWith('ms-');
+      const isCaldav = evId.startsWith('caldav-');
+
+      if (isGoogle || isMs) {
+        const targetProvider = isGoogle ? 'google' : 'microsoft';
+        const acc = (settings.accounts || []).find(
+          (a) => a.authType === 'oauth2' && a.oauthProvider === targetProvider && (a.oauthAccessToken || a.oauthRefreshToken)
+        );
+        if (!acc) return;
+        const accessToken = await ensureFreshAccessToken(acc);
+        if (!accessToken) return;
+        const res = await window.electronAPI.deleteCloudCalendarEvent({
+          provider: targetProvider,
+          accessToken,
+          remoteId: evId,
+        });
+        if (res.success) {
+          showToast(`☁️ Compromisso removido de ${isGoogle ? 'Google Calendar' : 'Microsoft 365'}.`);
+        }
+        return;
+      }
+
+      if (isCaldav) {
+        const src = (settings.calendar?.davSources || []).find((s) => s.syncCalendar && s.caldavUrl);
+        if (!src?.caldavUrl) return;
+        const res = await window.electronAPI.deleteCloudCalendarEvent({
+          provider: 'caldav',
+          caldavUrl: src.caldavUrl,
+          username: src.username,
+          password: src.password,
+          remoteId: evId,
+        });
+        if (res.success) {
+          showToast(`☁️ Compromisso removido do CalDAV (${src.name}).`);
+        }
+      }
+    },
+    [settings.accounts, settings.calendar, ensureFreshAccessToken]
+  );
+
   const handleSyncCloudContacts = useCallback(async (): Promise<string> => {
     if (!window.electronAPI?.syncCloudContacts) {
       return 'Sincronização em nuvem disponível apenas no aplicativo desktop.';
@@ -1586,6 +1678,26 @@ export const App: React.FC = () => {
     }
     return summary;
   }, [settings.accounts, settings.calendar, ensureFreshAccessToken, handleImportContacts]);
+
+  // Sincronização Automática Bidirecional em Segundo Plano (Nuvem V2)
+  useEffect(() => {
+    if (!settings.calendar?.autoSyncCloudEnabled) return;
+    const intervalMin = settings.calendar?.autoSyncCloudIntervalMinutes || 15;
+    const intervalMs = Math.max(5, intervalMin) * 60 * 1000;
+    const timer = window.setInterval(() => {
+      void handleSyncCloudCalendar().catch(() => {});
+      if (settings.calendar?.syncCloudContactsAuto ?? true) {
+        void handleSyncCloudContacts().catch(() => {});
+      }
+    }, intervalMs);
+    return () => window.clearInterval(timer);
+  }, [
+    settings.calendar?.autoSyncCloudEnabled,
+    settings.calendar?.autoSyncCloudIntervalMinutes,
+    settings.calendar?.syncCloudContactsAuto,
+    handleSyncCloudCalendar,
+    handleSyncCloudContacts,
+  ]);
 
   // ==========================================
   // Painel Lateral Mini-CRM + Notas Privadas
@@ -4129,6 +4241,8 @@ export const App: React.FC = () => {
             accounts={settings.accounts}
             onSyncCloudCalendar={handleSyncCloudCalendar}
             onPushEventToCloud={handlePushCalendarEventToCloud}
+            onUpdateEventInCloud={handleUpdateCalendarEventInCloud}
+            onDeleteEventInCloud={handleDeleteCalendarEventInCloud}
           />
         )}
 

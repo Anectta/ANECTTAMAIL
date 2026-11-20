@@ -225,6 +225,10 @@ export interface CalendarSettings {
   weekStartsOn: 'sunday' | 'monday' | 'saturday';
   defaultEventDurationMinutes: 15 | 30 | 60 | 90 | 120;
   davSources?: DavSyncSource[];
+  autoSyncCloudEnabled?: boolean;
+  autoSyncCloudIntervalMinutes?: 5 | 15 | 30 | 60;
+  syncCloudContactsAuto?: boolean;
+  lastCloudSyncAt?: string;
 }
 
 export interface CustomWebApp {

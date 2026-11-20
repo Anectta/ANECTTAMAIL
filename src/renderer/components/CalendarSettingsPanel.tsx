@@ -390,6 +390,72 @@ export const CalendarSettingsPanel: React.FC<CalendarSettingsPanelProps> = ({
           </div>
         )}
       </div>
+
+      {/* Card 5: Sincronização Automática Bidirecional em Segundo Plano (V2) */}
+      <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold text-slate-200">
+              Sincronização Automática Bidirecional (Nuvem V2)
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Mantém Google Calendar, Microsoft 365 e CalDAV/CardDAV sincronizados em segundo plano (criação, edição e exclusão).
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            checked={Boolean(calendar.autoSyncCloudEnabled)}
+            onChange={(e) =>
+              onChangeCalendar({
+                ...calendar,
+                autoSyncCloudEnabled: e.target.checked,
+                autoSyncCloudIntervalMinutes: calendar.autoSyncCloudIntervalMinutes || 15,
+              })
+            }
+            className="w-4 h-4 accent-brand-500 rounded cursor-pointer"
+          />
+        </div>
+
+        <div
+          className={`space-y-2.5 pt-2 border-t border-slate-800/80 transition-opacity ${
+            calendar.autoSyncCloudEnabled ? 'opacity-100' : 'opacity-50 pointer-events-none'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-slate-300">Intervalo de sincronização</span>
+            <select
+              value={calendar.autoSyncCloudIntervalMinutes || 15}
+              onChange={(e) =>
+                onChangeCalendar({
+                  ...calendar,
+                  autoSyncCloudIntervalMinutes: Number(e.target.value) as 5 | 15 | 30 | 60,
+                })
+              }
+              className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200"
+            >
+              <option value={5}>A cada 5 minutos</option>
+              <option value={15}>A cada 15 minutos (Recomendado)</option>
+              <option value={30}>A cada 30 minutos</option>
+              <option value={60}>A cada 1 hora</option>
+            </select>
+          </div>
+
+          <label className="flex items-center justify-between gap-3 cursor-pointer">
+            <span className="text-xs text-slate-300">Sincronizar Contatos (Google / M365 / CardDAV) junto</span>
+            <input
+              type="checkbox"
+              checked={calendar.syncCloudContactsAuto ?? true}
+              onChange={(e) =>
+                onChangeCalendar({
+                  ...calendar,
+                  syncCloudContactsAuto: e.target.checked,
+                })
+              }
+              className="w-4 h-4 accent-brand-500 rounded cursor-pointer"
+            />
+          </label>
+        </div>
+      </div>
     </div>
   );
 };

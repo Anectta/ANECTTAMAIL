@@ -7,6 +7,9 @@ import {
   History,
   Loader2,
   RotateCcw,
+  FileArchive,
+  FolderInput,
+  Mail,
 } from 'lucide-react';
 import { AppSettings, BackupSettings } from '../types/settings';
 import { EmailItem } from '../types/email';
@@ -49,7 +52,43 @@ export const BackupSettingsPanel: React.FC<BackupSettingsPanelProps> = ({
   const [defaultDir, setDefaultDir] = useState<string>('');
   const [isRunning, setIsRunning] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isMigrating, setIsMigrating] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const handleRunMigration = async (mode: 'pst' | 'mbox' | 'folder' | 'eml') => {
+    if (isMigrating) return;
+    if (!window.electronAPI?.importMigrationFolder) {
+      setFeedback({ ok: false, text: 'Assistente de migração disponível apenas no aplicativo desktop.' });
+      return;
+    }
+    setIsMigrating(mode);
+    setFeedback(null);
+    try {
+      const res = await window.electronAPI.importMigrationFolder({
+        accountId: 'acc-migrated',
+        mode,
+      });
+      if (res?.canceled) return;
+      if (res?.success) {
+        if (res.emails && res.emails.length > 0) {
+          onRestoredData?.({ emails: res.emails });
+        }
+        setFeedback({
+          ok: true,
+          text: `Migração concluída: ${res.count} e-mail(s) importado(s) de ${res.filesScanned || 1} arquivo(s) (${res.sourceLabel || mode.toUpperCase()}).`,
+        });
+      } else {
+        setFeedback({
+          ok: false,
+          text: res?.error || 'Não foi possível concluir a migração.',
+        });
+      }
+    } catch (err: any) {
+      setFeedback({ ok: false, text: err?.message || 'Erro durante a migração.' });
+    } finally {
+      setIsMigrating(null);
+    }
+  };
 
   const current: BackupSettings = {
     ...DEFAULT_BACKUP,
@@ -330,6 +369,91 @@ export const BackupSettingsPanel: React.FC<BackupSettingsPanelProps> = ({
               ))}
             </select>
           </div>
+        </div>
+      </div>
+
+      {/* Assistente de Migração Guiado (Outlook .PST / Thunderbird .MBOX / Pasta / .EML em lote) */}
+      <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
+        <div className="flex items-start gap-2.5">
+          <FolderInput className="w-4 h-4 text-sky-400 mt-0.5 shrink-0" />
+          <div>
+            <div className="text-xs font-semibold text-slate-100">
+              Assistente de Migração de E-mails (Outlook, Thunderbird & Apple Mail)
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Importe seu histórico completo preservando datas, anexos e pastas de origem (suporte streaming para arquivos grandes).
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            type="button"
+            disabled={Boolean(isMigrating)}
+            onClick={() => handleRunMigration('pst')}
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-sky-500/40 text-left transition-all disabled:opacity-50"
+          >
+            <FileArchive className="w-4 h-4 text-sky-400 shrink-0" />
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-slate-100">
+                {isMigrating === 'pst' ? 'Importando .PST...' : 'Migrar do Outlook (.PST)'}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                Arquivo binário PST do Microsoft Outlook
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            disabled={Boolean(isMigrating)}
+            onClick={() => handleRunMigration('mbox')}
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/40 text-left transition-all disabled:opacity-50"
+          >
+            <Mail className="w-4 h-4 text-indigo-400 shrink-0" />
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-slate-100">
+                {isMigrating === 'mbox' ? 'Importando .MBOX...' : 'Migrar do Thunderbird / Apple Mail (.MBOX)'}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                Arquivos .mbox ou caixas Thunderbird sem extensão
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            disabled={Boolean(isMigrating)}
+            onClick={() => handleRunMigration('folder')}
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-emerald-500/40 text-left transition-all disabled:opacity-50"
+          >
+            <FolderOpen className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-slate-100">
+                {isMigrating === 'folder' ? 'Varrendo pasta...' : 'Importar Pasta Completa (Perfil / Subpastas)'}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                Varre subpastas automaticamente (.eml, .mbox, .pst)
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            disabled={Boolean(isMigrating)}
+            onClick={() => handleRunMigration('eml')}
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-amber-500/40 text-left transition-all disabled:opacity-50"
+          >
+            <HardDriveDownload className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-slate-100">
+                {isMigrating === 'eml' ? 'Importando .EML...' : 'Importar Lote de Arquivos .EML'}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                Seleção múltipla de mensagens individuais .eml
+              </div>
+            </div>
+          </button>
         </div>
       </div>
     </div>
