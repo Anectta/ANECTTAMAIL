@@ -50,6 +50,8 @@ export interface EmailItem {
   senderEmail: string;
   avatar?: string;
   recipient: string;
+  cc?: string;
+  bcc?: string;
   subject: string;
   snippet: string;
   body: string;

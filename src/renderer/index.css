@@ -1251,6 +1251,77 @@ body.clean-white,
   color: var(--text-muted) !important;
 }
 
+/* Editor Rich-Text WYSIWYG na composição */
+.compose-rich-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-muted);
+  pointer-events: none;
+  display: block;
+}
+.compose-rich-editor ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.4rem 0;
+}
+.compose-rich-editor ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.4rem 0;
+}
+.compose-rich-editor blockquote {
+  border-left: 3px solid #60a5fa;
+  padding: 0.35rem 0.75rem;
+  margin: 0.5rem 0;
+  color: var(--text-muted);
+}
+.compose-rich-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5rem 0;
+}
+.compose-rich-editor th,
+.compose-rich-editor td {
+  border: 1px solid #cbd5e1;
+  padding: 6px 8px;
+}
+.compose-rich-editor a {
+  color: #38bdf8;
+  text-decoration: underline;
+}
+.compose-rich-editor hr {
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  margin: 0.75rem 0;
+}
+.compose-rich-editor img {
+  max-width: 100%;
+  height: auto;
+  cursor: pointer;
+}
+.clean-white .compose-rich-toolbar {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+.clean-white .compose-rich-toolbar button {
+  color: #334155;
+}
+.clean-white .compose-rich-toolbar button:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+.clean-white .compose-rich-toolbar button.bg-brand-600 {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+.clean-white .compose-rich-toolbar select {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+.clean-white .compose-rich-editor a {
+  color: #2563eb;
+}
+
 /* Coluna lateral de anúncios no Clean White */
 .clean-white .ad-sidebar {
   background-color: #f3f5f7 !important;

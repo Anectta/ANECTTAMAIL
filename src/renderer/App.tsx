@@ -1060,20 +1060,29 @@ export const App: React.FC = () => {
   const [composeDraftId, setComposeDraftId] = useState<string | undefined>(undefined);
   const [composeDefaults, setComposeDefaults] = useState<{
     recipient: string;
+    cc?: string;
+    bcc?: string;
     subject: string;
     body?: string;
+    bodyHtml?: string;
   }>({
     recipient: '',
+    cc: '',
+    bcc: '',
     subject: '',
     body: '',
+    bodyHtml: '',
   });
 
   // Undo Send (8s) + Agendamento de Envio (Send Later)
   type OutgoingEmailPayload = {
     recipient: string;
+    cc?: string;
+    bcc?: string;
     subject: string;
     body: string;
     html?: string;
+    editorHtml?: string;
     signature?: string;
     stationery?: string;
     priority: PriorityLevel;
@@ -2279,8 +2288,11 @@ export const App: React.FC = () => {
   const handleSaveDraft = (d: {
     id: string;
     recipient: string;
+    cc?: string;
+    bcc?: string;
     subject: string;
     body: string;
+    bodyHtml?: string;
     fromAccountId?: string;
     priority: 'high' | 'medium' | 'low';
     attachments?: Array<{ name: string; path: string; size: number }>;
@@ -2295,9 +2307,12 @@ export const App: React.FC = () => {
       senderEmail: acc.email,
       avatar: acc.avatar || '',
       recipient: d.recipient,
+      cc: d.cc?.trim() || undefined,
+      bcc: d.bcc?.trim() || undefined,
       subject: d.subject || '(sem assunto)',
-      snippet: d.body.slice(0, 90),
+      snippet: (d.body || '').replace(/\s+/g, ' ').trim().slice(0, 90),
       body: d.body,
+      bodyHtml: d.bodyHtml || undefined,
       timestamp: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       dateStr: now.toLocaleDateString('pt-BR'),
       period: 'today',
@@ -2330,8 +2345,11 @@ export const App: React.FC = () => {
       setComposeDraftId(selectedEmail.id);
       setComposeDefaults({
         recipient: selectedEmail.recipient || '',
+        cc: selectedEmail.cc || '',
+        bcc: selectedEmail.bcc || '',
         subject: selectedEmail.subject === '(sem assunto)' ? '' : selectedEmail.subject,
         body: fallbackBody,
+        bodyHtml: selectedEmail.bodyHtml || '',
       });
       setIsComposeOpen(true);
       return;
@@ -2348,23 +2366,44 @@ export const App: React.FC = () => {
   const handleReplyAll = () => {
     if (!selectedEmail) return;
     const myEmail = (currentAccount?.email || '').trim().toLowerCase();
-    const parts = [
-      selectedEmail.senderEmail,
-      ...(selectedEmail.recipient || '').split(/[;,]+/),
-    ]
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const senderAddr = (selectedEmail.senderEmail || '').trim();
+    const isMeSender = senderAddr.toLowerCase() === myEmail;
+
+    const toCandidates = isMeSender
+      ? (selectedEmail.recipient || '').split(/[;,]+/)
+      : [senderAddr];
+    const ccCandidates = [
+      ...(isMeSender ? [] : (selectedEmail.recipient || '').split(/[;,]+/)),
+      ...(selectedEmail.cc || '').split(/[;,]+/),
+    ];
+
     const seen = new Set<string>();
-    const uniqueRecipients: string[] = [];
-    for (const p of parts) {
-      const match = p.match(/<([^>]+)>/);
-      const addr = (match ? match[1] : p).trim().toLowerCase();
+    const extractAddr = (token: string) => {
+      const m = token.match(/<([^>]+)>/);
+      return (m ? m[1] : token).trim().toLowerCase();
+    };
+
+    const primaryTo: string[] = [];
+    for (const raw of toCandidates) {
+      const t = raw.trim();
+      const addr = extractAddr(t);
+      if (!addr || (!isMeSender && addr === myEmail) || seen.has(addr)) continue;
+      seen.add(addr);
+      primaryTo.push(t);
+    }
+
+    const ccList: string[] = [];
+    for (const raw of ccCandidates) {
+      const t = raw.trim();
+      const addr = extractAddr(t);
       if (!addr || addr === myEmail || seen.has(addr)) continue;
       seen.add(addr);
-      uniqueRecipients.push(p);
+      ccList.push(t);
     }
+
     setComposeDefaults({
-      recipient: uniqueRecipients.length > 0 ? uniqueRecipients.join('; ') : selectedEmail.senderEmail,
+      recipient: primaryTo.length > 0 ? primaryTo.join(', ') : selectedEmail.senderEmail,
+      cc: ccList.join(', '),
       subject: selectedEmail.subject.startsWith('Re:')
         ? selectedEmail.subject
         : `Re: ${selectedEmail.subject}`,
@@ -2441,6 +2480,8 @@ export const App: React.FC = () => {
           {
             sender: sendingAccount.displayName || sendingAccount.email,
             recipient: emailData.recipient,
+            cc: emailData.cc,
+            bcc: emailData.bcc,
             subject: emailData.subject,
             body: fullBody,
             html: emailData.html,
@@ -2471,7 +2512,9 @@ export const App: React.FC = () => {
     const isReadReceiptEnabled = Boolean(emailData.trackingEnabled || emailData.requestReadReceipt);
 
     const parsedRecipients = isReadReceiptEnabled
-      ? String(emailData.recipient || '')
+      ? [emailData.recipient, emailData.cc]
+          .filter(Boolean)
+          .join(',')
           .split(/[;,]/)
           .map((r) => r.trim())
           .filter(Boolean)
@@ -2496,6 +2539,8 @@ export const App: React.FC = () => {
       senderEmail: sendingAccount.email,
       avatar: sendingAccount.avatar || '',
       recipient: emailData.recipient,
+      cc: emailData.cc || undefined,
+      bcc: emailData.bcc || undefined,
       subject: emailData.subject,
       snippet: emailData.body.slice(0, 90),
       body: fullBody,
@@ -2759,8 +2804,11 @@ export const App: React.FC = () => {
     setPendingUndoSend(null);
     setComposeDefaults({
       recipient: payload.recipient,
+      cc: payload.cc || '',
+      bcc: payload.bcc || '',
       subject: payload.subject,
       body: payload.body,
+      bodyHtml: payload.editorHtml || '',
     });
     setIsComposeOpen(true);
     soundService.play('pop');
@@ -2799,6 +2847,8 @@ export const App: React.FC = () => {
         senderEmail: sendingAccount.email,
         avatar: sendingAccount.avatar || '',
         recipient: emailData.recipient,
+        cc: emailData.cc || undefined,
+        bcc: emailData.bcc || undefined,
         subject: `[Agendado ${whenStr}] ${emailData.subject}`,
         snippet: emailData.body.slice(0, 90),
         body: emailData.body,
@@ -3389,8 +3439,11 @@ export const App: React.FC = () => {
         onSaveDraft={handleSaveDraft}
         onDiscardDraft={handleDiscardDraft}
         defaultRecipient={composeDefaults.recipient}
+        defaultCc={composeDefaults.cc}
+        defaultBcc={composeDefaults.bcc}
         defaultSubject={composeDefaults.subject}
         defaultBody={composeDefaults.body}
+        defaultBodyHtml={composeDefaults.bodyHtml}
         accounts={settings.accounts}
         activeAccountId={composeAccountId || currentAccount.id}
         signatures={settings.signatures || []}
@@ -3407,7 +3460,11 @@ export const App: React.FC = () => {
         <div className="fixed bottom-5 right-5 z-[70] bg-slate-900 border border-slate-700 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 animate-in fade-in">
           <div className="text-xs">
             <div className="font-bold">
-              Enviando para <span className="text-sky-400">{pendingUndoSend.payload.recipient}</span>...
+              Enviando para{' '}
+              <span className="text-sky-400">
+                {pendingUndoSend.payload.recipient || pendingUndoSend.payload.cc || pendingUndoSend.payload.bcc}
+              </span>
+              ...
             </div>
             <div className="text-[11px] text-slate-400">
               Disparo automático em <strong className="text-amber-400">{pendingUndoSend.secondsLeft}s</strong>

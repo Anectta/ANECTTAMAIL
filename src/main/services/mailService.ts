@@ -86,6 +86,103 @@ function extractReadReceiptAddress(headers: any, fallbackSenderEmail: string): s
   return extractValidEmail(fallbackSenderEmail);
 }
 
+function formatParsedAddressField(field: any): string | undefined {
+  if (!field) return undefined;
+  if (Array.isArray(field)) {
+    const joined = field
+      .map((entry: any) => entry?.text || (entry?.name ? `${entry.name} <${entry.address}>` : entry?.address))
+      .filter(Boolean)
+      .join(', ');
+    return joined || undefined;
+  }
+  return field.text ? String(field.text).trim() || undefined : undefined;
+}
+
+/**
+ * Resolve referências cid: em HTML recebido usando buffers de anexos embutidos.
+ */
+function resolveCidImagesInHtml(html: string, attachments?: any[]): string {
+  if (!html || !Array.isArray(attachments) || attachments.length === 0 || !/cid:/i.test(html)) {
+    return html;
+  }
+
+  const cidMap = new Map<string, string>();
+  for (const att of attachments) {
+    const rawCid = String(att?.cid || att?.contentId || '')
+      .replace(/^<|>$/g, '')
+      .trim()
+      .toLowerCase();
+    if (!rawCid || !att?.content || !Buffer.isBuffer(att.content)) continue;
+    const mime = att.contentType || 'image/png';
+    cidMap.set(rawCid, `data:${mime};base64,${att.content.toString('base64')}`);
+  }
+
+  if (cidMap.size === 0) return html;
+
+  return html.replace(/(src\s*=\s*['"])cid:([^'"]+)(['"])/gi, (full, prefix, cidRef, suffix) => {
+    const key = String(cidRef || '').replace(/^<|>$/g, '').trim().toLowerCase();
+    const resolved = cidMap.get(key);
+    return resolved ? `${prefix}${resolved}${suffix}` : full;
+  });
+}
+
+/**
+ * Converte imagens data:image/...;base64,... de um HTML para anexos inline RFC 2392 (cid:).
+ */
+function extractDataUrlImagesToCid(html: string): {
+  html: string;
+  inlineAttachments: Array<{
+    filename: string;
+    content: Buffer;
+    contentType: string;
+    cid: string;
+    contentDisposition: 'inline';
+  }>;
+} {
+  if (!html || !/data:image\//i.test(html)) {
+    return { html, inlineAttachments: [] };
+  }
+
+  const inlineAttachments: Array<{
+    filename: string;
+    content: Buffer;
+    contentType: string;
+    cid: string;
+    contentDisposition: 'inline';
+  }> = [];
+  const dedupeMap = new Map<string, string>();
+  let index = 0;
+
+  const updatedHtml = html.replace(
+    /(<img\b[^>]*?\bsrc\s*=\s*(['"]))data:image\/(png|jpeg|jpg|gif|webp|bmp);base64,([^'"]+)(\2[^>]*>)/gi,
+    (_match, prefix, _quote, rawSubtype, rawBase64, suffix) => {
+      const subtype = String(rawSubtype).toLowerCase();
+      const mimeSubtype = subtype === 'jpg' ? 'jpeg' : subtype;
+      const cleanBase64 = String(rawBase64).replace(/\s+/g, '');
+      const cacheKey = `${mimeSubtype}:${cleanBase64}`;
+
+      let cid = dedupeMap.get(cacheKey);
+      if (!cid) {
+        index += 1;
+        const ext = subtype === 'jpeg' ? 'jpg' : subtype;
+        cid = `anectta-inline-${Date.now()}-${index}@anectta.local`;
+        dedupeMap.set(cacheKey, cid);
+        inlineAttachments.push({
+          filename: `inline-image-${index}.${ext}`,
+          content: Buffer.from(cleanBase64, 'base64'),
+          contentType: `image/${mimeSubtype}`,
+          cid,
+          contentDisposition: 'inline',
+        });
+      }
+
+      return `${prefix}cid:${cid}${suffix}`;
+    }
+  );
+
+  return { html: updatedHtml, inlineAttachments };
+}
+
 export class MailService {
   /**
    * Universal test connection (routes to IMAP or POP3 based on protocol)
@@ -496,12 +593,17 @@ export class MailService {
     let messageIdHeader: string | undefined = env.messageId || undefined;
     let inReplyToHeader: string | undefined = env.inReplyTo || undefined;
     let readReceiptRequestedBy: string | undefined = undefined;
+    let parsedCc: string | undefined = undefined;
 
     if (message.source) {
       try {
         const parsed: any = await simpleParser(message.source);
         const textContent = parsed.text || '';
-        const htmlContent = parsed.html || '';
+        const rawHtmlContent = parsed.html || '';
+        const htmlContent =
+          rawHtmlContent && Array.isArray(parsed.attachments)
+            ? resolveCidImagesInHtml(rawHtmlContent, parsed.attachments)
+            : rawHtmlContent;
         bodyHtml = htmlContent || undefined;
         bodyText = textContent || (htmlContent ? htmlContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '');
         snippet = bodyText.slice(0, 120);
@@ -512,6 +614,7 @@ export class MailService {
         if (parsed.inReplyTo) {
           inReplyToHeader = String(parsed.inReplyTo).trim();
         }
+        parsedCc = formatParsedAddressField(parsed.cc);
         readReceiptRequestedBy = extractReadReceiptAddress(parsed.headers, senderEmail);
 
         if (parsed.attachments && Array.isArray(parsed.attachments) && parsed.attachments.length > 0) {
@@ -561,6 +664,11 @@ export class MailService {
     const allRecipients = Array.isArray(env.to) && env.to.length > 0
       ? env.to.map((t: any) => (t.name ? `${t.name} <${t.address}>` : t.address)).filter(Boolean).join(', ')
       : env.to?.[0]?.address || config.user;
+    const allCc =
+      parsedCc ||
+      (Array.isArray(env.cc) && env.cc.length > 0
+        ? env.cc.map((c: any) => (c.name ? `${c.name} <${c.address}>` : c.address)).filter(Boolean).join(', ')
+        : undefined);
 
     return {
       id: messageId,
@@ -571,6 +679,7 @@ export class MailService {
       senderEmail: senderEmail,
       avatar: '',
       recipient: allRecipients,
+      cc: allCc || undefined,
       subject: subject,
       snippet: snippet || subject,
       body: bodyText,
@@ -1205,6 +1314,11 @@ export class MailService {
           const hasRealPopAttachments = popAttachments.some((a) => !a.isSignature);
 
           const popReadReceiptRequestedBy = extractReadReceiptAddress(parsed.headers, senderEmail);
+          const popResolvedHtml =
+            parsed.html && Array.isArray(parsed.attachments)
+              ? resolveCidImagesInHtml(parsed.html, parsed.attachments)
+              : parsed.html;
+          const popCc = formatParsedAddressField(parsed.cc);
 
           messages.push({
             id: pop3MessageId,
@@ -1215,10 +1329,11 @@ export class MailService {
             senderEmail: senderEmail,
             avatar: '',
             recipient: parsed.to ? (Array.isArray(parsed.to) ? parsed.to.map((t: any) => t?.text).filter(Boolean).join(', ') : parsed.to.text) : config.user,
+            cc: popCc || undefined,
             subject: subject,
             snippet: parsed.text ? parsed.text.slice(0, 100) : subject,
             body: parsed.text || `[Mensagem baixada via POP3 de ${config.host}]`,
-            bodyHtml: parsed.html || undefined,
+            bodyHtml: popResolvedHtml || undefined,
             attachments: popAttachments.length > 0 ? popAttachments : undefined,
             timestamp: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             dateStr: date.toISOString(),
@@ -1351,22 +1466,38 @@ export class MailService {
           socketTimeout: 15000,
         });
 
-        const recipientTokens = String(emailData.recipient || '')
-          .split(/[;,]/)
-          .map((r) => r.trim())
-          .filter(Boolean);
+        const parseTokenList = (raw?: unknown): string[] =>
+          String(raw || '')
+            .split(/[;,]/)
+            .map((r) => r.trim())
+            .filter(Boolean);
 
-        const invalidRecipient = recipientTokens.find((token) => !extractValidEmail(token));
-        if (recipientTokens.length === 0 || invalidRecipient) {
-          return {
-            success: false,
-            error: invalidRecipient
-              ? `Destinatário inválido: "${invalidRecipient}". Verifique o endereço de e-mail.`
-              : 'Nenhum destinatário válido informado.',
-          };
+        const toTokens = parseTokenList(emailData.recipient);
+        const ccTokens = parseTokenList(emailData.cc);
+        const bccTokens = parseTokenList(emailData.bcc);
+
+        const validateTokens = (tokens: string[], label: string): string | null => {
+          const invalid = tokens.find((token) => !extractValidEmail(token));
+          return invalid
+            ? `Destinatário inválido em ${label}: "${invalid}". Verifique o endereço de e-mail.`
+            : null;
+        };
+
+        const validationError =
+          validateTokens(toTokens, 'Para') ||
+          validateTokens(ccTokens, 'Cc') ||
+          validateTokens(bccTokens, 'CCO');
+
+        if (validationError) {
+          return { success: false, error: validationError };
         }
 
-        const normalizedRecipients = recipientTokens.join(', ');
+        if (toTokens.length + ccTokens.length + bccTokens.length === 0) {
+          return {
+            success: false,
+            error: 'Nenhum destinatário válido informado.',
+          };
+        }
 
         const safeSenderName = String(emailData.sender || user)
           .replace(/["<>\r\n]/g, '')
@@ -1374,13 +1505,19 @@ export class MailService {
 
         const mailOptions: any = {
           from: `"${safeSenderName}" <${user}>`,
-          to: normalizedRecipients,
           subject: emailData.subject,
           text: emailData.body,
         };
 
+        if (toTokens.length > 0) mailOptions.to = toTokens.join(', ');
+        if (ccTokens.length > 0) mailOptions.cc = ccTokens.join(', ');
+        if (bccTokens.length > 0) mailOptions.bcc = bccTokens.join(', ');
+
+        let inlineCidAttachments: any[] = [];
         if (emailData.html) {
-          mailOptions.html = emailData.html;
+          const cidResult = extractDataUrlImagesToCid(String(emailData.html));
+          mailOptions.html = cidResult.html;
+          inlineCidAttachments = cidResult.inlineAttachments;
         }
 
         if (emailData.requestReadReceipt || emailData.trackingEnabled) {
@@ -1393,8 +1530,8 @@ export class MailService {
           };
         }
 
+        const validatedAttachments: any[] = [...inlineCidAttachments];
         if (emailData.attachments && Array.isArray(emailData.attachments) && emailData.attachments.length > 0) {
-          const validatedAttachments: any[] = [];
           for (const att of emailData.attachments) {
             if (att.path) {
               if (!fs.existsSync(att.path)) {
@@ -1410,9 +1547,9 @@ export class MailService {
               });
             }
           }
-          if (validatedAttachments.length > 0) {
-            mailOptions.attachments = validatedAttachments;
-          }
+        }
+        if (validatedAttachments.length > 0) {
+          mailOptions.attachments = validatedAttachments;
         }
 
         const info = await transporter.sendMail(mailOptions);

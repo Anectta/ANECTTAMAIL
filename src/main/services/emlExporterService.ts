@@ -7,6 +7,7 @@ export interface EmailExportData {
   sender: string;
   senderEmail: string;
   recipient: string;
+  cc?: string;
   subject: string;
   body: string;
   bodyHtml?: string;
@@ -48,6 +49,7 @@ export class EmlExporterService {
       `Message-ID: ${messageId}`,
       `From: ${fromName} <${fromAddr}>`,
       `To: ${toAddr}`,
+      ...(email.cc && email.cc.trim() ? [`Cc: ${email.cc.trim()}`] : []),
       `Subject: ${subject}`,
       `X-Mailer: Anectta MAIL Enterprise v1.0.2`,
       `X-Folder: ${email.folder || 'inbox'}`,

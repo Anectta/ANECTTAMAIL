@@ -209,6 +209,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
           sender: email.sender,
           senderEmail: email.senderEmail,
           recipient: email.recipient,
+          cc: email.cc,
           dateLabel: formatReceivedLabel(email),
           bodyHtml: sanitized,
           body: email.body,
@@ -981,6 +982,22 @@ export const EmailView: React.FC<EmailViewProps> = ({
                     {email.recipient}
                   </span>
                 </div>
+                {email.cc && (
+                  <div className="text-xs text-slate-400">
+                    Cc:{' '}
+                    <span className="text-slate-300 font-medium">
+                      {email.cc}
+                    </span>
+                  </div>
+                )}
+                {email.bcc && (
+                  <div className="text-xs text-slate-400">
+                    CCO:{' '}
+                    <span className="text-slate-300 font-medium">
+                      {email.bcc}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

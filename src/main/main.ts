@@ -1320,6 +1320,7 @@ ipcMain.handle('mail:print-email', async (_event, payload: {
   sender?: string;
   senderEmail?: string;
   recipient?: string;
+  cc?: string;
   dateLabel?: string;
   bodyHtml?: string;
   body?: string;
@@ -1336,6 +1337,7 @@ ipcMain.handle('mail:print-email', async (_event, payload: {
   const sender = esc(payload?.sender || '');
   const senderEmail = payload?.senderEmail ? `&lt;${esc(payload.senderEmail)}&gt;` : '';
   const recipient = esc(payload?.recipient || '');
+  const cc = esc(payload?.cc || '');
   const dateLabel = esc(payload?.dateLabel || '');
   const attachments = Array.isArray(payload?.attachments) ? payload.attachments : [];
 
@@ -1397,6 +1399,7 @@ ipcMain.handle('mail:print-email', async (_event, payload: {
     <div class="mail-meta">
       <div><strong>De:</strong> ${sender} ${senderEmail}</div>
       ${recipient ? `<div><strong>Para:</strong> ${recipient}</div>` : ''}
+      ${cc ? `<div><strong>Cc:</strong> ${cc}</div>` : ''}
       ${dateLabel ? `<div><strong>Data:</strong> ${dateLabel}</div>` : ''}
     </div>
   </div>
@@ -2170,6 +2173,7 @@ function parsedMailToEmailItem(parsed: any, accountId: string, idx: number, fall
   const sender = fromObj?.name || fromObj?.address || fallbackName || 'Remetente Desconhecido';
   const senderEmail = fromObj?.address || 'desconhecido@anectta.local';
   const toList = parsed.to?.value?.map((v: any) => v.address).filter(Boolean) || [];
+  const ccList = parsed.cc?.value?.map((v: any) => v.address).filter(Boolean) || [];
   const textBody = parsed.text || '';
   const htmlBody = typeof parsed.html === 'string' ? parsed.html : '';
   const preview = (textBody || htmlBody.replace(/<[^>]+>/g, ' '))
@@ -2185,6 +2189,7 @@ function parsedMailToEmailItem(parsed: any, accountId: string, idx: number, fall
     sender,
     senderEmail,
     recipient: toList.join(', '),
+    cc: ccList.join(', ') || undefined,
     subject: parsed.subject || '(Sem assunto)',
     preview: preview || '(Sem prévia)',
     body: textBody || htmlBody.replace(/<[^>]+>/g, ' ').trim(),
@@ -2294,6 +2299,7 @@ function importOutlookPst(filePath: string, accountId: string, startIdx: number)
                   sender,
                   senderEmail,
                   recipient: child.displayTo || '',
+                  cc: child.displayCC || undefined,
                   subject: child.subject || '(Sem assunto)',
                   preview: preview || '(Sem prévia)',
                   body: textBody || htmlBody.replace(/<[^>]+>/g, ' ').trim(),

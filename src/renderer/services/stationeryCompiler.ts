@@ -1,3 +1,5 @@
+import { sanitizeRichEditorHtml } from '../utils/richTextUtils';
+
 export interface StationeryTemplate {
   id: string;
   name: string;
@@ -149,6 +151,7 @@ export const OUTGOING_ANIMATIONS: OutgoingAnimationOption[] = [
 
 interface CompileOptions {
   text: string;
+  bodyHtml?: string;
   stationeryId: string;
   senderName: string;
   senderEmail: string;
@@ -157,19 +160,80 @@ interface CompileOptions {
   subject?: string;
 }
 
+function applyEmailSafeInlineFallbacks(sanitizedHtml: string): string {
+  if (!sanitizedHtml || typeof DOMParser === 'undefined') return sanitizedHtml;
+  const doc = new DOMParser().parseFromString(sanitizedHtml, 'text/html');
+
+  doc.body.querySelectorAll('table').forEach((el) => {
+    const htmlEl = el as HTMLTableElement;
+    if (!htmlEl.style.borderCollapse) htmlEl.style.borderCollapse = 'collapse';
+    if (!htmlEl.style.margin) htmlEl.style.margin = '10px 0';
+  });
+
+  doc.body.querySelectorAll('td, th').forEach((el) => {
+    const htmlEl = el as HTMLElement;
+    if (!htmlEl.style.border) htmlEl.style.border = '1px solid #cbd5e1';
+    if (!htmlEl.style.padding) htmlEl.style.padding = '6px 8px';
+  });
+
+  doc.body.querySelectorAll('blockquote').forEach((el) => {
+    const htmlEl = el as HTMLElement;
+    if (!htmlEl.style.borderLeft) htmlEl.style.borderLeft = '3px solid #94a3b8';
+    if (!htmlEl.style.padding) htmlEl.style.padding = '6px 14px';
+    if (!htmlEl.style.margin) htmlEl.style.margin = '10px 0';
+    if (!htmlEl.style.color) htmlEl.style.color = '#475569';
+  });
+
+  doc.body.querySelectorAll('img').forEach((el) => {
+    const imgEl = el as HTMLImageElement;
+    if (!imgEl.style.maxWidth) imgEl.style.maxWidth = '100%';
+    if (!imgEl.style.height) imgEl.style.height = 'auto';
+  });
+
+  doc.body.querySelectorAll('ul, ol').forEach((el) => {
+    const listEl = el as HTMLElement;
+    if (!listEl.style.margin) listEl.style.margin = '8px 0';
+    if (!listEl.style.paddingLeft) listEl.style.paddingLeft = '22px';
+  });
+
+  doc.body.querySelectorAll('p').forEach((el) => {
+    const pEl = el as HTMLElement;
+    if (!pEl.style.margin) pEl.style.margin = '0 0 10px 0';
+  });
+
+  doc.body.querySelectorAll('a').forEach((el) => {
+    const aEl = el as HTMLAnchorElement;
+    if (!aEl.style.color) aEl.style.color = '#2563eb';
+    if (!aEl.style.textDecoration) aEl.style.textDecoration = 'underline';
+  });
+
+  return doc.body.innerHTML;
+}
+
 /**
- * Compila o texto, papel de carta, GIFs e assinatura em HTML com CSS 100% inline,
+ * Compila o texto, HTML rico, papel de carta, GIFs e assinatura em HTML com CSS 100% inline,
  * garantindo compatibilidade total com Outlook, Gmail, Thunderbird e Webmail.
  */
 export function compileToInlineHtml(options: CompileOptions): string {
-  const { text, signature } = options;
+  const { text, bodyHtml, signature } = options;
 
-  const paragraphs = text
-    .split(/\n\n+/)
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .map((p) => `<p style="margin: 0 0 16px 0; line-height: 1.6; font-size: 14px;">${p.replace(/\n/g, '<br/>')}</p>`)
-    .join('');
+  let bodyContentHtml = '';
+  if (bodyHtml && bodyHtml.trim()) {
+    const sanitized = sanitizeRichEditorHtml(bodyHtml);
+    const enhanced = applyEmailSafeInlineFallbacks(sanitized);
+    if (enhanced.trim()) {
+      bodyContentHtml = `<div style="font-size: 14px; line-height: 1.6;">${enhanced}</div>`;
+    }
+  }
+
+  if (!bodyContentHtml) {
+    bodyContentHtml = text
+      .split(/\n\n+/)
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .map((p) => `<p style="margin: 0 0 16px 0; line-height: 1.6; font-size: 14px;">${p.replace(/\n/g, '<br/>')}</p>`)
+      .join('');
+  }
 
   const formattedSignature = signature
     ? /<[a-z][\s\S]*>/i.test(signature)
@@ -189,7 +253,7 @@ export function compileToInlineHtml(options: CompileOptions): string {
 <head><meta charset="utf-8" /></head>
 <body style="margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.6;">
   <div style="max-width: 620px; margin: 0 auto;">
-    ${paragraphs}
+    ${bodyContentHtml}
     ${signatureHtml}
   </div>
 </body>
