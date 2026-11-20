@@ -114,6 +114,121 @@ function parseReferencesHeader(raw: unknown): string[] {
   return out;
 }
 
+function parseIcsDateTimeValue(rawVal: string): { date: string; time: string; allDay: boolean } | null {
+  const clean = rawVal.trim();
+  const match = clean.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?$/i);
+  if (!match) return null;
+  const [, y, m, d, hh, mm, ss, z] = match;
+  if (!hh || !mm) {
+    return { date: `${y}-${m}-${d}`, time: '00:00', allDay: true };
+  }
+  if (z) {
+    const utcDate = new Date(
+      Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), Number(ss || '0'))
+    );
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return {
+      date: `${utcDate.getFullYear()}-${pad(utcDate.getMonth() + 1)}-${pad(utcDate.getDate())}`,
+      time: `${pad(utcDate.getHours())}:${pad(utcDate.getMinutes())}`,
+      allDay: false,
+    };
+  }
+  return { date: `${y}-${m}-${d}`, time: `${hh}:${mm}`, allDay: false };
+}
+
+function unescapeIcsText(val: string): string {
+  return val
+    .replace(/\\n/gi, '\n')
+    .replace(/\\,/g, ',')
+    .replace(/\\;/g, ';')
+    .replace(/\\\\/g, '\\')
+    .trim();
+}
+
+/**
+ * Extrai dados de convite de reunião (.ics / text/calendar) de uma mensagem parseada pelo mailparser.
+ */
+function extractCalendarInviteFromParsed(parsed: any): any | undefined {
+  let icsText = '';
+  const attachments = Array.isArray(parsed?.attachments) ? parsed.attachments : [];
+
+  for (const att of attachments) {
+    const ct = String(att?.contentType || '').toLowerCase();
+    const fn = String(att?.filename || att?.name || '').toLowerCase();
+    if ((ct.includes('text/calendar') || fn.endsWith('.ics')) && att?.content && Buffer.isBuffer(att.content)) {
+      icsText = att.content.toString('utf8');
+      break;
+    }
+  }
+
+  if (!icsText && typeof parsed?.text === 'string' && parsed.text.includes('BEGIN:VEVENT')) {
+    icsText = parsed.text;
+  }
+  if (!icsText || !/BEGIN:VEVENT/i.test(icsText)) return undefined;
+
+  const unfolded = icsText.replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '');
+  const methodMatch = unfolded.match(/^METHOD:([^\r\n]+)/im);
+  const method = methodMatch ? methodMatch[1].trim().toUpperCase() : 'REQUEST';
+
+  const eventMatch = unfolded.match(/BEGIN:VEVENT([\s\S]*?)END:VEVENT/i);
+  if (!eventMatch) return undefined;
+
+  const lines = eventMatch[1].split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  let uid = '';
+  let summary = '';
+  let location = '';
+  let description = '';
+  let organizerName = '';
+  let organizerEmail = '';
+  let startParsed: { date: string; time: string; allDay: boolean } | null = null;
+  let endParsed: { date: string; time: string; allDay: boolean } | null = null;
+
+  for (const line of lines) {
+    const colonIdx = line.indexOf(':');
+    if (colonIdx < 0) continue;
+    const rawKey = line.slice(0, colonIdx);
+    const keyUpper = rawKey.toUpperCase();
+    const baseKey = keyUpper.split(';')[0];
+    const value = line.slice(colonIdx + 1).trim();
+
+    if (baseKey === 'UID') uid = value;
+    else if (baseKey === 'SUMMARY') summary = unescapeIcsText(value);
+    else if (baseKey === 'LOCATION') location = unescapeIcsText(value);
+    else if (baseKey === 'DESCRIPTION') description = unescapeIcsText(value);
+    else if (baseKey === 'DTSTART') startParsed = parseIcsDateTimeValue(value);
+    else if (baseKey === 'DTEND') endParsed = parseIcsDateTimeValue(value);
+    else if (baseKey === 'ORGANIZER') {
+      const cnMatch = rawKey.match(/CN=(?:"([^"]+)"|([^;:]+))/i);
+      if (cnMatch) organizerName = (cnMatch[1] || cnMatch[2] || '').trim();
+      const mailto = value.replace(/^mailto:/i, '').trim();
+      if (mailto.includes('@')) organizerEmail = mailto;
+    }
+  }
+
+  if (!startParsed) return undefined;
+
+  const combinedForLink = `${location}\n${description}`;
+  const urlMatch = combinedForLink.match(
+    /(https?:\/\/(?:meet\.google\.com|teams\.microsoft\.com|[\w-]*\.?zoom\.us|meet\.jit\.si|whereby\.com)[^\s<>"']+)/i
+  );
+
+  return {
+    uid: uid || `ics-${Date.now()}`,
+    method,
+    summary: summary || parsed?.subject || 'Convite de Reunião',
+    date: startParsed.date,
+    endDate: endParsed?.date || startParsed.date,
+    startTime: startParsed.time,
+    endTime: endParsed?.time || startParsed.time,
+    allDay: startParsed.allDay,
+    location: location || undefined,
+    organizerName: organizerName || parsed?.from?.value?.[0]?.name || undefined,
+    organizerEmail: organizerEmail || parsed?.from?.value?.[0]?.address || undefined,
+    description: description ? description.slice(0, 800) : undefined,
+    meetingUrl: urlMatch ? urlMatch[1] : undefined,
+  };
+}
+
 /**
  * Resolve referências cid: em HTML recebido usando buffers de anexos embutidos.
  */
@@ -611,6 +726,7 @@ export class MailService {
     let referencesHeader: string[] = [];
     let readReceiptRequestedBy: string | undefined = undefined;
     let parsedCc: string | undefined = undefined;
+    let calendarInvite: any = undefined;
 
     if (message.source) {
       try {
@@ -636,6 +752,7 @@ export class MailService {
         }
         parsedCc = formatParsedAddressField(parsed.cc);
         readReceiptRequestedBy = extractReadReceiptAddress(parsed.headers, senderEmail);
+        calendarInvite = extractCalendarInviteFromParsed(parsed);
 
         if (parsed.attachments && Array.isArray(parsed.attachments) && parsed.attachments.length > 0) {
           attachmentsList = parsed.attachments.map((att: any, idx: number) =>
@@ -715,6 +832,7 @@ export class MailService {
       isStarred: isStarred,
       hasAttachment: hasAttachment,
       tags: ['IMAP', folderTag],
+      calendarInvite: calendarInvite || undefined,
     };
   }
 
@@ -1341,6 +1459,7 @@ export class MailService {
               : parsed.html;
           const popCc = formatParsedAddressField(parsed.cc);
           const popReferences = parseReferencesHeader(parsed.references);
+          const popCalendarInvite = extractCalendarInviteFromParsed(parsed);
 
           messages.push({
             id: pop3MessageId,
@@ -1367,6 +1486,7 @@ export class MailService {
             isStarred: false,
             hasAttachment: hasRealPopAttachments,
             tags: ['POP3 (Local)'],
+            calendarInvite: popCalendarInvite || undefined,
           });
         } catch (fetchErr) {
           console.warn(`Erro ao baixar mensagem POP3 #${i}:`, fetchErr);
@@ -1551,6 +1671,14 @@ export class MailService {
           const cidResult = extractDataUrlImagesToCid(String(emailData.html));
           mailOptions.html = cidResult.html;
           inlineCidAttachments = cidResult.inlineAttachments;
+        }
+
+        if (emailData.icalEvent && emailData.icalEvent.content) {
+          mailOptions.icalEvent = {
+            method: emailData.icalEvent.method || 'REPLY',
+            filename: emailData.icalEvent.filename || 'invite.ics',
+            content: String(emailData.icalEvent.content),
+          };
         }
 
         if (emailData.requestReadReceipt || emailData.trackingEnabled) {

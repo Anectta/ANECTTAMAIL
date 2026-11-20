@@ -25,6 +25,10 @@ interface EmailReaderModalProps {
     value: boolean
   ) => void;
   threadMessages?: EmailItem[];
+  onRespondCalendarInvite?: (
+    email: EmailItem,
+    status: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED'
+  ) => Promise<void> | void;
 }
 
 export const EmailReaderModal: React.FC<EmailReaderModalProps> = ({
@@ -45,6 +49,7 @@ export const EmailReaderModal: React.FC<EmailReaderModalProps> = ({
   blockBlockedSenders = true,
   onChangePrivacySetting,
   threadMessages,
+  onRespondCalendarInvite,
 }) => {
   const [isMaximized, setIsMaximized] = useState(false);
 
@@ -122,6 +127,7 @@ export const EmailReaderModal: React.FC<EmailReaderModalProps> = ({
           <EmailView
             email={email}
             threadMessages={threadMessages}
+            onRespondCalendarInvite={onRespondCalendarInvite}
             isModalMode={true}
             onAddContact={onAddContact}
             isSenderSaved={isSenderSaved}

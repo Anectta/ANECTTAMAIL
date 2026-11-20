@@ -36,6 +36,12 @@ import { themeService } from './services/themeService';
 import { applyRulesToEmails, loadMailRules, MailRule, saveMailRules } from './services/rulesService';
 import { getEmailTimestampMs } from './utils/dateSortUtils';
 import { getThreadMessagesForEmail } from './utils/threadUtils';
+import {
+  buildIcsRsvpReply,
+  getRsvpLabel,
+  RsvpStatus,
+  syncInviteToLocalCalendar,
+} from './utils/icsRsvpUtils';
 
 const INITIAL_EMAILS: EmailItem[] = [
   {
@@ -550,6 +556,35 @@ export const App: React.FC = () => {
       });
     },
     []
+  );
+
+  const handleImportContacts = useCallback(
+    (incoming: Array<Omit<CorporateContact, 'id'>>): number => {
+      if (!incoming || incoming.length === 0) return 0;
+      const existingSet = new Set(contacts.map((c) => c.email.trim().toLowerCase()));
+      const additions: CorporateContact[] = [];
+
+      for (let i = 0; i < incoming.length; i++) {
+        const item = incoming[i];
+        const cleanEmail = extractCleanEmail(item.email);
+        if (!cleanEmail || !cleanEmail.includes('@') || existingSet.has(cleanEmail)) continue;
+        existingSet.add(cleanEmail);
+        additions.push({
+          ...item,
+          id: `contact-imp-${Date.now()}-${i}`,
+          name: (item.name || '').trim() || cleanEmail.split('@')[0],
+          email: cleanEmail,
+        });
+      }
+
+      if (additions.length > 0) {
+        setContacts((prev) => [...additions, ...prev]);
+        soundService.play('pop');
+        showToast(`✓ ${additions.length} contato(s) importado(s)!`);
+      }
+      return additions.length;
+    },
+    [contacts]
   );
 
   const handleAddContactsFromEmailIds = useCallback(
@@ -1121,6 +1156,7 @@ export const App: React.FC = () => {
     requestReadReceipt?: boolean;
     inReplyTo?: string;
     references?: string[];
+    icalEvent?: { method: string; content: string; filename?: string };
   };
   type ScheduledEmailItem = {
     id: string;
@@ -2631,6 +2667,7 @@ export const App: React.FC = () => {
             requestReadReceipt: Boolean(emailData.requestReadReceipt),
             inReplyTo: emailData.inReplyTo,
             references: emailData.references,
+            icalEvent: emailData.icalEvent,
           }
         );
 
@@ -2706,6 +2743,70 @@ export const App: React.FC = () => {
 
     setEmails((prev) => [newMail, ...prev]);
   };
+
+  const handleRespondCalendarInvite = useCallback(
+    async (targetEmail: EmailItem, status: RsvpStatus) => {
+      const invite = targetEmail?.calendarInvite;
+      if (!invite) return;
+
+      // 1. Atualiza status RSVP localmente no e-mail e sincroniza com o Calendário local
+      setEmails((prev) =>
+        prev.map((e) =>
+          e.id === targetEmail.id && e.calendarInvite
+            ? { ...e, calendarInvite: { ...e.calendarInvite, rsvpStatus: status } }
+            : e
+        )
+      );
+      syncInviteToLocalCalendar(invite, status);
+
+      // 2. Envia resposta RFC 5546 (METHOD:REPLY) via SMTP ao organizador
+      const organizerAddr = extractCleanEmail(invite.organizerEmail || targetEmail.senderEmail || '');
+      const statusLabel = getRsvpLabel(status);
+      if (organizerAddr && organizerAddr.includes('@')) {
+        const replyAccount =
+          (targetEmail.accountId && settings.accounts?.find((a) => a.id === targetEmail.accountId)) ||
+          currentAccount;
+        const replyIcs = buildIcsRsvpReply({
+          invite,
+          attendeeEmail: replyAccount.email,
+          attendeeName: replyAccount.displayName || replyAccount.email,
+          status,
+        });
+        try {
+          await dispatchEmailNow({
+            recipient: organizerAddr,
+            subject: `${statusLabel}: ${invite.summary}`,
+            body: `${replyAccount.displayName || replyAccount.email} respondeu "${statusLabel}" ao convite "${invite.summary}" (${invite.date.split('-').reverse().join('/')} ${invite.startTime}).`,
+            priority: 'medium',
+            fromAccountId: replyAccount.id,
+            inReplyTo: targetEmail.messageIdHeader,
+            icalEvent: {
+              method: 'REPLY',
+              filename: 'reply.ics',
+              content: replyIcs,
+            },
+          });
+          soundService.play('pop');
+          showToast(
+            status === 'DECLINED'
+              ? `✓ Convite recusado e resposta enviada a ${organizerAddr}.`
+              : `✓ Convite marcado como "${statusLabel}", salvo no Calendário e resposta enviada!`
+          );
+          return;
+        } catch {
+          // Mantém atualização local mesmo se SMTP offline
+        }
+      }
+
+      soundService.play('pop');
+      showToast(
+        status === 'DECLINED'
+          ? '✓ Convite marcado como Recusado.'
+          : `✓ Convite marcado como "${statusLabel}" e adicionado ao Calendário!`
+      );
+    },
+    [currentAccount, settings.accounts]
+  );
 
   const handleSendReadReceipt = useCallback(
     async (targetEmail: EmailItem) => {
@@ -3466,6 +3567,7 @@ export const App: React.FC = () => {
                   blockBlockedSenders={settings.security.blockBlockedSenders ?? true}
                   onChangePrivacySetting={handleQuickPrivacyChange}
                   onSendReadReceipt={handleSendReadReceipt}
+                  onRespondCalendarInvite={handleRespondCalendarInvite}
                   onComposeNewEmail={() => {
                     const defaultAcc =
                       settings.accounts?.find((a) => a.isDefault) ||
@@ -3501,11 +3603,20 @@ export const App: React.FC = () => {
           <ContactsView
             contacts={contacts}
             onAddContact={handleAddContact}
+            onImportContacts={handleImportContacts}
             onUpdateContact={handleUpdateContact}
             onDeleteContact={handleDeleteContact}
             onComposeToContact={(email) => {
               setComposeDefaults({ recipient: email, subject: '' });
               setIsComposeOpen(true);
+            }}
+            onComposeToGroup={(groupEmails, groupName) => {
+              setComposeDefaults({
+                recipient: groupEmails.join(', '),
+                subject: '',
+              });
+              setIsComposeOpen(true);
+              showToast(`✉️ Compondo mensagem para o grupo "${groupName}" (${groupEmails.length} contatos).`);
             }}
           />
         )}
@@ -3552,6 +3663,7 @@ export const App: React.FC = () => {
         onAddContact={handleAddContact}
         isSenderSaved={isEmailSavedAsContact(displayedEmail?.senderEmail)}
         onSendReadReceipt={handleSendReadReceipt}
+        onRespondCalendarInvite={handleRespondCalendarInvite}
         blockExternalImages={settings.security.blockExternalImages}
         blockTrackingPixels={settings.security.blockTrackingPixels ?? true}
         blockBlockedSenders={settings.security.blockBlockedSenders ?? true}

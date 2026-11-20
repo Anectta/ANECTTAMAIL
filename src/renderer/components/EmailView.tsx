@@ -37,6 +37,12 @@ import {
   MessagesSquare,
   ChevronDown,
   ChevronRight,
+  Calendar,
+  MapPin,
+  Video,
+  Check,
+  HelpCircle,
+  X,
 } from 'lucide-react';
 import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
@@ -126,6 +132,10 @@ interface EmailViewProps {
   threadMessages?: EmailItem[];
   onOpenInNewTab?: (id: string) => void;
   isInTab?: boolean;
+  onRespondCalendarInvite?: (
+    email: EmailItem,
+    status: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED'
+  ) => Promise<void> | void;
 }
 
 export const EmailView: React.FC<EmailViewProps> = ({
@@ -157,9 +167,11 @@ export const EmailView: React.FC<EmailViewProps> = ({
   threadMessages,
   onOpenInNewTab,
   isInTab = false,
+  onRespondCalendarInvite,
 }) => {
   const [revealedImagesEmailIds, setRevealedImagesEmailIds] = useState<Record<string, boolean>>({});
   const [expandedThreadIds, setExpandedThreadIds] = useState<Record<string, boolean>>({});
+  const [isRespondingRsvp, setIsRespondingRsvp] = useState(false);
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isPrivacyPopoverOpen, setIsPrivacyPopoverOpen] = useState(false);
@@ -1086,6 +1098,152 @@ export const EmailView: React.FC<EmailViewProps> = ({
             )}
           </div>
         </div>
+
+        {/* Cartão Interativo de Convite de Reunião (.ics / RSVP) */}
+        {email.calendarInvite && (
+          <div className={`p-4 rounded-xl border border-indigo-500/35 bg-indigo-500/10 space-y-3 ${isModalMode ? 'max-w-none' : 'max-w-3xl'}`}>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="flex items-start space-x-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center shrink-0">
+                  <Calendar className="w-5 h-5 text-indigo-300" />
+                </div>
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex items-center space-x-2 flex-wrap">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">
+                      Convite de Reunião (.ics)
+                    </span>
+                    {email.calendarInvite.rsvpStatus && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                          email.calendarInvite.rsvpStatus === 'ACCEPTED'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : email.calendarInvite.rsvpStatus === 'TENTATIVE'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                        }`}
+                      >
+                        {email.calendarInvite.rsvpStatus === 'ACCEPTED'
+                          ? '✓ Aceito'
+                          : email.calendarInvite.rsvpStatus === 'TENTATIVE'
+                          ? '? Talvez'
+                          : '✕ Recusado'}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-sm font-bold text-white leading-snug">
+                    {email.calendarInvite.summary}
+                  </h3>
+                  <div className="text-xs text-slate-300 flex items-center flex-wrap gap-x-3 gap-y-1 pt-0.5">
+                    <span className="inline-flex items-center space-x-1 font-mono text-indigo-200">
+                      <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>
+                        {email.calendarInvite.date.split('-').reverse().join('/')}
+                        {email.calendarInvite.allDay
+                          ? ' • Dia inteiro'
+                          : ` • ${email.calendarInvite.startTime} – ${email.calendarInvite.endTime}`}
+                      </span>
+                    </span>
+                    {email.calendarInvite.location && (
+                      <span className="inline-flex items-center space-x-1 text-slate-300">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate max-w-xs">{email.calendarInvite.location}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {email.calendarInvite.meetingUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = email.calendarInvite?.meetingUrl;
+                    if (!url) return;
+                    if (window.electronAPI?.openExternal) {
+                      void window.electronAPI.openExternal(url);
+                    } else {
+                      window.open(url, '_blank', 'noopener,noreferrer');
+                    }
+                  }}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shrink-0"
+                >
+                  <Video className="w-3.5 h-3.5" />
+                  <span>Entrar na Reunião</span>
+                </button>
+              )}
+            </div>
+
+            {onRespondCalendarInvite && (
+              <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-indigo-500/20">
+                <span className="text-[11px] text-slate-300">
+                  Responder convite (envia RSVP ao organizador e atualiza seu Calendário):
+                </span>
+                <div className="flex items-center space-x-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={isRespondingRsvp}
+                    onClick={async () => {
+                      setIsRespondingRsvp(true);
+                      try {
+                        await onRespondCalendarInvite(email, 'ACCEPTED');
+                      } finally {
+                        setIsRespondingRsvp(false);
+                      }
+                    }}
+                    className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${
+                      email.calendarInvite.rsvpStatus === 'ACCEPTED'
+                        ? 'bg-emerald-600 text-white border-emerald-500'
+                        : 'bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/35'
+                    }`}
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Aceitar</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isRespondingRsvp}
+                    onClick={async () => {
+                      setIsRespondingRsvp(true);
+                      try {
+                        await onRespondCalendarInvite(email, 'TENTATIVE');
+                      } finally {
+                        setIsRespondingRsvp(false);
+                      }
+                    }}
+                    className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${
+                      email.calendarInvite.rsvpStatus === 'TENTATIVE'
+                        ? 'bg-amber-600 text-white border-amber-500'
+                        : 'bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border-amber-500/35'
+                    }`}
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                    <span>Talvez</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isRespondingRsvp}
+                    onClick={async () => {
+                      setIsRespondingRsvp(true);
+                      try {
+                        await onRespondCalendarInvite(email, 'DECLINED');
+                      } finally {
+                        setIsRespondingRsvp(false);
+                      }
+                    }}
+                    className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${
+                      email.calendarInvite.rsvpStatus === 'DECLINED'
+                        ? 'bg-rose-600 text-white border-rose-500'
+                        : 'bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border-rose-500/35'
+                    }`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Recusar</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Mensagens anteriores da conversa (Thread) */}
         {threadMessages && threadMessages.length > 1 && (() => {

@@ -191,6 +191,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [selectedColorFilter, setSelectedColorFilter] = useState<CalendarColorKey | 'all'>('all');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
+  useEffect(() => {
+    const syncFromStorage = () => {
+      try {
+        const saved = localStorage.getItem(EVENTS_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setEvents(parsed);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('anectta:calendar-updated', syncFromStorage);
+    return () => window.removeEventListener('anectta:calendar-updated', syncFromStorage);
+  }, []);
+
   // Event modal state (create or edit)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);

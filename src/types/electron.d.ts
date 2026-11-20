@@ -40,6 +40,23 @@ export interface EmailItem {
   hasAttachment?: boolean;
   category?: 'Finanças' | 'Clientes' | 'DevOps' | 'Jurídico' | 'Urgente';
   tags?: string[];
+  calendarInvite?: {
+    uid: string;
+    method?: string;
+    summary: string;
+    date: string;
+    endDate?: string;
+    startTime: string;
+    endTime: string;
+    allDay?: boolean;
+    location?: string;
+    organizerName?: string;
+    organizerEmail?: string;
+    description?: string;
+    meetingUrl?: string;
+    rawIcs?: string;
+    rsvpStatus?: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED';
+  };
 }
 
 export interface AISummaryResult {

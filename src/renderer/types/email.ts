@@ -41,6 +41,24 @@ export interface RecipientReadStatus {
   openedDateStr?: string;
 }
 
+export interface CalendarInviteInfo {
+  uid: string;
+  method?: string;
+  summary: string;
+  date: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  allDay?: boolean;
+  location?: string;
+  organizerName?: string;
+  organizerEmail?: string;
+  description?: string;
+  meetingUrl?: string;
+  rawIcs?: string;
+  rsvpStatus?: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED';
+}
+
 export interface EmailItem {
   id: string;
   accountId?: string;
@@ -86,6 +104,7 @@ export interface EmailItem {
   readReceiptRequestedBy?: string;
   readReceiptSent?: boolean;
   recipientTracking?: RecipientReadStatus[];
+  calendarInvite?: CalendarInviteInfo;
 }
 
 export interface AISummaryResult {
