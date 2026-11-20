@@ -98,6 +98,22 @@ function formatParsedAddressField(field: any): string | undefined {
   return field.text ? String(field.text).trim() || undefined : undefined;
 }
 
+function parseReferencesHeader(raw: unknown): string[] {
+  if (!raw) return [];
+  const items = Array.isArray(raw) ? raw : String(raw).split(/[\s,]+/);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of items) {
+    const clean = String(item || '').trim();
+    if (!clean) continue;
+    const key = clean.replace(/[<>]/g, '').toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+  }
+  return out;
+}
+
 /**
  * Resolve referências cid: em HTML recebido usando buffers de anexos embutidos.
  */
@@ -592,6 +608,7 @@ export class MailService {
     let attachmentsList: any[] = [];
     let messageIdHeader: string | undefined = env.messageId || undefined;
     let inReplyToHeader: string | undefined = env.inReplyTo || undefined;
+    let referencesHeader: string[] = [];
     let readReceiptRequestedBy: string | undefined = undefined;
     let parsedCc: string | undefined = undefined;
 
@@ -613,6 +630,9 @@ export class MailService {
         }
         if (parsed.inReplyTo) {
           inReplyToHeader = String(parsed.inReplyTo).trim();
+        }
+        if (parsed.references) {
+          referencesHeader = parseReferencesHeader(parsed.references);
         }
         parsedCc = formatParsedAddressField(parsed.cc);
         readReceiptRequestedBy = extractReadReceiptAddress(parsed.headers, senderEmail);
@@ -674,6 +694,7 @@ export class MailService {
       id: messageId,
       messageIdHeader,
       inReplyToHeader,
+      referencesHeader: referencesHeader.length > 0 ? referencesHeader : undefined,
       readReceiptRequestedBy,
       sender: senderName,
       senderEmail: senderEmail,
@@ -1319,11 +1340,13 @@ export class MailService {
               ? resolveCidImagesInHtml(parsed.html, parsed.attachments)
               : parsed.html;
           const popCc = formatParsedAddressField(parsed.cc);
+          const popReferences = parseReferencesHeader(parsed.references);
 
           messages.push({
             id: pop3MessageId,
             messageIdHeader: parsed.messageId ? String(parsed.messageId).trim() : undefined,
             inReplyToHeader: parsed.inReplyTo ? String(parsed.inReplyTo).trim() : undefined,
+            referencesHeader: popReferences.length > 0 ? popReferences : undefined,
             readReceiptRequestedBy: popReadReceiptRequestedBy,
             sender: senderName,
             senderEmail: senderEmail,
@@ -1512,6 +1535,16 @@ export class MailService {
         if (toTokens.length > 0) mailOptions.to = toTokens.join(', ');
         if (ccTokens.length > 0) mailOptions.cc = ccTokens.join(', ');
         if (bccTokens.length > 0) mailOptions.bcc = bccTokens.join(', ');
+        if (emailData.inReplyTo && String(emailData.inReplyTo).trim()) {
+          mailOptions.inReplyTo = String(emailData.inReplyTo).trim();
+        }
+        if (Array.isArray(emailData.references) && emailData.references.length > 0) {
+          mailOptions.references = emailData.references
+            .map((r: any) => String(r || '').trim())
+            .filter(Boolean);
+        } else if (typeof emailData.references === 'string' && emailData.references.trim()) {
+          mailOptions.references = emailData.references.trim();
+        }
 
         let inlineCidAttachments: any[] = [];
         if (emailData.html) {

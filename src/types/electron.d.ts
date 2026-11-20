@@ -15,6 +15,9 @@ export type TimePeriod = 'today' | 'yesterday' | 'last_week' | 'older';
 export interface EmailItem {
   id: string;
   accountId?: string;
+  messageIdHeader?: string;
+  inReplyToHeader?: string;
+  referencesHeader?: string[];
   sender: string;
   senderEmail: string;
   avatar?: string;

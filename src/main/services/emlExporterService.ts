@@ -4,6 +4,9 @@ import { app, dialog } from 'electron';
 
 export interface EmailExportData {
   id: string;
+  messageIdHeader?: string;
+  inReplyToHeader?: string;
+  referencesHeader?: string[];
   sender: string;
   senderEmail: string;
   recipient: string;
@@ -46,7 +49,11 @@ export class EmlExporterService {
     const headers: string[] = [
       `MIME-Version: 1.0`,
       `Date: ${rfcDate}`,
-      `Message-ID: ${messageId}`,
+      `Message-ID: ${email.messageIdHeader?.trim() || messageId}`,
+      ...(email.inReplyToHeader?.trim() ? [`In-Reply-To: ${email.inReplyToHeader.trim()}`] : []),
+      ...(Array.isArray(email.referencesHeader) && email.referencesHeader.length > 0
+        ? [`References: ${email.referencesHeader.join(' ')}`]
+        : []),
       `From: ${fromName} <${fromAddr}>`,
       `To: ${toAddr}`,
       ...(email.cc && email.cc.trim() ? [`Cc: ${email.cc.trim()}`] : []),

@@ -24,6 +24,7 @@ interface EmailReaderModalProps {
     key: 'blockExternalImages' | 'blockTrackingPixels' | 'blockBlockedSenders',
     value: boolean
   ) => void;
+  threadMessages?: EmailItem[];
 }
 
 export const EmailReaderModal: React.FC<EmailReaderModalProps> = ({
@@ -43,6 +44,7 @@ export const EmailReaderModal: React.FC<EmailReaderModalProps> = ({
   blockTrackingPixels = true,
   blockBlockedSenders = true,
   onChangePrivacySetting,
+  threadMessages,
 }) => {
   const [isMaximized, setIsMaximized] = useState(false);
 
@@ -119,6 +121,7 @@ export const EmailReaderModal: React.FC<EmailReaderModalProps> = ({
         <div className="flex-1 flex overflow-hidden">
           <EmailView
             email={email}
+            threadMessages={threadMessages}
             isModalMode={true}
             onAddContact={onAddContact}
             isSenderSaved={isSenderSaved}

@@ -22,12 +22,14 @@ import {
   AlignJustify,
   CheckCheck,
   Clock,
+  MessagesSquare,
 } from 'lucide-react';
 import { CustomFolder, EmailItem, MailFolder, TimePeriod } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
 import { soundService } from '../services/soundService';
 import { filterRealAttachments } from '../utils/attachmentUtils';
 import { getEmailTimestampMs, formatReceivedLabel } from '../utils/dateSortUtils';
+import { EmailThread, groupEmailsIntoThreads } from '../utils/threadUtils';
 
 export type EmailLayoutMode = 'compact' | 'horizontal' | 'fullscreen';
 
@@ -69,6 +71,8 @@ interface EmailListProps {
   onChangeLayoutMode?: (mode: EmailLayoutMode) => void;
   isMinimalLayout?: boolean;
   onToggleMinimalLayout?: () => void;
+  groupByThread?: boolean;
+  onToggleGroupByThread?: () => void;
 }
 
 const AUTOMATED_SENDER_REGEX =
@@ -111,6 +115,8 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       onChangeLayoutMode,
       isMinimalLayout = false,
       onToggleMinimalLayout,
+      groupByThread = true,
+      onToggleGroupByThread,
     },
     ref
   ) => {
@@ -352,28 +358,44 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
         return 'older';
       };
 
-      const buckets: Record<TimePeriod, typeof filteredEmails> = {
+      type ListEntry = { email: EmailItem; thread: EmailThread | null; ts: number };
+      const buckets: Record<TimePeriod, ListEntry[]> = {
         today: [],
         yesterday: [],
         last_week: [],
         older: [],
       };
-      for (const e of filteredEmails) {
-        buckets[resolvePeriod(e)].push(e);
+
+      if (groupByThread) {
+        const threads = groupEmailsIntoThreads(filteredEmails, sortOrder);
+        for (const thread of threads) {
+          buckets[resolvePeriod(thread.latestEmail)].push({
+            email: thread.latestEmail,
+            thread,
+            ts: thread.latestTimestampMs,
+          });
+        }
+      } else {
+        for (const e of filteredEmails) {
+          buckets[resolvePeriod(e)].push({
+            email: e,
+            thread: null,
+            ts: getEmailTimestampMs(e),
+          });
+        }
       }
 
       return periodsOrder
         .map((period) => {
           const items = buckets[period.id];
-          const keyed = items.map((e) => ({ e, t: getEmailTimestampMs(e) }));
-          keyed.sort((a, b) => (sortOrder === 'desc' ? b.t - a.t : a.t - b.t));
+          items.sort((a, b) => (sortOrder === 'desc' ? b.ts - a.ts : a.ts - b.ts));
           return {
             ...period,
-            items: keyed.map((k) => k.e),
+            items,
           };
         })
         .filter((group) => group.items.length > 0);
-    }, [filteredEmails, sortOrder]);
+    }, [filteredEmails, sortOrder, groupByThread]);
 
     return (
       <section
@@ -666,6 +688,28 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
 
                   <div className="my-1 border-t border-slate-800" />
 
+                  {onToggleGroupByThread && (
+                    <button
+                      type="button"
+                      role="menuitemcheckbox"
+                      aria-checked={groupByThread}
+                      onClick={() => {
+                        soundService.play('pop');
+                        onToggleGroupByThread();
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
+                    >
+                      <span className="flex items-center space-x-2.5">
+                        <MessagesSquare className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span className={groupByThread ? 'font-medium text-slate-100' : ''}>
+                          Agrupar em conversas
+                        </span>
+                      </span>
+                      {groupByThread && <Check className="w-3.5 h-3.5 text-brand-400 shrink-0" />}
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     role="menuitemcheckbox"
@@ -763,9 +807,24 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   {/* Emails inside period */}
                   {!isCollapsed && (
                     <div className="p-2 space-y-2">
-                      {group.items.map((email) => {
-                        const isSelected = selectedEmailId === email.id;
+                      {group.items.map(({ email, thread }) => {
+                        const isThread = Boolean(thread && thread.count > 1);
+                        const isSelected = isThread
+                          ? thread!.messages.some((m) => m.id === selectedEmailId)
+                          : selectedEmailId === email.id;
                         const isChecked = selectedIds.includes(email.id);
+                        const isUnread = isThread ? thread!.hasUnread : !email.isRead;
+                        const isStarred = isThread ? thread!.isStarred : Boolean(email.isStarred);
+                        const hasRealAttachment = isThread
+                          ? thread!.hasAttachment
+                          : email.attachments && email.attachments.length > 0
+                          ? filterRealAttachments(email.attachments, email.bodyHtml).length > 0
+                          : Boolean(email.hasAttachment);
+                        const senderDisplay = isThread
+                          ? thread!.participants.length <= 2
+                            ? thread!.participants.join(', ')
+                            : `${thread!.participants[0]}, ${thread!.participants[thread!.participants.length - 1]}`
+                          : email.sender;
 
                         return (
                           <div
@@ -828,18 +887,31 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                             {/* Top Row: Sender & Timestamp */}
                             <div className="flex items-center justify-between mb-0.5">
                               <div className="flex items-center space-x-2 min-w-0">
-                                {!email.isRead && (
+                                {isUnread && (
                                   <span className="w-2 h-2 rounded-full bg-brand-500 shrink-0" />
                                 )}
                                 <span
                                   className={`truncate text-xs ${
-                                    !email.isRead
+                                    isUnread
                                       ? 'font-bold text-white'
                                       : 'font-semibold text-slate-300'
                                   }`}
                                 >
-                                  {email.sender}
+                                  {senderDisplay}
                                 </span>
+                                {isThread && thread && (
+                                  <span
+                                    className="inline-flex items-center space-x-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-brand-500/20 text-brand-300 border border-brand-500/30 shrink-0"
+                                    title={`Conversa com ${thread.count} mensagens${
+                                      thread.unreadCount > 0
+                                        ? ` (${thread.unreadCount} não lida${thread.unreadCount > 1 ? 's' : ''})`
+                                        : ''
+                                    }`}
+                                  >
+                                    <MessagesSquare className="w-2.5 h-2.5" />
+                                    <span>{thread.count}</span>
+                                  </span>
+                                )}
                                 {isUnifiedView && email.accountId && (
                                   (() => {
                                     const accInfo = accounts.find((a) => a.id === email.accountId);
@@ -861,9 +933,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                                 <span className="text-[11px] font-mono text-slate-400">
                                   {formatReceivedLabel(email)}
                                 </span>
-                                {((email.attachments && email.attachments.length > 0)
-                                  ? filterRealAttachments(email.attachments, email.bodyHtml).length > 0
-                                  : email.hasAttachment) && (
+                                {hasRealAttachment && (
                                   <span title="Possui anexo" className="inline-flex items-center">
                                     <Paperclip className="w-3.5 h-3.5 text-slate-400" />
                                   </span>
@@ -970,7 +1040,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                                 >
                                   <Star
                                     className={`w-3.5 h-3.5 ${
-                                      email.isStarred
+                                      isStarred
                                         ? 'fill-amber-400 text-amber-400'
                                         : 'text-slate-600'
                                     }`}
@@ -982,7 +1052,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                             {/* Subject Line */}
                             <div
                               className={`text-xs mb-1 truncate ${
-                                !email.isRead
+                                isUnread
                                   ? 'font-semibold text-slate-100'
                                   : 'text-slate-300'
                               }`}

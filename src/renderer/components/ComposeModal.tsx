@@ -132,6 +132,8 @@ interface ComposeModalProps {
     scheduledAt?: number;
     trackingEnabled?: boolean;
     requestReadReceipt?: boolean;
+    inReplyTo?: string;
+    references?: string[];
   }) => Promise<void>;
   defaultRecipient?: string;
   defaultCc?: string;
@@ -139,6 +141,8 @@ interface ComposeModalProps {
   defaultSubject?: string;
   defaultBody?: string;
   defaultBodyHtml?: string;
+  defaultInReplyTo?: string;
+  defaultReferences?: string[];
   accounts?: AccountSettings[];
   activeAccountId?: string;
   signatures?: EmailSignature[];
@@ -290,6 +294,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   defaultSubject = '',
   defaultBody = '',
   defaultBodyHtml = '',
+  defaultInReplyTo,
+  defaultReferences,
   accounts = [],
   activeAccountId = '',
   signatures = [],
@@ -955,6 +961,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
         scheduledAt,
         trackingEnabled,
         requestReadReceipt: trackingEnabled,
+        inReplyTo: defaultInReplyTo,
+        references: defaultReferences,
       });
       sentRef.current = true;
       clearStoredDraft();

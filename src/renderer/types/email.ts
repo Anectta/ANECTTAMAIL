@@ -46,6 +46,7 @@ export interface EmailItem {
   accountId?: string;
   messageIdHeader?: string;
   inReplyToHeader?: string;
+  referencesHeader?: string[];
   sender: string;
   senderEmail: string;
   avatar?: string;

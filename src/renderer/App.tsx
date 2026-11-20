@@ -34,6 +34,7 @@ import { saveSettingsLocal, loadSettingsLocal } from './utils/secureSettingsStor
 import { themeService } from './services/themeService';
 import { applyRulesToEmails, loadMailRules, MailRule, saveMailRules } from './services/rulesService';
 import { getEmailTimestampMs } from './utils/dateSortUtils';
+import { getThreadMessagesForEmail } from './utils/threadUtils';
 
 const INITIAL_EMAILS: EmailItem[] = [
   {
@@ -1057,6 +1058,26 @@ export const App: React.FC = () => {
     showToast(`✓ E-mail movido para "${folderLabel}".`);
   };
 
+  const [groupByThread, setGroupByThread] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('anectta_group_by_thread_v1');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const handleToggleGroupByThread = () => {
+    setGroupByThread((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('anectta_group_by_thread_v1', String(next));
+      } catch {}
+      showToast(next ? '💬 Conversas agrupadas em threads ativado.' : '📄 Visualização em mensagens individuais.');
+      return next;
+    });
+  };
+
   const [composeDraftId, setComposeDraftId] = useState<string | undefined>(undefined);
   const [composeDefaults, setComposeDefaults] = useState<{
     recipient: string;
@@ -1065,6 +1086,8 @@ export const App: React.FC = () => {
     subject: string;
     body?: string;
     bodyHtml?: string;
+    inReplyTo?: string;
+    references?: string[];
   }>({
     recipient: '',
     cc: '',
@@ -1091,6 +1114,8 @@ export const App: React.FC = () => {
     scheduledAt?: number;
     trackingEnabled?: boolean;
     requestReadReceipt?: boolean;
+    inReplyTo?: string;
+    references?: string[];
   };
   type ScheduledEmailItem = {
     id: string;
@@ -2329,52 +2354,79 @@ export const App: React.FC = () => {
     setEmails((prev) => prev.filter((e) => e.id !== id));
   };
 
-  const handleReply = () => {
-    if (!selectedEmail) return;
-    if (selectedEmail.folder === 'drafts') {
+  const buildReplyThreadingHeaders = (target: EmailItem) => {
+    const inReplyTo = target.messageIdHeader?.trim() || undefined;
+    const refs: string[] = [];
+    const seen = new Set<string>();
+    for (const r of target.referencesHeader || []) {
+      const clean = r.trim();
+      const key = clean.replace(/[<>]/g, '').toLowerCase();
+      if (clean && key && !seen.has(key)) {
+        seen.add(key);
+        refs.push(clean);
+      }
+    }
+    if (inReplyTo) {
+      const key = inReplyTo.replace(/[<>]/g, '').toLowerCase();
+      if (!seen.has(key)) refs.push(inReplyTo);
+    }
+    return {
+      inReplyTo,
+      references: refs.length > 0 ? refs : undefined,
+    };
+  };
+
+  const handleReply = (targetEmail?: EmailItem) => {
+    const baseEmail = targetEmail || selectedEmail;
+    if (!baseEmail) return;
+    if (baseEmail.folder === 'drafts') {
       const fallbackBody =
-        selectedEmail.body ||
-        (selectedEmail.bodyHtml
-          ? selectedEmail.bodyHtml
+        baseEmail.body ||
+        (baseEmail.bodyHtml
+          ? baseEmail.bodyHtml
               .replace(/<br\s*\/?>/gi, '\n')
               .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
               .replace(/<[^>]*>/g, '')
               .replace(/&nbsp;/gi, ' ')
               .trim()
           : '');
-      setComposeDraftId(selectedEmail.id);
+      setComposeDraftId(baseEmail.id);
       setComposeDefaults({
-        recipient: selectedEmail.recipient || '',
-        cc: selectedEmail.cc || '',
-        bcc: selectedEmail.bcc || '',
-        subject: selectedEmail.subject === '(sem assunto)' ? '' : selectedEmail.subject,
+        recipient: baseEmail.recipient || '',
+        cc: baseEmail.cc || '',
+        bcc: baseEmail.bcc || '',
+        subject: baseEmail.subject === '(sem assunto)' ? '' : baseEmail.subject,
         body: fallbackBody,
-        bodyHtml: selectedEmail.bodyHtml || '',
+        bodyHtml: baseEmail.bodyHtml || '',
       });
       setIsComposeOpen(true);
       return;
     }
+    const { inReplyTo, references } = buildReplyThreadingHeaders(baseEmail);
     setComposeDefaults({
-      recipient: selectedEmail.senderEmail,
-      subject: selectedEmail.subject.startsWith('Re:')
-        ? selectedEmail.subject
-        : `Re: ${selectedEmail.subject}`,
+      recipient: baseEmail.senderEmail,
+      subject: baseEmail.subject.startsWith('Re:')
+        ? baseEmail.subject
+        : `Re: ${baseEmail.subject}`,
+      inReplyTo,
+      references,
     });
     setIsComposeOpen(true);
   };
 
-  const handleReplyAll = () => {
-    if (!selectedEmail) return;
+  const handleReplyAll = (targetEmail?: EmailItem) => {
+    const baseEmail = targetEmail || selectedEmail;
+    if (!baseEmail) return;
     const myEmail = (currentAccount?.email || '').trim().toLowerCase();
-    const senderAddr = (selectedEmail.senderEmail || '').trim();
+    const senderAddr = (baseEmail.senderEmail || '').trim();
     const isMeSender = senderAddr.toLowerCase() === myEmail;
 
     const toCandidates = isMeSender
-      ? (selectedEmail.recipient || '').split(/[;,]+/)
+      ? (baseEmail.recipient || '').split(/[;,]+/)
       : [senderAddr];
     const ccCandidates = [
-      ...(isMeSender ? [] : (selectedEmail.recipient || '').split(/[;,]+/)),
-      ...(selectedEmail.cc || '').split(/[;,]+/),
+      ...(isMeSender ? [] : (baseEmail.recipient || '').split(/[;,]+/)),
+      ...(baseEmail.cc || '').split(/[;,]+/),
     ];
 
     const seen = new Set<string>();
@@ -2401,21 +2453,25 @@ export const App: React.FC = () => {
       ccList.push(t);
     }
 
+    const { inReplyTo, references } = buildReplyThreadingHeaders(baseEmail);
     setComposeDefaults({
-      recipient: primaryTo.length > 0 ? primaryTo.join(', ') : selectedEmail.senderEmail,
+      recipient: primaryTo.length > 0 ? primaryTo.join(', ') : baseEmail.senderEmail,
       cc: ccList.join(', '),
-      subject: selectedEmail.subject.startsWith('Re:')
-        ? selectedEmail.subject
-        : `Re: ${selectedEmail.subject}`,
+      subject: baseEmail.subject.startsWith('Re:')
+        ? baseEmail.subject
+        : `Re: ${baseEmail.subject}`,
+      inReplyTo,
+      references,
     });
     setIsComposeOpen(true);
   };
 
-  const handleForward = () => {
-    if (!selectedEmail) return;
+  const handleForward = (targetEmail?: EmailItem) => {
+    const baseEmail = targetEmail || selectedEmail;
+    if (!baseEmail) return;
     setComposeDefaults({
       recipient: '',
-      subject: `Enc: ${selectedEmail.subject}`,
+      subject: `Enc: ${baseEmail.subject}`,
     });
     setIsComposeOpen(true);
   };
@@ -2488,6 +2544,8 @@ export const App: React.FC = () => {
             attachments: emailData.attachments,
             trackingEnabled: Boolean(emailData.trackingEnabled),
             requestReadReceipt: Boolean(emailData.requestReadReceipt),
+            inReplyTo: emailData.inReplyTo,
+            references: emailData.references,
           }
         );
 
@@ -2535,6 +2593,8 @@ export const App: React.FC = () => {
       id: `${sendingAccount.id}-msg-${Date.now()}`,
       accountId: sendingAccount.id,
       messageIdHeader: sentMessageIdHeader,
+      inReplyToHeader: emailData.inReplyTo,
+      referencesHeader: emailData.references,
       sender: sendingAccount.displayName || sendingAccount.email,
       senderEmail: sendingAccount.email,
       avatar: sendingAccount.avatar || '',
@@ -2809,6 +2869,8 @@ export const App: React.FC = () => {
       subject: payload.subject,
       body: payload.body,
       bodyHtml: payload.editorHtml || '',
+      inReplyTo: payload.inReplyTo,
+      references: payload.references,
     });
     setIsComposeOpen(true);
     soundService.play('pop');
@@ -3250,6 +3312,8 @@ export const App: React.FC = () => {
                   onChangeLayoutMode={handleChangeLayoutMode}
                   isMinimalLayout={isMinimalLayout}
                   onToggleMinimalLayout={handleToggleMinimalLayout}
+                  groupByThread={groupByThread}
+                  onToggleGroupByThread={handleToggleGroupByThread}
                 />
               )}
 
@@ -3280,6 +3344,11 @@ export const App: React.FC = () => {
             {(emailLayoutMode !== 'fullscreen' || (isFullscreenReading && selectedEmail)) && (
               <EmailView
                 email={selectedEmail}
+                threadMessages={
+                  groupByThread && selectedEmail
+                    ? getThreadMessagesForEmail(selectedEmail, emails)
+                    : undefined
+                }
                 onArchive={handleArchive}
                 onSnooze={handleSnooze}
                 onDelete={handleDelete}
@@ -3371,6 +3440,11 @@ export const App: React.FC = () => {
       <EmailReaderModal
         isOpen={isReaderModalOpen}
         email={selectedEmail}
+        threadMessages={
+          groupByThread && selectedEmail
+            ? getThreadMessagesForEmail(selectedEmail, emails)
+            : undefined
+        }
         onClose={() => setIsReaderModalOpen(false)}
         onArchive={handleArchive}
         onSnooze={handleSnooze}
@@ -3444,6 +3518,8 @@ export const App: React.FC = () => {
         defaultSubject={composeDefaults.subject}
         defaultBody={composeDefaults.body}
         defaultBodyHtml={composeDefaults.bodyHtml}
+        defaultInReplyTo={composeDefaults.inReplyTo}
+        defaultReferences={composeDefaults.references}
         accounts={settings.accounts}
         activeAccountId={composeAccountId || currentAccount.id}
         signatures={settings.signatures || []}

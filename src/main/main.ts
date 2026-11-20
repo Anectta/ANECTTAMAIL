@@ -2174,6 +2174,11 @@ function parsedMailToEmailItem(parsed: any, accountId: string, idx: number, fall
   const senderEmail = fromObj?.address || 'desconhecido@anectta.local';
   const toList = parsed.to?.value?.map((v: any) => v.address).filter(Boolean) || [];
   const ccList = parsed.cc?.value?.map((v: any) => v.address).filter(Boolean) || [];
+  const referencesList = Array.isArray(parsed.references)
+    ? parsed.references.map((r: any) => String(r || '').trim()).filter(Boolean)
+    : typeof parsed.references === 'string'
+    ? parsed.references.split(/[\s,]+/).map((r: string) => r.trim()).filter(Boolean)
+    : [];
   const textBody = parsed.text || '';
   const htmlBody = typeof parsed.html === 'string' ? parsed.html : '';
   const preview = (textBody || htmlBody.replace(/<[^>]+>/g, ' '))
@@ -2186,6 +2191,9 @@ function parsedMailToEmailItem(parsed: any, accountId: string, idx: number, fall
   return {
     id: `imported-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 7)}`,
     accountId,
+    messageIdHeader: parsed.messageId ? String(parsed.messageId).trim() : undefined,
+    inReplyToHeader: parsed.inReplyTo ? String(parsed.inReplyTo).trim() : undefined,
+    referencesHeader: referencesList.length > 0 ? referencesList : undefined,
     sender,
     senderEmail,
     recipient: toList.join(', '),
