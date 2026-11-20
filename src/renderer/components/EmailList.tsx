@@ -10,11 +10,8 @@ import {
   Paperclip,
   Zap,
   X,
-  Trash2,
-  AlertOctagon,
   CheckSquare,
   Square,
-  UserPlus,
   Users,
   Building2,
   Check,
@@ -99,12 +96,6 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       width,
       selectedIds = [],
       onToggleSelectId,
-      onClearSelection,
-      onDeleteSelected,
-      onMarkSpamSelected,
-      customFolders = [],
-      onMoveSelectedToFolder,
-      onAddContactsFromSelected,
       peopleOnly = false,
       onTogglePeopleOnly,
       domainOnly = false,
@@ -703,82 +694,6 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
               )}
             </div>
           </div>
-
-          {/* Barra de ações em lote quando há e-mails selecionados */}
-          {selectedIds.length > 0 && (
-            <div className="px-2.5 py-1.5 bg-slate-900 border border-brand-500/30 rounded-lg flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
-              <span className="font-semibold text-brand-300">
-                {selectedIds.length} selecionado{selectedIds.length > 1 ? 's' : ''}
-              </span>
-              <div className="flex items-center space-x-1.5">
-                {onMoveSelectedToFolder && (
-                  <select
-                    value=""
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        onMoveSelectedToFolder(selectedIds, e.target.value as MailFolder);
-                      }
-                    }}
-                    title="Mover selecionados para uma pasta"
-                    className="px-1.5 py-0.5 text-[11px] font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded focus:outline-none focus:border-brand-500 cursor-pointer max-w-[130px]"
-                  >
-                    <option value="" disabled>
-                      Mover para...
-                    </option>
-                    <option value="inbox">Caixa de Entrada</option>
-                    <option value="archive">Arquivados</option>
-                    <option value="junk">Spam / Lixo</option>
-                    {customFolders.map((cf) => (
-                      <option key={cf.id} value={cf.id}>
-                        {cf.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {onClearSelection && (
-                  <button
-                    type="button"
-                    onClick={onClearSelection}
-                    className="px-2 py-0.5 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition-colors"
-                  >
-                    Limpar
-                  </button>
-                )}
-                {onAddContactsFromSelected && (
-                  <button
-                    type="button"
-                    onClick={() => onAddContactsFromSelected(selectedIds)}
-                    title="Incluir remetentes selecionados nos Contatos"
-                    className="flex items-center space-x-1 px-2 py-0.5 bg-brand-500/20 hover:bg-brand-500/30 text-brand-300 border border-brand-500/30 rounded font-medium transition-colors"
-                  >
-                    <UserPlus className="w-3 h-3" />
-                    <span>+ Contatos</span>
-                  </button>
-                )}
-                {onMarkSpamSelected && (
-                  <button
-                    type="button"
-                    onClick={() => onMarkSpamSelected(selectedIds)}
-                    title="Marcar selecionados como Spam e bloquear remetentes"
-                    className="flex items-center space-x-1 px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded font-medium transition-colors"
-                  >
-                    <AlertOctagon className="w-3 h-3" />
-                    <span>Spam</span>
-                  </button>
-                )}
-                {onDeleteSelected && (
-                  <button
-                    type="button"
-                    onClick={() => onDeleteSelected(selectedIds)}
-                    className="flex items-center space-x-1 px-2 py-0.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 rounded font-medium transition-colors"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>Excluir</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Banner de resultado de busca restrito à conta marcada */}
           {searchQuery.trim() && (
