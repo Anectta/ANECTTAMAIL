@@ -98,6 +98,37 @@ function formatParsedAddressField(field: any): string | undefined {
   return field.text ? String(field.text).trim() || undefined : undefined;
 }
 
+function extractListHeaders(headers: any): {
+  listUnsubscribe?: string;
+  listUnsubscribePost?: string;
+  listId?: string;
+  precedence?: string;
+} {
+  if (!headers || typeof headers.get !== 'function') return {};
+  const toStr = (val: any): string | undefined => {
+    if (!val) return undefined;
+    if (typeof val === 'string') return val.trim() || undefined;
+    if (typeof val === 'object') {
+      if (typeof val.value === 'string') return val.value.trim() || undefined;
+      if (typeof val.text === 'string') return val.text.trim() || undefined;
+      if (typeof val.url === 'string') return val.url.trim() || undefined;
+      if (val.unsubscribe) {
+        const parts: string[] = [];
+        if (val.unsubscribe.url) parts.push(`<${val.unsubscribe.url}>`);
+        if (val.unsubscribe.mail) parts.push(`<mailto:${val.unsubscribe.mail}>`);
+        if (parts.length > 0) return parts.join(', ');
+      }
+    }
+    return String(val).trim() || undefined;
+  };
+  return {
+    listUnsubscribe: toStr(headers.get('list-unsubscribe')),
+    listUnsubscribePost: toStr(headers.get('list-unsubscribe-post')),
+    listId: toStr(headers.get('list-id')),
+    precedence: toStr(headers.get('precedence')),
+  };
+}
+
 function parseReferencesHeader(raw: unknown): string[] {
   if (!raw) return [];
   const items = Array.isArray(raw) ? raw : String(raw).split(/[\s,]+/);
@@ -727,6 +758,7 @@ export class MailService {
     let readReceiptRequestedBy: string | undefined = undefined;
     let parsedCc: string | undefined = undefined;
     let calendarInvite: any = undefined;
+    let listHeaders: { listUnsubscribe?: string; listUnsubscribePost?: string; listId?: string; precedence?: string } = {};
 
     if (message.source) {
       try {
@@ -753,6 +785,7 @@ export class MailService {
         parsedCc = formatParsedAddressField(parsed.cc);
         readReceiptRequestedBy = extractReadReceiptAddress(parsed.headers, senderEmail);
         calendarInvite = extractCalendarInviteFromParsed(parsed);
+        listHeaders = extractListHeaders(parsed.headers);
 
         if (parsed.attachments && Array.isArray(parsed.attachments) && parsed.attachments.length > 0) {
           attachmentsList = parsed.attachments.map((att: any, idx: number) =>
@@ -833,6 +866,10 @@ export class MailService {
       hasAttachment: hasAttachment,
       tags: ['IMAP', folderTag],
       calendarInvite: calendarInvite || undefined,
+      listUnsubscribe: listHeaders.listUnsubscribe,
+      listUnsubscribePost: listHeaders.listUnsubscribePost,
+      listId: listHeaders.listId,
+      precedence: listHeaders.precedence,
     };
   }
 
@@ -1460,6 +1497,7 @@ export class MailService {
           const popCc = formatParsedAddressField(parsed.cc);
           const popReferences = parseReferencesHeader(parsed.references);
           const popCalendarInvite = extractCalendarInviteFromParsed(parsed);
+          const popListHeaders = extractListHeaders(parsed.headers);
 
           messages.push({
             id: pop3MessageId,
@@ -1487,6 +1525,10 @@ export class MailService {
             hasAttachment: hasRealPopAttachments,
             tags: ['POP3 (Local)'],
             calendarInvite: popCalendarInvite || undefined,
+            listUnsubscribe: popListHeaders.listUnsubscribe,
+            listUnsubscribePost: popListHeaders.listUnsubscribePost,
+            listId: popListHeaders.listId,
+            precedence: popListHeaders.precedence,
           });
         } catch (fetchErr) {
           console.warn(`Erro ao baixar mensagem POP3 #${i}:`, fetchErr);

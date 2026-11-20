@@ -1973,6 +1973,24 @@ ipcMain.handle('sync:contacts', async (_event, payload: any) => {
   return await CloudSyncService.syncContacts(payload);
 });
 
+ipcMain.handle('mail:one-click-unsubscribe', async (_event, url: string) => {
+  try {
+    if (!url || !/^https?:\/\//i.test(url)) {
+      return { success: false, error: 'URL inválida' };
+    }
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'List-Unsubscribe=One-Click',
+    });
+    return { success: res.ok, status: res.status };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erro de rede' };
+  }
+});
+
 // ==========================================
 // Funções do Sistema: Sons Nativos & Templates Locais
 // ==========================================

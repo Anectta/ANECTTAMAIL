@@ -105,6 +105,58 @@ export interface EmailItem {
   readReceiptSent?: boolean;
   recipientTracking?: RecipientReadStatus[];
   calendarInvite?: CalendarInviteInfo;
+  listUnsubscribe?: string;
+  listUnsubscribePost?: string;
+  listId?: string;
+  precedence?: string;
+  snoozedUntil?: number; // epoch ms
+  followUpAt?: number; // epoch ms
+  followUpNote?: string;
+}
+
+export type TriageCategory = 'all' | 'priority' | 'newsletters' | 'notifications' | 'snoozed';
+
+export interface ScheduledEmailItem {
+  id: string;
+  scheduledAt: number; // epoch ms
+  accountId?: string;
+  to: string;
+  cc?: string;
+  bcc?: string;
+  subject: string;
+  body: string;
+  html?: string;
+  attachments?: Array<{ name: string; path: string; size: number }>;
+  requestReadReceipt?: boolean;
+  inReplyTo?: string;
+  references?: string[];
+  createdAt: number;
+}
+
+export interface EmailTemplateItem {
+  id: string;
+  name: string;
+  category: string;
+  subject?: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface TaskItem {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'todo' | 'in_progress' | 'done';
+  priority: PriorityLevel;
+  dueDate?: string; // YYYY-MM-DD
+  dueTime?: string; // HH:mm
+  sourceEmailId?: string;
+  sourceEmailSubject?: string;
+  sourceEmailSender?: string;
+  tags?: string[];
+  syncedToCalendar?: boolean;
+  createdAt: string;
+  completedAt?: string;
 }
 
 export interface AISummaryResult {

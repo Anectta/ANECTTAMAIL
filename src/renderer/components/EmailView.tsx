@@ -43,6 +43,8 @@ import {
   Check,
   HelpCircle,
   X,
+  BellRing,
+  MailX,
 } from 'lucide-react';
 import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
@@ -50,6 +52,7 @@ import { soundService } from '../services/soundService';
 import { filterRealAttachments } from '../utils/attachmentUtils';
 import DOMPurify from 'dompurify';
 import { formatReceivedLabel } from '../utils/dateSortUtils';
+import { parseUnsubscribeInfo } from '../utils/triageAndTemplates';
 
 /**
  * Sanitiza marcação HTML de e-mails para prevenir injeções de script ou eventos maliciosos
@@ -136,6 +139,10 @@ interface EmailViewProps {
     email: EmailItem,
     status: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED'
   ) => Promise<void> | void;
+  onSnoozeWithTime?: (id: string, untilMs: number, label: string) => void;
+  onSetFollowUp?: (id: string, followUpAtMs: number, label: string) => void;
+  onCreateTaskFromEmail?: (email: EmailItem) => void;
+  onUnsubscribe?: (email: EmailItem) => Promise<void> | void;
 }
 
 export const EmailView: React.FC<EmailViewProps> = ({
@@ -168,10 +175,19 @@ export const EmailView: React.FC<EmailViewProps> = ({
   onOpenInNewTab,
   isInTab = false,
   onRespondCalendarInvite,
+  onSnoozeWithTime,
+  onSetFollowUp,
+  onCreateTaskFromEmail,
+  onUnsubscribe,
 }) => {
   const [revealedImagesEmailIds, setRevealedImagesEmailIds] = useState<Record<string, boolean>>({});
   const [expandedThreadIds, setExpandedThreadIds] = useState<Record<string, boolean>>({});
   const [isRespondingRsvp, setIsRespondingRsvp] = useState(false);
+  const [isSnoozeMenuOpen, setIsSnoozeMenuOpen] = useState(false);
+  const [customSnoozeValue, setCustomSnoozeValue] = useState('');
+  const [isFollowUpMenuOpen, setIsFollowUpMenuOpen] = useState(false);
+  const [isUnsubscribing, setIsUnsubscribing] = useState(false);
+  const [unsubscribedIds, setUnsubscribedIds] = useState<Record<string, boolean>>({});
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isPrivacyPopoverOpen, setIsPrivacyPopoverOpen] = useState(false);
@@ -497,13 +513,165 @@ export const EmailView: React.FC<EmailViewProps> = ({
             </button>
           )}
 
-          <button
-            onClick={() => onSnooze(email.id)}
-            className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
-          >
-            <Clock className="w-4 h-4 shrink-0 text-amber-400" />
-            <span>Adiar</span>
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                if (onSnoozeWithTime) {
+                  setIsFollowUpMenuOpen(false);
+                  setIsSnoozeMenuOpen((prev) => !prev);
+                } else {
+                  onSnooze(email.id);
+                }
+              }}
+              className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
+              title="Adiar e-mail para voltar à Caixa de Entrada depois"
+            >
+              <Clock className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>Adiar</span>
+            </button>
+            {isSnoozeMenuOpen && onSnoozeWithTime && (
+              <>
+                <div className="fixed inset-0 z-[80]" onClick={() => setIsSnoozeMenuOpen(false)} />
+                <div className="absolute left-0 top-full mt-1.5 z-[85] w-60 rounded-xl bg-slate-900 border border-slate-700/90 shadow-2xl p-2 space-y-1 text-xs">
+                  <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Adiar até...
+                  </div>
+                  {[
+                    {
+                      label: 'Daqui a 3 horas',
+                      ms: Date.now() + 3 * 60 * 60 * 1000,
+                    },
+                    {
+                      label: 'Amanhã às 09:00',
+                      ms: (() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + 1);
+                        d.setHours(9, 0, 0, 0);
+                        return d.getTime();
+                      })(),
+                    },
+                    {
+                      label: 'Próxima segunda às 09:00',
+                      ms: (() => {
+                        const d = new Date();
+                        const diff = (8 - d.getDay()) % 7 || 7;
+                        d.setDate(d.getDate() + diff);
+                        d.setHours(9, 0, 0, 0);
+                        return d.getTime();
+                      })(),
+                    },
+                  ].map((opt) => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => {
+                        onSnoozeWithTime(email.id, opt.ms, opt.label);
+                        setIsSnoozeMenuOpen(false);
+                      }}
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-slate-200 hover:bg-slate-800 transition-colors flex items-center justify-between"
+                    >
+                      <span>{opt.label}</span>
+                      <Clock className="w-3 h-3 text-amber-400" />
+                    </button>
+                  ))}
+                  <div className="pt-1.5 mt-1 border-t border-slate-800 space-y-1.5 px-1">
+                    <input
+                      type="datetime-local"
+                      value={customSnoozeValue}
+                      onChange={(e) => setCustomSnoozeValue(e.target.value)}
+                      className="w-full px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 text-[11px]"
+                    />
+                    <button
+                      type="button"
+                      disabled={!customSnoozeValue}
+                      onClick={() => {
+                        const ts = new Date(customSnoozeValue).getTime();
+                        if (!Number.isNaN(ts) && ts > Date.now()) {
+                          onSnoozeWithTime(
+                            email.id,
+                            ts,
+                            new Date(ts).toLocaleString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          );
+                          setIsSnoozeMenuOpen(false);
+                          setCustomSnoozeValue('');
+                        }
+                      }}
+                      className="w-full py-1 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-[11px] font-semibold"
+                    >
+                      Aplicar data personalizada
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {onSetFollowUp && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSnoozeMenuOpen(false);
+                  setIsFollowUpMenuOpen((prev) => !prev);
+                }}
+                className={`flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap border rounded-xl transition-colors ${
+                  email.followUpAt
+                    ? 'text-violet-300 bg-violet-500/15 border-violet-500/40'
+                    : 'text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border-slate-800'
+                }`}
+                title="Definir lembrete se não houver resposta"
+              >
+                <BellRing className="w-4 h-4 shrink-0 text-violet-400" />
+                <span>Follow-up</span>
+              </button>
+              {isFollowUpMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-[80]" onClick={() => setIsFollowUpMenuOpen(false)} />
+                  <div className="absolute left-0 top-full mt-1.5 z-[85] w-56 rounded-xl bg-slate-900 border border-slate-700/90 shadow-2xl p-2 space-y-1 text-xs">
+                    <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Lembrar se sem resposta em...
+                    </div>
+                    {[
+                      { label: 'Em 24 horas', ms: Date.now() + 24 * 60 * 60 * 1000 },
+                      { label: 'Em 2 dias', ms: Date.now() + 2 * 24 * 60 * 60 * 1000 },
+                      { label: 'Em 3 dias', ms: Date.now() + 3 * 24 * 60 * 60 * 1000 },
+                      { label: 'Em 1 semana', ms: Date.now() + 7 * 24 * 60 * 60 * 1000 },
+                    ].map((opt) => (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        onClick={() => {
+                          onSetFollowUp(email.id, opt.ms, opt.label);
+                          setIsFollowUpMenuOpen(false);
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg text-slate-200 hover:bg-slate-800 transition-colors"
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {onCreateTaskFromEmail && (
+            <button
+              type="button"
+              onClick={() => onCreateTaskFromEmail(email)}
+              className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
+              title="Transformar este e-mail em tarefa no módulo Tarefas"
+            >
+              <CheckSquare className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span>+ Tarefa</span>
+            </button>
+          )}
         </div>
 
         {/* Grupo Direito: Botão "... Mais" com menu suspenso em duas colunas */}
@@ -1025,6 +1193,42 @@ export const EmailView: React.FC<EmailViewProps> = ({
                 )}
               </div>
             )}
+
+          {/* Banner de Cancelar Inscrição 1-Clique (List-Unsubscribe / Newsletters) */}
+          {email.folder !== 'sent' &&
+            onUnsubscribe &&
+            !unsubscribedIds[email.id] &&
+            (() => {
+              const unsub = parseUnsubscribeInfo(email);
+              if (!unsub) return null;
+              return (
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center space-x-2 text-xs text-amber-200">
+                    <MailX className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>
+                      Mensagem de lista ou newsletter detectada.
+                      {unsub.supportsOneClickPost ? ' Suporta descadastro automático em 1 clique.' : ''}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isUnsubscribing}
+                    onClick={async () => {
+                      setIsUnsubscribing(true);
+                      try {
+                        await onUnsubscribe(email);
+                        setUnsubscribedIds((prev) => ({ ...prev, [email.id]: true }));
+                      } finally {
+                        setIsUnsubscribing(false);
+                      }
+                    }}
+                    className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors shrink-0"
+                  >
+                    {isUnsubscribing ? 'Cancelando...' : 'Cancelar inscrição'}
+                  </button>
+                </div>
+              );
+            })()}
 
           {/* Sender & Recipient Profile */}
           <div className="flex items-center justify-between gap-3 flex-wrap">

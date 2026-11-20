@@ -10,6 +10,7 @@ import { CommandPalette } from '@/components/CommandPalette';
 import { ComposeModal } from '@/components/ComposeModal';
 import { SettingsModal } from '@/components/SettingsModal';
 import { CalendarView } from '@/components/CalendarView';
+import { TasksView } from '@/components/TasksView';
 import { WebAppPanel } from '@/components/WebAppPanel';
 import { WhatsAppPanel } from '@/components/WhatsAppPanel';
 import {
@@ -18,7 +19,7 @@ import {
   DEFAULT_CORPORATE_CONTACTS,
 } from '@/components/ContactsView';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount, PriorityLevel } from '@/types/email';
+import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount, PriorityLevel, TaskItem } from '@/types/email';
 import {
   AppSettings,
   DEFAULT_SETTINGS,
@@ -42,6 +43,7 @@ import {
   RsvpStatus,
   syncInviteToLocalCalendar,
 } from './utils/icsRsvpUtils';
+import { parseUnsubscribeInfo } from './utils/triageAndTemplates';
 
 const INITIAL_EMAILS: EmailItem[] = [
   {
@@ -1583,6 +1585,236 @@ export const App: React.FC = () => {
     }
     return summary;
   }, [settings.accounts, settings.calendar, ensureFreshAccessToken, handleImportContacts]);
+
+  // ==========================================
+  // Módulo de Tarefas / To-Do Integrado
+  // ==========================================
+  const [tasks, setTasks] = useState<TaskItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('anectta_tasks_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('anectta_tasks_v1', JSON.stringify(tasks));
+    } catch {
+      // ignore
+    }
+  }, [tasks]);
+
+  const handleAddTask = useCallback((task: Omit<TaskItem, 'id' | 'createdAt'>) => {
+    const item: TaskItem = {
+      ...task,
+      id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      createdAt: new Date().toISOString(),
+    };
+    setTasks((prev) => [item, ...prev]);
+    soundService.play('pop');
+    showToast(`✓ Tarefa "${item.title}" adicionada.`);
+  }, []);
+
+  const handleUpdateTask = useCallback((id: string, updates: Partial<TaskItem>) => {
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
+  }, []);
+
+  const handleDeleteTask = useCallback((id: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    showToast('Tarefa removida.');
+  }, []);
+
+  const handleCreateTaskFromEmail = useCallback((email: EmailItem) => {
+    const today = new Date();
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+    const dueDate = tomorrow.toISOString().slice(0, 10);
+    const created: TaskItem = {
+      id: `task-em-${Date.now()}`,
+      title: email.subject || '(Sem assunto)',
+      description: `De: ${email.sender} (${email.senderEmail}) — ${(email.snippet || '').slice(0, 140)}`,
+      status: 'todo',
+      priority: email.priority || 'medium',
+      dueDate,
+      dueTime: '09:00',
+      sourceEmailId: email.id,
+      sourceEmailSubject: email.subject,
+      sourceEmailSender: email.sender,
+      createdAt: new Date().toISOString(),
+    };
+    setTasks((prev) => [created, ...prev]);
+    setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, isTask: true } : e)));
+    soundService.play('pop');
+    showToast(`✓ E-mail convertido em tarefa! Veja no módulo Tarefas.`);
+  }, []);
+
+  const handleSyncTaskToCalendar = useCallback((task: TaskItem) => {
+    try {
+      const key = 'anectta_mail_calendar_events_v1';
+      const raw = localStorage.getItem(key);
+      const existing: any[] = raw ? JSON.parse(raw) : [];
+      const dateStr = task.dueDate || new Date().toISOString().slice(0, 10);
+      const startTime = task.dueTime || '09:00';
+      const [h, m] = startTime.split(':').map((n) => parseInt(n, 10) || 0);
+      const endHour = String(Math.min(23, h + 1)).padStart(2, '0');
+      const endTime = `${endHour}:${String(m).padStart(2, '0')}`;
+      const calEvent = {
+        id: `cal-task-${task.id}`,
+        title: `[Tarefa] ${task.title}`,
+        date: dateStr,
+        endDate: dateStr,
+        allDay: false,
+        startTime,
+        endTime,
+        organizer: 'Tarefas Anectta',
+        participants: [],
+        location: 'Tarefa / Pendência',
+        badge: 'Tarefa',
+        calendarId: 'default',
+        color: task.priority === 'high' ? 'rose' : 'indigo',
+        description: task.description,
+      };
+      const filtered = existing.filter((e) => e.id !== calEvent.id);
+      localStorage.setItem(key, JSON.stringify([...filtered, calEvent]));
+      window.dispatchEvent(new Event('anectta:calendar-updated'));
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, syncedToCalendar: true } : t)));
+      soundService.play('pop');
+      showToast(`📅 Prazo da tarefa "${task.title}" adicionado ao Calendário.`);
+    } catch {
+      showToast('Não foi possível sincronizar a tarefa com o Calendário.');
+    }
+  }, []);
+
+  // ==========================================
+  // Snooze com Data/Hora + Lembrete de Follow-up
+  // ==========================================
+  const handleSnoozeWithTime = useCallback((id: string, untilMs: number, label: string) => {
+    setEmails((prev) =>
+      prev.map((e) =>
+        e.id === id
+          ? {
+              ...e,
+              folder: 'snooze' as MailFolder,
+              snoozedUntil: untilMs,
+            }
+          : e
+      )
+    );
+    soundService.play('pop');
+    showToast(`⏰ E-mail adiado até ${label}.`);
+  }, []);
+
+  const handleSetFollowUp = useCallback((id: string, followUpAtMs: number, label: string) => {
+    setEmails((prev) =>
+      prev.map((e) =>
+        e.id === id
+          ? {
+              ...e,
+              followUpAt: followUpAtMs,
+            }
+          : e
+      )
+    );
+    soundService.play('pop');
+    showToast(`🔔 Lembrete de follow-up agendado (${label}).`);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      let wokeCount = 0;
+      let followUpSubject: string | null = null;
+
+      setEmails((prev) => {
+        let changed = false;
+        const next = prev.map((e) => {
+          if (e.folder === 'snooze' && e.snoozedUntil && e.snoozedUntil <= now) {
+            changed = true;
+            wokeCount++;
+            return {
+              ...e,
+              folder: 'inbox' as MailFolder,
+              isRead: false,
+              snoozedUntil: undefined,
+              period: 'today' as const,
+            };
+          }
+          if (e.followUpAt && e.followUpAt <= now) {
+            changed = true;
+            followUpSubject = e.subject || '(Sem assunto)';
+            return {
+              ...e,
+              followUpAt: undefined,
+              isImportant: true,
+            };
+          }
+          return e;
+        });
+        return changed ? next : prev;
+      });
+
+      if (wokeCount > 0) {
+        soundService.play('pop');
+        showToast(`⏰ ${wokeCount} e-mail(s) adiado(s) retornaram para a Caixa de Entrada.`);
+      }
+      if (followUpSubject) {
+        soundService.play('pop');
+        showToast(`🔔 Lembrete de Follow-up: "${followUpSubject}"`);
+      }
+    }, 20000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // ==========================================
+  // Cancelar Inscrição 1-Clique (List-Unsubscribe)
+  // ==========================================
+  const handleUnsubscribeEmail = useCallback(async (email: EmailItem) => {
+    const info = parseUnsubscribeInfo(email);
+    if (!info) {
+      showToast('Este e-mail não possui link de descadastro identificável.');
+      return;
+    }
+
+    if (info.supportsOneClickPost && info.httpUrl && window.electronAPI?.oneClickUnsubscribe) {
+      const res = await window.electronAPI.oneClickUnsubscribe(info.httpUrl);
+      if (res.success) {
+        soundService.play('pop');
+        showToast(`✓ Inscrição cancelada automaticamente em 1 clique (${email.sender}).`);
+        return;
+      }
+    }
+
+    if (info.mailto) {
+      try {
+        await dispatchEmailNowRef.current({
+          recipient: info.mailto,
+          subject: info.mailtoSubject || 'Unsubscribe',
+          body: 'Unsubscribe',
+          priority: 'low',
+          fromAccountId: email.accountId,
+        });
+        soundService.play('pop');
+        showToast(`✓ Solicitação de descadastro enviada para ${info.mailto}.`);
+        return;
+      } catch {
+        // fallback to httpUrl
+      }
+    }
+
+    if (info.httpUrl) {
+      if (window.electronAPI?.openExternal) {
+        await window.electronAPI.openExternal(info.httpUrl);
+      } else {
+        window.open(info.httpUrl, '_blank', 'noopener,noreferrer');
+      }
+      showToast('🔗 Página de cancelamento de inscrição aberta no navegador.');
+    }
+  }, []);
 
   // Sync with real IMAP server (multi-folder) or POP3 across all configured accounts
   const handleSyncAll = useCallback(async (opts?: { silent?: boolean; background?: boolean }) => {
@@ -3817,6 +4049,10 @@ export const App: React.FC = () => {
                   onChangePrivacySetting={handleQuickPrivacyChange}
                   onSendReadReceipt={handleSendReadReceipt}
                   onRespondCalendarInvite={handleRespondCalendarInvite}
+                  onSnoozeWithTime={handleSnoozeWithTime}
+                  onSetFollowUp={handleSetFollowUp}
+                  onCreateTaskFromEmail={handleCreateTaskFromEmail}
+                  onUnsubscribe={handleUnsubscribeEmail}
                   onComposeNewEmail={() => {
                     const defaultAcc =
                       settings.accounts?.find((a) => a.isDefault) ||
@@ -3875,10 +4111,17 @@ export const App: React.FC = () => {
 
         {/* Module: Tarefas */}
         {activeModule === 'tasks' && (
-          <div className="flex-1 bg-white p-8 text-slate-600">
-            <h2 className="text-base font-bold text-slate-900 mb-2">Tarefas & Pendências Corporativas</h2>
-            <p className="text-xs">Sincronização integrada com Microsoft To-Do e Jira.</p>
-          </div>
+          <TasksView
+            tasks={tasks}
+            onAddTask={handleAddTask}
+            onUpdateTask={handleUpdateTask}
+            onDeleteTask={handleDeleteTask}
+            onSyncTaskToCalendar={handleSyncTaskToCalendar}
+            onOpenSourceEmail={(emailId) => {
+              setActiveModule('mail');
+              handleSelectEmail(emailId);
+            }}
+          />
         )}
 
         {/* Module: Aplicativo Web Integrado */}

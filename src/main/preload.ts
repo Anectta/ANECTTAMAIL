@@ -425,6 +425,8 @@ const electronAPI = {
     ipcRenderer.invoke('sync:push-calendar-event', payload),
   syncCloudContacts: (payload: any) =>
     ipcRenderer.invoke('sync:contacts', payload),
+  oneClickUnsubscribe: (url: string) =>
+    ipcRenderer.invoke('mail:one-click-unsubscribe', url),
   setMinimizeToTray: (enabled: boolean) =>
     ipcRenderer.invoke('system:set-minimize-to-tray', enabled),
 

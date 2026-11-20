@@ -24,13 +24,18 @@ import {
   Clock,
   MessagesSquare,
   ExternalLink,
+  SlidersHorizontal,
+  Sparkles,
+  Newspaper,
+  Bell,
 } from 'lucide-react';
-import { CustomFolder, EmailItem, MailFolder, TimePeriod } from '@/types/email';
+import { CustomFolder, EmailItem, MailFolder, TimePeriod, TriageCategory } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
 import { soundService } from '../services/soundService';
 import { filterRealAttachments } from '../utils/attachmentUtils';
 import { getEmailTimestampMs, formatReceivedLabel } from '../utils/dateSortUtils';
 import { EmailThread, groupEmailsIntoThreads } from '../utils/threadUtils';
+import { classifyEmailTriage } from '../utils/triageAndTemplates';
 
 export type EmailLayoutMode = 'compact' | 'horizontal' | 'fullscreen';
 
@@ -127,6 +132,32 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
     const sortMenuRef = useRef<HTMLDivElement>(null);
     const moreMenuRef = useRef<HTMLDivElement>(null);
     const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'favorites'>('all');
+    const [triageFilter, setTriageFilter] = useState<TriageCategory>('all');
+    const [isAdvSearchOpen, setIsAdvSearchOpen] = useState(false);
+    const [advSender, setAdvSender] = useState('');
+    const [advDateFrom, setAdvDateFrom] = useState('');
+    const [advDateTo, setAdvDateTo] = useState('');
+    const [advHasAttachment, setAdvHasAttachment] = useState(false);
+    const [advUnreadOnly, setAdvUnreadOnly] = useState(false);
+    const activeAdvFilterCount =
+      (advSender.trim() ? 1 : 0) +
+      (advDateFrom ? 1 : 0) +
+      (advDateTo ? 1 : 0) +
+      (advHasAttachment ? 1 : 0) +
+      (advUnreadOnly ? 1 : 0);
+
+    const triageCounts = useMemo(() => {
+      let priority = 0;
+      let newsletters = 0;
+      let notifications = 0;
+      for (const e of emails) {
+        const cat = classifyEmailTriage(e);
+        if (cat === 'priority') priority++;
+        else if (cat === 'newsletters') newsletters++;
+        else if (cat === 'notifications') notifications++;
+      }
+      return { priority, newsletters, notifications };
+    }, [emails]);
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>(() => {
       try {
         const saved = localStorage.getItem('anectta_email_sort_order');
@@ -295,6 +326,38 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
           return false;
         }
 
+        // Triagem Inteligente
+        if (triageFilter !== 'all') {
+          const cat = classifyEmailTriage(item);
+          if (cat !== triageFilter) return false;
+        }
+
+        // Busca Avançada Visual
+        if (advSender.trim()) {
+          const s = advSender.trim().toLowerCase();
+          const hit =
+            (item.sender || '').toLowerCase().includes(s) ||
+            (item.senderEmail || '').toLowerCase().includes(s);
+          if (!hit) return false;
+        }
+        if (advHasAttachment && !hasAnyAttachment) {
+          return false;
+        }
+        if (advUnreadOnly && item.isRead) {
+          return false;
+        }
+        if (advDateFrom || advDateTo) {
+          const ts = getEmailTimestampMs(item);
+          if (advDateFrom) {
+            const fromMs = new Date(`${advDateFrom}T00:00:00`).getTime();
+            if (!Number.isNaN(fromMs) && ts < fromMs) return false;
+          }
+          if (advDateTo) {
+            const toMs = new Date(`${advDateTo}T23:59:59.999`).getTime();
+            if (!Number.isNaN(toMs) && ts > toMs) return false;
+          }
+        }
+
         let matchesSearch = true;
         if (q) {
           const localMatches = Boolean(
@@ -328,6 +391,12 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       searchQuery,
       ftsMatchedIds,
       activeTab,
+      triageFilter,
+      advSender,
+      advDateFrom,
+      advDateTo,
+      advHasAttachment,
+      advUnreadOnly,
     ]);
 
     // Grouping by Period (Hoje, Ontem, Semana Passada, Mais Antigos) - memoizado
@@ -425,21 +494,144 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   ? `Pesquisar em ${activeAccountEmail}...`
                   : 'Pesquisar mensagens...'
               }
-              className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-12 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-all"
+              className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-20 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-all"
             />
-            {searchLatencyMs !== null ? (
-              <span
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded flex items-center space-x-0.5"
-                title="Tempo de resposta da consulta SQLite FTS5"
+            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {searchLatencyMs !== null ? (
+                <span
+                  className="px-1.5 py-0.5 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded flex items-center space-x-0.5"
+                  title="Tempo de resposta da consulta SQLite FTS5"
+                >
+                  <Zap className="w-2.5 h-2.5 text-emerald-400" />
+                  <span>{searchLatencyMs}ms</span>
+                </span>
+              ) : (
+                <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-slate-800 text-slate-400 rounded border border-slate-700">
+                  /
+                </kbd>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsAdvSearchOpen((v) => !v)}
+                title="Busca Avançada Visual (remetente, período, anexos, não lidos)"
+                className={`relative p-1 rounded-md border transition-colors ${
+                  isAdvSearchOpen || activeAdvFilterCount > 0
+                    ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
+                    : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 border-slate-700'
+                }`}
               >
-                <Zap className="w-2.5 h-2.5 text-emerald-400" />
-                <span>{searchLatencyMs}ms</span>
-              </span>
-            ) : (
-              <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[9px] font-mono bg-slate-800 text-slate-400 rounded border border-slate-700">
-                /
-              </kbd>
-            )}
+                <SlidersHorizontal className="w-3 h-3" />
+                {activeAdvFilterCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-brand-500 text-white text-[8px] font-bold flex items-center justify-center">
+                    {activeAdvFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Painel Expansível de Busca Avançada Visual */}
+          {isAdvSearchOpen && (
+            <div className="p-2.5 rounded-xl bg-slate-900/95 border border-slate-700/80 space-y-2 text-[11px]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Busca Avançada
+                </span>
+                {activeAdvFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdvSender('');
+                      setAdvDateFrom('');
+                      setAdvDateTo('');
+                      setAdvHasAttachment(false);
+                      setAdvUnreadOnly(false);
+                    }}
+                    className="text-[10px] font-semibold text-rose-400 hover:text-rose-300"
+                  >
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
+              <input
+                type="text"
+                value={advSender}
+                onChange={(e) => setAdvSender(e.target.value)}
+                placeholder="Remetente (nome ou e-mail)..."
+                className="w-full px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500"
+              />
+              <div className="grid grid-cols-2 gap-1.5">
+                <div>
+                  <label className="block text-[9px] text-slate-400 mb-0.5">De</label>
+                  <input
+                    type="date"
+                    value={advDateFrom}
+                    onChange={(e) => setAdvDateFrom(e.target.value)}
+                    className="w-full px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-[10px]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-slate-400 mb-0.5">Até</label>
+                  <input
+                    type="date"
+                    value={advDateTo}
+                    onChange={(e) => setAdvDateTo(e.target.value)}
+                    className="w-full px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-[10px]"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3 pt-0.5">
+                <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={advHasAttachment}
+                    onChange={(e) => setAdvHasAttachment(e.target.checked)}
+                    className="rounded border-slate-600"
+                  />
+                  <span>Com anexo</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={advUnreadOnly}
+                    onChange={(e) => setAdvUnreadOnly(e.target.checked)}
+                    className="rounded border-slate-600"
+                  />
+                  <span>Não lidos</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Triagem Inteligente (Prioritários / Newsletters / Notificações) */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+            {(
+              [
+                { id: 'all', label: 'Tudo', count: emails.length, icon: null },
+                { id: 'priority', label: 'Prioritários', count: triageCounts.priority, icon: Sparkles },
+                { id: 'newsletters', label: 'Newsletters', count: triageCounts.newsletters, icon: Newspaper },
+                { id: 'notifications', label: 'Notificações', count: triageCounts.notifications, icon: Bell },
+              ] as const
+            ).map((pill) => {
+              const Icon = pill.icon;
+              const active = triageFilter === pill.id;
+              return (
+                <button
+                  key={pill.id}
+                  type="button"
+                  onClick={() => setTriageFilter(pill.id)}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap transition-colors ${
+                    active
+                      ? 'bg-brand-500/20 text-brand-300 border-brand-500/50'
+                      : 'bg-slate-900/70 text-slate-400 hover:text-slate-200 border-slate-800'
+                  }`}
+                >
+                  {Icon && <Icon className="w-2.5 h-2.5" />}
+                  <span>{pill.label}</span>
+                  <span className="opacity-70 text-[9px]">{pill.count}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Subheader Tabs (Exact Outlook Style: "Todas", "Não lidos", "Por Data ↓") */}

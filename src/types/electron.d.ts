@@ -294,6 +294,7 @@ export interface ElectronAPI {
     password?: string;
     sourceLabel?: string;
   }) => Promise<{ success: boolean; contacts?: any[]; error?: string }>;
+  oneClickUnsubscribe?: (url: string) => Promise<{ success: boolean; status?: number; error?: string }>;
   setMinimizeToTray?: (enabled: boolean) => Promise<boolean>;
   openExternal?: (url: string) => Promise<{ success: boolean; error?: string }>;
   minimizeWindow: () => void;
