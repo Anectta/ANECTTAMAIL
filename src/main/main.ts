@@ -13,6 +13,7 @@ import { AIAssistantService } from './services/aiAssistantService';
 import { EmlExporterService } from './services/emlExporterService';
 import { OAuthService, OAuthProvider } from './services/oauthService';
 import { CloudSyncService } from './services/cloudSyncService';
+import { PgpService } from './services/pgpService';
 import { simpleParser } from 'mailparser';
 import { ensureTlsTrust } from './services/tlsTrust';
 import {
@@ -1989,6 +1990,29 @@ ipcMain.handle('mail:one-click-unsubscribe', async (_event, url: string) => {
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro de rede' };
   }
+});
+
+// ==========================================
+// OpenPGP — Criptografia Ponta-a-Ponta
+// ==========================================
+ipcMain.handle('pgp:generate-key', async (_event, payload: { name: string; email: string; passphrase?: string }) => {
+  return await PgpService.generateKeyPair(payload);
+});
+
+ipcMain.handle('pgp:inspect-key', async (_event, armoredKey: string) => {
+  return await PgpService.inspectKey(armoredKey);
+});
+
+ipcMain.handle('pgp:encrypt', async (_event, payload: any) => {
+  return await PgpService.encryptMessage(payload);
+});
+
+ipcMain.handle('pgp:sign', async (_event, payload: any) => {
+  return await PgpService.signCleartext(payload);
+});
+
+ipcMain.handle('pgp:decrypt-verify', async (_event, payload: any) => {
+  return await PgpService.decryptOrVerify(payload);
 });
 
 // ==========================================

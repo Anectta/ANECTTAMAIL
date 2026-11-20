@@ -427,6 +427,16 @@ const electronAPI = {
     ipcRenderer.invoke('sync:contacts', payload),
   oneClickUnsubscribe: (url: string) =>
     ipcRenderer.invoke('mail:one-click-unsubscribe', url),
+  pgpGenerateKey: (payload: { name: string; email: string; passphrase?: string }) =>
+    ipcRenderer.invoke('pgp:generate-key', payload),
+  pgpInspectKey: (armoredKey: string) =>
+    ipcRenderer.invoke('pgp:inspect-key', armoredKey),
+  pgpEncrypt: (payload: any) =>
+    ipcRenderer.invoke('pgp:encrypt', payload),
+  pgpSign: (payload: any) =>
+    ipcRenderer.invoke('pgp:sign', payload),
+  pgpDecryptVerify: (payload: any) =>
+    ipcRenderer.invoke('pgp:decrypt-verify', payload),
   setMinimizeToTray: (enabled: boolean) =>
     ipcRenderer.invoke('system:set-minimize-to-tray', enabled),
 

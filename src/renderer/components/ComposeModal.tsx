@@ -36,6 +36,8 @@ import {
   Trash2,
   Sparkles,
   LayoutTemplate,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react';
 import { EmailTemplateItem, PriorityLevel } from '@/types/email';
 import {
@@ -68,6 +70,7 @@ import {
   loadEmailTemplates,
   saveEmailTemplates,
 } from '../utils/triageAndTemplates';
+import { findOwnKeyByEmail, findPublicKeysForRecipients } from '../utils/pgpKeyring';
 
 const EMOJI_CATEGORIES: Array<{ id: string; label: string; icon: string; emojis: string[] }> = [
   {
@@ -397,6 +400,9 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const [newTemplateName, setNewTemplateName] = useState('');
   const [isAiAssistOpen, setIsAiAssistOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
+  const [pgpEncryptEnabled, setPgpEncryptEnabled] = useState(false);
+  const [pgpSignEnabled, setPgpSignEnabled] = useState(false);
+  const [pgpPassphraseInput, setPgpPassphraseInput] = useState('');
   const [scheduledDateTime, setScheduledDateTime] = useState('');
 
   // Confirmação de Leitura & Monitoramento de Abertura por Destinatário (desmarcado por padrão)
@@ -945,16 +951,95 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
     const live = getLiveEditorContent();
     const sanitizedEditorHtml = live.html ? sanitizeRichEditorHtml(live.html) : '';
 
+    let finalBody = live.text;
+    let finalHtml: string | undefined;
+
+    // Criptografia / Assinatura OpenPGP opcional
+    if (pgpEncryptEnabled || pgpSignEnabled) {
+      const ownKey = findOwnKeyByEmail(currentAccount?.email);
+      if (pgpEncryptEnabled) {
+        if (!window.electronAPI?.pgpEncrypt) {
+          setIsDispatching(false);
+          setIsSending(false);
+          setErrorMessage('Criptografia OpenPGP disponível apenas no aplicativo desktop.');
+          return;
+        }
+        const { foundKeys, missingEmails } = findPublicKeysForRecipients(
+          [recipient, cc, bcc].filter(Boolean).join(', ')
+        );
+        if (missingEmails.length > 0 || foundKeys.length === 0) {
+          setIsDispatching(false);
+          setIsSending(false);
+          setErrorMessage(
+            `Chave pública OpenPGP ausente para: ${missingEmails.join(', ') || 'destinatário'}. Importe o arquivo .asc em Configurações → Privacidade → OpenPGP.`
+          );
+          formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        const allEncryptionKeys = ownKey
+          ? Array.from(new Set([...foundKeys, ownKey.publicKey]))
+          : foundKeys;
+
+        const encRes = await window.electronAPI.pgpEncrypt({
+          text: live.text,
+          recipientPublicKeys: allEncryptionKeys,
+          senderPrivateKey: pgpSignEnabled && ownKey ? ownKey.privateKey : undefined,
+          senderPassphrase: pgpSignEnabled ? pgpPassphraseInput || undefined : undefined,
+        });
+        if (!encRes.success || !encRes.armored) {
+          setIsDispatching(false);
+          setIsSending(false);
+          setErrorMessage(encRes.error || 'Falha ao criptografar mensagem com OpenPGP.');
+          formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        finalBody = encRes.armored;
+        finalHtml = `<pre style="font-family:monospace;white-space:pre-wrap;font-size:12px;">${encRes.armored
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')}</pre>`;
+      } else if (pgpSignEnabled) {
+        if (!window.electronAPI?.pgpSign || !ownKey) {
+          setIsDispatching(false);
+          setIsSending(false);
+          setErrorMessage(
+            'Nenhuma chave privada OpenPGP encontrada para assinar. Gere seu par de chaves em Configurações → Privacidade → OpenPGP.'
+          );
+          formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        const signRes = await window.electronAPI.pgpSign({
+          text: live.text,
+          senderPrivateKey: ownKey.privateKey,
+          senderPassphrase: pgpPassphraseInput || undefined,
+        });
+        if (!signRes.success || !signRes.armored) {
+          setIsDispatching(false);
+          setIsSending(false);
+          setErrorMessage(signRes.error || 'Falha ao assinar mensagem com OpenPGP.');
+          formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        finalBody = signRes.armored;
+        finalHtml = `<pre style="font-family:monospace;white-space:pre-wrap;font-size:12px;">${signRes.armored
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')}</pre>`;
+      }
+    }
+
     // Compilação do HTML com CSS 100% Inline garantido para clientes de correio
-    const compiledHtml = compileToInlineHtml({
-      text: live.text,
-      bodyHtml: sanitizedEditorHtml || undefined,
-      stationeryId: 'clean',
-      senderName: currentAccount?.displayName || currentAccount?.email || 'Anectta User',
-      senderEmail: currentAccount?.email || '',
-      signature: activeSignatureHtml || undefined,
-      subject,
-    });
+    const compiledHtml =
+      finalHtml ||
+      compileToInlineHtml({
+        text: live.text,
+        bodyHtml: sanitizedEditorHtml || undefined,
+        stationeryId: 'clean',
+        senderName: currentAccount?.displayName || currentAccount?.email || 'Anectta User',
+        senderEmail: currentAccount?.email || '',
+        signature: activeSignatureHtml || undefined,
+        subject,
+      });
 
     try {
       // Pequeno delay suave para a animação cinematográfica decolar
@@ -966,7 +1051,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
         cc: cc.trim() || undefined,
         bcc: bcc.trim() || undefined,
         subject,
-        body: live.text,
+        body: finalBody,
         html: compiledHtml,
         editorHtml: sanitizedEditorHtml || undefined,
         signature: activeSignatureHtml,
@@ -2617,6 +2702,45 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* OpenPGP Criptografar & Assinar */}
+              <button
+                type="button"
+                onClick={() => setPgpEncryptEnabled((v) => !v)}
+                className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs transition-colors border ${
+                  pgpEncryptEnabled
+                    ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/50 font-semibold'
+                    : 'text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border-slate-700/60'
+                }`}
+                title="Criptografar ponta-a-ponta com OpenPGP (requer chave pública do destinatário)"
+              >
+                <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden md:inline">PGP</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPgpSignEnabled((v) => !v)}
+                className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs transition-colors border ${
+                  pgpSignEnabled
+                    ? 'bg-sky-600/20 text-sky-300 border-sky-500/50 font-semibold'
+                    : 'text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border-slate-700/60'
+                }`}
+                title="Assinar digitalmente com sua chave privada OpenPGP"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
+                <span className="hidden md:inline">Assinar</span>
+              </button>
+
+              {pgpSignEnabled && findOwnKeyByEmail(currentAccount?.email)?.hasPassphrase && (
+                <input
+                  type="password"
+                  value={pgpPassphraseInput}
+                  onChange={(e) => setPgpPassphraseInput(e.target.value)}
+                  placeholder="Senha PGP"
+                  className="w-24 px-2 py-1.5 rounded-lg bg-slate-950 border border-sky-500/40 text-[11px] text-slate-200 focus:outline-none"
+                />
+              )}
             </div>
 
             <div className="flex items-center space-x-3">

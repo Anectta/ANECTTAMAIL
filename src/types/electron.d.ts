@@ -295,6 +295,46 @@ export interface ElectronAPI {
     sourceLabel?: string;
   }) => Promise<{ success: boolean; contacts?: any[]; error?: string }>;
   oneClickUnsubscribe?: (url: string) => Promise<{ success: boolean; status?: number; error?: string }>;
+  pgpGenerateKey?: (payload: { name: string; email: string; passphrase?: string }) => Promise<{
+    success: boolean;
+    publicKey?: string;
+    privateKey?: string;
+    fingerprint?: string;
+    createdAt?: string;
+    error?: string;
+  }>;
+  pgpInspectKey?: (armoredKey: string) => Promise<{
+    success: boolean;
+    name?: string;
+    email?: string;
+    fingerprint?: string;
+    isPrivate?: boolean;
+    error?: string;
+  }>;
+  pgpEncrypt?: (payload: {
+    text: string;
+    recipientPublicKeys: string[];
+    senderPrivateKey?: string;
+    senderPassphrase?: string;
+  }) => Promise<{ success: boolean; armored?: string; error?: string }>;
+  pgpSign?: (payload: {
+    text: string;
+    senderPrivateKey: string;
+    senderPassphrase?: string;
+  }) => Promise<{ success: boolean; armored?: string; error?: string }>;
+  pgpDecryptVerify?: (payload: {
+    armoredText: string;
+    privateKey?: string;
+    passphrase?: string;
+    senderPublicKey?: string;
+  }) => Promise<{
+    success: boolean;
+    mode?: 'decrypted' | 'verified';
+    plainText?: string;
+    verified?: boolean;
+    signerKeyId?: string;
+    error?: string;
+  }>;
   setMinimizeToTray?: (enabled: boolean) => Promise<boolean>;
   openExternal?: (url: string) => Promise<{ success: boolean; error?: string }>;
   minimizeWindow: () => void;

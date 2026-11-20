@@ -4,6 +4,7 @@ import { ActiveModule } from '@/components/AppRail';
 import { Sidebar } from '@/components/Sidebar';
 import { EmailList, EmailListRef, EmailLayoutMode } from '@/components/EmailList';
 import { EmailView } from '@/components/EmailView';
+import { ContactContextSidebar } from '@/components/ContactContextSidebar';
 import { EmailTabsBar } from '@/components/EmailTabsBar';
 import { EmailReaderModal } from '@/components/EmailReaderModal';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -1585,6 +1586,29 @@ export const App: React.FC = () => {
     }
     return summary;
   }, [settings.accounts, settings.calendar, ensureFreshAccessToken, handleImportContacts]);
+
+  // ==========================================
+  // Painel Lateral Mini-CRM + Notas Privadas
+  // ==========================================
+  const [isContactContextOpen, setIsContactContextOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('anectta_crm_sidebar_open') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleContactContext = useCallback(() => {
+    setIsContactContextOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('anectta_crm_sidebar_open', next ? '1' : '0');
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
 
   // ==========================================
   // Módulo de Tarefas / To-Do Integrado
@@ -4053,6 +4077,8 @@ export const App: React.FC = () => {
                   onSetFollowUp={handleSetFollowUp}
                   onCreateTaskFromEmail={handleCreateTaskFromEmail}
                   onUnsubscribe={handleUnsubscribeEmail}
+                  onToggleContactContext={handleToggleContactContext}
+                  isContactContextOpen={isContactContextOpen}
                   onComposeNewEmail={() => {
                     const defaultAcc =
                       settings.accounts?.find((a) => a.isDefault) ||
@@ -4070,6 +4096,27 @@ export const App: React.FC = () => {
                   }
                 />
               </div>
+            )}
+            {isContactContextOpen && displayedEmail && (
+              <ContactContextSidebar
+                email={displayedEmail}
+                allEmails={emails}
+                contacts={contacts}
+                onClose={handleToggleContactContext}
+                onSelectEmail={(id) => handleSelectEmail(id)}
+                onAddContact={(c) => {
+                  handleAddContact({
+                    name: c.name,
+                    email: c.email,
+                    role: 'Contato',
+                    company: '',
+                  });
+                }}
+                onComposeToContact={(addr) => {
+                  setComposeDefaults({ recipient: addr, subject: '' });
+                  setIsComposeOpen(true);
+                }}
+              />
             )}
           </div>
         )}

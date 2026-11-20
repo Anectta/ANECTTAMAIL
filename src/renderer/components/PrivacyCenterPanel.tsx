@@ -16,8 +16,19 @@ import {
   X,
   HardDrive,
   RotateCcw,
+  KeyRound,
+  Copy,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { SecuritySettings } from '@/types/settings';
+import {
+  ContactPgpKey,
+  loadPgpKeyring,
+  OwnPgpKey,
+  PgpKeyringData,
+  savePgpKeyring,
+} from '../utils/pgpKeyring';
 
 const ToggleSwitch: React.FC<{
   checked: boolean;
@@ -53,6 +64,110 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
   const [newBlockedInput, setNewBlockedInput] = useState('');
   const [docModal, setDocModal] = useState<'policy' | 'guide' | null>(null);
   const [blockedTrackersCount, setBlockedTrackersCount] = useState<number>(0);
+
+  // OpenPGP Keyring state
+  const [pgpKeyring, setPgpKeyring] = useState<PgpKeyringData>(() => loadPgpKeyring());
+  const [pgpName, setPgpName] = useState('');
+  const [pgpEmail, setPgpEmail] = useState('');
+  const [pgpPassphrase, setPgpPassphrase] = useState('');
+  const [isGeneratingPgp, setIsGeneratingPgp] = useState(false);
+  const [pgpImportEmail, setPgpImportEmail] = useState('');
+  const [pgpImportArmored, setPgpImportArmored] = useState('');
+  const [pgpFeedback, setPgpFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const handleGeneratePgpKey = async () => {
+    const emailClean = pgpEmail.trim().toLowerCase();
+    if (!emailClean || !emailClean.includes('@')) {
+      setPgpFeedback({ ok: false, msg: 'Informe um e-mail válido para gerar a chave OpenPGP.' });
+      return;
+    }
+    if (!window.electronAPI?.pgpGenerateKey) {
+      setPgpFeedback({ ok: false, msg: 'OpenPGP disponível apenas no aplicativo desktop.' });
+      return;
+    }
+    setIsGeneratingPgp(true);
+    setPgpFeedback(null);
+    try {
+      const res = await window.electronAPI.pgpGenerateKey({
+        name: pgpName.trim() || emailClean.split('@')[0],
+        email: emailClean,
+        passphrase: pgpPassphrase || undefined,
+      });
+      if (!res.success || !res.publicKey || !res.privateKey || !res.fingerprint) {
+        setPgpFeedback({ ok: false, msg: res.error || 'Erro ao gerar chave.' });
+        return;
+      }
+      const newKey: OwnPgpKey = {
+        id: `pgp-own-${Date.now()}`,
+        email: emailClean,
+        name: pgpName.trim() || emailClean.split('@')[0],
+        fingerprint: res.fingerprint,
+        publicKey: res.publicKey,
+        privateKey: res.privateKey,
+        hasPassphrase: Boolean(pgpPassphrase),
+        createdAt: res.createdAt || new Date().toISOString(),
+      };
+      const next: PgpKeyringData = {
+        ...pgpKeyring,
+        ownKeys: [newKey, ...pgpKeyring.ownKeys.filter((k) => k.email !== emailClean)],
+      };
+      setPgpKeyring(next);
+      savePgpKeyring(next);
+      setPgpPassphrase('');
+      setPgpFeedback({ ok: true, msg: `Par de chaves Curve25519 gerado para ${emailClean}!` });
+    } finally {
+      setIsGeneratingPgp(false);
+    }
+  };
+
+  const handleImportContactPgpKey = async () => {
+    const armored = pgpImportArmored.trim();
+    if (!armored.includes('BEGIN PGP PUBLIC KEY BLOCK')) {
+      setPgpFeedback({ ok: false, msg: 'Cole uma chave pública OpenPGP válida (-----BEGIN PGP PUBLIC KEY BLOCK-----).' });
+      return;
+    }
+    if (!window.electronAPI?.pgpInspectKey) {
+      setPgpFeedback({ ok: false, msg: 'OpenPGP disponível apenas no aplicativo desktop.' });
+      return;
+    }
+    const inspected = await window.electronAPI.pgpInspectKey(armored);
+    if (!inspected.success || !inspected.fingerprint) {
+      setPgpFeedback({ ok: false, msg: inspected.error || 'Chave pública inválida.' });
+      return;
+    }
+    const emailClean = (pgpImportEmail.trim() || inspected.email || '').toLowerCase();
+    if (!emailClean || !emailClean.includes('@')) {
+      setPgpFeedback({ ok: false, msg: 'Informe o e-mail do contato associado a esta chave pública.' });
+      return;
+    }
+    const newContactKey: ContactPgpKey = {
+      id: `pgp-contact-${Date.now()}`,
+      email: emailClean,
+      name: inspected.name || emailClean.split('@')[0],
+      fingerprint: inspected.fingerprint,
+      publicKey: armored,
+      addedAt: new Date().toISOString(),
+    };
+    const next: PgpKeyringData = {
+      ...pgpKeyring,
+      contactKeys: [newContactKey, ...pgpKeyring.contactKeys.filter((k) => k.email !== emailClean)],
+    };
+    setPgpKeyring(next);
+    savePgpKeyring(next);
+    setPgpImportEmail('');
+    setPgpImportArmored('');
+    setPgpFeedback({ ok: true, msg: `Chave pública de ${emailClean} importada com sucesso!` });
+  };
+
+  const handleDownloadPublicKey = (email: string, publicKey: string) => {
+    const blob = new Blob([publicKey], { type: 'application/pgp-keys;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${email.replace(/[^a-z0-9@._-]/gi, '_')}-public.asc`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     if (window.electronAPI?.getPrivacyStats) {
@@ -366,6 +481,208 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
             onChange={(next) => updateField('soc2ComplianceMode', next)}
             activeColor="bg-brand-600"
           />
+        </div>
+      </div>
+
+      {/* Card 3B: Criptografia Ponta-a-Ponta (OpenPGP) */}
+      <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div>
+              <div className="text-xs font-semibold text-slate-200">
+                Criptografia Ponta-a-Ponta (OpenPGP / Curve25519)
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Gere seu par de chaves e importe chaves públicas (.asc) de contatos para criptografar e assinar e-mails.
+              </p>
+            </div>
+          </div>
+          <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-semibold text-emerald-300 shrink-0">
+            {pgpKeyring.ownKeys.length} própria(s) · {pgpKeyring.contactKeys.length} contato(s)
+          </span>
+        </div>
+
+        {pgpFeedback && (
+          <div
+            className={`px-3 py-2 rounded-lg text-[11px] border ${
+              pgpFeedback.ok
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+            }`}
+          >
+            {pgpFeedback.msg}
+          </div>
+        )}
+
+        {/* Gerar chave própria */}
+        <div className="p-3 rounded-lg bg-slate-900/70 border border-slate-800 space-y-2">
+          <div className="text-[11px] font-semibold text-slate-300">1. Gerar meu par de chaves OpenPGP</div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <input
+              type="text"
+              value={pgpName}
+              onChange={(e) => setPgpName(e.target.value)}
+              placeholder="Seu nome"
+              className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+            />
+            <input
+              type="email"
+              value={pgpEmail}
+              onChange={(e) => setPgpEmail(e.target.value)}
+              placeholder="seu@email.com"
+              className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+            />
+            <input
+              type="password"
+              value={pgpPassphrase}
+              onChange={(e) => setPgpPassphrase(e.target.value)}
+              placeholder="Senha da chave (opcional)"
+              className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={isGeneratingPgp}
+            onClick={handleGeneratePgpKey}
+            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+          >
+            {isGeneratingPgp ? 'Gerando chave...' : 'Gerar Par de Chaves OpenPGP'}
+          </button>
+
+          {pgpKeyring.ownKeys.length > 0 && (
+            <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+              {pgpKeyring.ownKeys.map((k) => (
+                <div
+                  key={k.id}
+                  className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-950/90 border border-slate-800 text-[11px]"
+                >
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-200 truncate">
+                      {k.name} <span className="text-slate-400 font-normal">&lt;{k.email}&gt;</span>
+                    </div>
+                    <div className="text-[10px] font-mono text-emerald-400 truncate">
+                      FP: {k.fingerprint.slice(-16)} {k.hasPassphrase ? '· Protegida por senha' : '· Sem senha'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(k.publicKey);
+                        setPgpFeedback({ ok: true, msg: `Chave pública de ${k.email} copiada!` });
+                      }}
+                      className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+                      title="Copiar chave pública (.asc)"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadPublicKey(k.email, k.publicKey)}
+                      className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+                      title="Baixar arquivo .asc da chave pública"
+                    >
+                      <Download className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = { ...pgpKeyring, ownKeys: pgpKeyring.ownKeys.filter((x) => x.id !== k.id) };
+                        setPgpKeyring(next);
+                        savePgpKeyring(next);
+                      }}
+                      className="p-1.5 rounded bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400"
+                      title="Remover chave"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Importar chave pública de contato */}
+        <div className="p-3 rounded-lg bg-slate-900/70 border border-slate-800 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-slate-300">
+              2. Importar chave pública de contato (.asc)
+            </span>
+            <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-semibold text-slate-300">
+              <Upload className="w-3 h-3" />
+              <span>Carregar .asc</span>
+              <input
+                type="file"
+                accept=".asc,.gpg,.pgp,.txt"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  f.text().then((txt) => setPgpImportArmored(txt));
+                  e.target.value = '';
+                }}
+              />
+            </label>
+          </div>
+          <input
+            type="email"
+            value={pgpImportEmail}
+            onChange={(e) => setPgpImportEmail(e.target.value)}
+            placeholder="E-mail do contato (opcional se constar na chave)"
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500"
+          />
+          <textarea
+            rows={3}
+            value={pgpImportArmored}
+            onChange={(e) => setPgpImportArmored(e.target.value)}
+            placeholder="-----BEGIN PGP PUBLIC KEY BLOCK----- ..."
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand-500 resize-none"
+          />
+          <button
+            type="button"
+            onClick={handleImportContactPgpKey}
+            disabled={!pgpImportArmored.trim()}
+            className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+          >
+            Importar Chave Pública
+          </button>
+
+          {pgpKeyring.contactKeys.length > 0 && (
+            <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+              {pgpKeyring.contactKeys.map((k) => (
+                <div
+                  key={k.id}
+                  className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-950/90 border border-slate-800 text-[11px]"
+                >
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-200 truncate">
+                      {k.name} <span className="text-slate-400 font-normal">&lt;{k.email}&gt;</span>
+                    </div>
+                    <div className="text-[10px] font-mono text-sky-400 truncate">
+                      FP: {k.fingerprint.slice(-16)}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = {
+                        ...pgpKeyring,
+                        contactKeys: pgpKeyring.contactKeys.filter((x) => x.id !== k.id),
+                      };
+                      setPgpKeyring(next);
+                      savePgpKeyring(next);
+                    }}
+                    className="p-1.5 rounded bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400"
+                    title="Remover chave pública"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

@@ -45,6 +45,10 @@ import {
   X,
   BellRing,
   MailX,
+  PanelRight,
+  StickyNote,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
@@ -53,6 +57,12 @@ import { filterRealAttachments } from '../utils/attachmentUtils';
 import DOMPurify from 'dompurify';
 import { formatReceivedLabel } from '../utils/dateSortUtils';
 import { parseUnsubscribeInfo } from '../utils/triageAndTemplates';
+import { getPrivateNoteForEmail } from './ContactContextSidebar';
+import {
+  detectPgpBlock,
+  findContactPublicKeyByEmail,
+  findOwnKeyByEmail,
+} from '../utils/pgpKeyring';
 
 /**
  * Sanitiza marcação HTML de e-mails para prevenir injeções de script ou eventos maliciosos
@@ -143,6 +153,8 @@ interface EmailViewProps {
   onSetFollowUp?: (id: string, followUpAtMs: number, label: string) => void;
   onCreateTaskFromEmail?: (email: EmailItem) => void;
   onUnsubscribe?: (email: EmailItem) => Promise<void> | void;
+  onToggleContactContext?: () => void;
+  isContactContextOpen?: boolean;
 }
 
 export const EmailView: React.FC<EmailViewProps> = ({
@@ -179,6 +191,8 @@ export const EmailView: React.FC<EmailViewProps> = ({
   onSetFollowUp,
   onCreateTaskFromEmail,
   onUnsubscribe,
+  onToggleContactContext,
+  isContactContextOpen = false,
 }) => {
   const [revealedImagesEmailIds, setRevealedImagesEmailIds] = useState<Record<string, boolean>>({});
   const [expandedThreadIds, setExpandedThreadIds] = useState<Record<string, boolean>>({});
@@ -188,6 +202,28 @@ export const EmailView: React.FC<EmailViewProps> = ({
   const [isFollowUpMenuOpen, setIsFollowUpMenuOpen] = useState(false);
   const [isUnsubscribing, setIsUnsubscribing] = useState(false);
   const [unsubscribedIds, setUnsubscribedIds] = useState<Record<string, boolean>>({});
+  const [privateNotePreview, setPrivateNotePreview] = useState('');
+  const [pgpPassphrase, setPgpPassphrase] = useState('');
+  const [pgpBusy, setPgpBusy] = useState(false);
+  const [pgpResult, setPgpResult] = useState<{
+    emailId: string;
+    plainText?: string;
+    verified?: boolean;
+    signerKeyId?: string;
+    error?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!email?.id) {
+      setPrivateNotePreview('');
+      return;
+    }
+    setPrivateNotePreview(getPrivateNoteForEmail(email.id));
+    setPgpResult((prev) => (prev?.emailId === email.id ? prev : null));
+    const onNotesUpdated = () => setPrivateNotePreview(getPrivateNoteForEmail(email.id));
+    window.addEventListener('anectta:notes-updated', onNotesUpdated);
+    return () => window.removeEventListener('anectta:notes-updated', onNotesUpdated);
+  }, [email?.id]);
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isPrivacyPopoverOpen, setIsPrivacyPopoverOpen] = useState(false);
@@ -670,6 +706,22 @@ export const EmailView: React.FC<EmailViewProps> = ({
             >
               <CheckSquare className="w-4 h-4 shrink-0 text-emerald-400" />
               <span>+ Tarefa</span>
+            </button>
+          )}
+
+          {onToggleContactContext && !isModalMode && (
+            <button
+              type="button"
+              onClick={onToggleContactContext}
+              className={`flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap border rounded-xl transition-colors ${
+                isContactContextOpen
+                  ? 'text-amber-300 bg-amber-500/15 border-amber-500/40'
+                  : 'text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border-slate-800'
+              }`}
+              title="Abrir/Fechar Painel Lateral Mini-CRM, Histórico, Anexos e Notas Privadas"
+            >
+              <PanelRight className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>CRM/Notas</span>
             </button>
           )}
         </div>
@@ -1229,6 +1281,138 @@ export const EmailView: React.FC<EmailViewProps> = ({
                 </div>
               );
             })()}
+
+          {/* Banner de Nota Privada (quando o usuário salvou nota para este e-mail) */}
+          {privateNotePreview.trim() && (
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2 text-xs text-amber-200 min-w-0">
+                <StickyNote className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <span className="font-bold text-[10px] uppercase tracking-wider text-amber-300 block">
+                    Nota Privada (somente você vê)
+                  </span>
+                  <p className="text-xs text-amber-100 whitespace-pre-wrap break-words">
+                    {privateNotePreview}
+                  </p>
+                </div>
+              </div>
+              {onToggleContactContext && !isContactContextOpen && (
+                <button
+                  type="button"
+                  onClick={onToggleContactContext}
+                  className="text-[11px] font-semibold text-amber-300 hover:text-amber-200 shrink-0"
+                >
+                  Editar
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Banner OpenPGP (Mensagem Criptografada ou Assinada Digitalmente) */}
+          {(() => {
+            const pgpBlock = detectPgpBlock(email.body);
+            if (!pgpBlock) return null;
+            const currentPgpRes = pgpResult?.emailId === email.id ? pgpResult : null;
+            const ownKey = findOwnKeyByEmail(email.recipient) || findOwnKeyByEmail();
+            const senderKey = findContactPublicKeyByEmail(email.senderEmail);
+            return (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2.5">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 text-xs text-emerald-200">
+                    {pgpBlock.type === 'encrypted' ? (
+                      <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
+                    )}
+                    <span className="font-semibold">
+                      {pgpBlock.type === 'encrypted'
+                        ? 'Mensagem Criptografada Ponta-a-Ponta (OpenPGP)'
+                        : 'Mensagem Assinada Digitalmente (OpenPGP)'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {pgpBlock.type === 'encrypted' && ownKey?.hasPassphrase && !currentPgpRes?.plainText && (
+                      <input
+                        type="password"
+                        value={pgpPassphrase}
+                        onChange={(e) => setPgpPassphrase(e.target.value)}
+                        placeholder="Senha da chave PGP"
+                        className="px-2.5 py-1 rounded-lg bg-slate-950 border border-emerald-500/40 text-xs text-slate-100 w-40 focus:outline-none"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      disabled={pgpBusy}
+                      onClick={async () => {
+                        if (!window.electronAPI?.pgpDecryptVerify) return;
+                        setPgpBusy(true);
+                        try {
+                          const res = await window.electronAPI.pgpDecryptVerify({
+                            armoredText: pgpBlock.block,
+                            privateKey: ownKey?.privateKey,
+                            passphrase: pgpPassphrase || undefined,
+                            senderPublicKey: senderKey?.publicKey,
+                          });
+                          setPgpResult({
+                            emailId: email.id,
+                            plainText: res.plainText,
+                            verified: res.verified,
+                            signerKeyId: res.signerKeyId,
+                            error: res.success ? undefined : res.error,
+                          });
+                        } finally {
+                          setPgpBusy(false);
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+                    >
+                      <Unlock className="w-3.5 h-3.5" />
+                      <span>
+                        {pgpBusy
+                          ? 'Processando...'
+                          : pgpBlock.type === 'encrypted'
+                          ? 'Descriptografar'
+                          : 'Verificar Assinatura'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {currentPgpRes?.error && (
+                  <p className="text-xs text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-lg px-2.5 py-1.5">
+                    {currentPgpRes.error}
+                  </p>
+                )}
+
+                {currentPgpRes?.plainText && (
+                  <div className="rounded-lg bg-slate-950/90 border border-emerald-500/30 p-3 space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                        <Unlock className="w-3.5 h-3.5" /> Conteúdo Descriptografado
+                      </span>
+                      {currentPgpRes.signerKeyId && (
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                            currentPgpRes.verified
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : 'bg-amber-500/20 text-amber-300'
+                          }`}
+                        >
+                          {currentPgpRes.verified
+                            ? `✓ Assinatura válida (${currentPgpRes.signerKeyId})`
+                            : `Assinatura não verificada (${currentPgpRes.signerKeyId})`}
+                        </span>
+                      )}
+                    </div>
+                    <pre className="text-xs text-slate-100 whitespace-pre-wrap font-sans leading-relaxed">
+                      {currentPgpRes.plainText}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Sender & Recipient Profile */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
