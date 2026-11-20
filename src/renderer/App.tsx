@@ -4,6 +4,7 @@ import { ActiveModule } from '@/components/AppRail';
 import { Sidebar } from '@/components/Sidebar';
 import { EmailList, EmailListRef, EmailLayoutMode } from '@/components/EmailList';
 import { EmailView } from '@/components/EmailView';
+import { EmailTabsBar } from '@/components/EmailTabsBar';
 import { EmailReaderModal } from '@/components/EmailReaderModal';
 import { CommandPalette } from '@/components/CommandPalette';
 import { ComposeModal } from '@/components/ComposeModal';
@@ -1067,6 +1068,10 @@ export const App: React.FC = () => {
     }
   });
 
+  // Abas de E-mail (múltiplos e-mails abertos simultaneamente)
+  const [openEmailTabIds, setOpenEmailTabIds] = useState<string[]>([]);
+  const [activeTabEmailId, setActiveTabEmailId] = useState<string | null>(null);
+
   const handleToggleGroupByThread = () => {
     setGroupByThread((prev) => {
       const next = !prev;
@@ -1933,6 +1938,86 @@ export const App: React.FC = () => {
     }
     return null;
   }, [emails, selectedEmailId, currentAccount, isEmailForAccount, isUnifiedView]);
+
+  const openEmailTabs = useMemo(
+    () =>
+      openEmailTabIds
+        .map((id) => emails.find((e) => e.id === id))
+        .filter((e): e is EmailItem => Boolean(e)),
+    [openEmailTabIds, emails]
+  );
+
+  const displayedEmail = useMemo(() => {
+    if (activeTabEmailId) {
+      const tabEmail = emails.find((e) => e.id === activeTabEmailId);
+      if (tabEmail) return tabEmail;
+    }
+    return selectedEmail;
+  }, [activeTabEmailId, emails, selectedEmail]);
+
+  const handleOpenEmailInTab = useCallback(
+    (emailId: string) => {
+      if (!emailId) return;
+      setEmails((prev) =>
+        prev.map((e) => (e.id === emailId && !e.isRead ? { ...e, isRead: true } : e))
+      );
+      setOpenEmailTabIds((prev) => {
+        if (prev.includes(emailId)) return prev;
+        const next = [...prev, emailId];
+        if (next.length > 12) {
+          return next.slice(next.length - 12);
+        }
+        return next;
+      });
+      setActiveTabEmailId(emailId);
+      if (emailLayoutMode === 'fullscreen') {
+        setIsFullscreenReading(true);
+      }
+    },
+    [emailLayoutMode]
+  );
+
+  const handleCloseEmailTab = useCallback(
+    (emailId: string) => {
+      setOpenEmailTabIds((prev) => {
+        const idx = prev.indexOf(emailId);
+        const next = prev.filter((id) => id !== emailId);
+        if (activeTabEmailId === emailId) {
+          const fallback = next[Math.min(idx, next.length - 1)] ?? null;
+          setActiveTabEmailId(fallback);
+        }
+        return next;
+      });
+    },
+    [activeTabEmailId]
+  );
+
+  const handleCloseAllEmailTabs = useCallback(() => {
+    setOpenEmailTabIds([]);
+    setActiveTabEmailId(null);
+  }, []);
+
+  // Atalhos de abas de e-mail: Ctrl+W (fechar aba ativa) e Ctrl+Tab (alternar abas)
+  useEffect(() => {
+    const onTabKeyDown = (e: KeyboardEvent) => {
+      if (activeModule !== 'mail' || isComposeOpen || isSettingsOpen) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w' && activeTabEmailId) {
+        e.preventDefault();
+        handleCloseEmailTab(activeTabEmailId);
+        return;
+      }
+      if (e.ctrlKey && e.key === 'Tab' && openEmailTabs.length > 0) {
+        e.preventDefault();
+        const cycle: Array<string | null> = [null, ...openEmailTabs.map((t) => t.id)];
+        const currentIdx = cycle.indexOf(activeTabEmailId);
+        const step = e.shiftKey ? -1 : 1;
+        const nextIdx = (currentIdx + step + cycle.length) % cycle.length;
+        setActiveTabEmailId(cycle[nextIdx]);
+      }
+    };
+    window.addEventListener('keydown', onTabKeyDown);
+    return () => window.removeEventListener('keydown', onTabKeyDown);
+  }, [activeModule, isComposeOpen, isSettingsOpen, activeTabEmailId, openEmailTabs, handleCloseEmailTab]);
 
   // Efeito de segurança: garante que selectedEmailId nunca aponte para um e-mail de outra conta
   useEffect(() => {
@@ -3270,15 +3355,16 @@ export const App: React.FC = () => {
                   emails={currentFolderEmails}
                   selectedEmailId={selectedEmailId}
                   onSelectEmail={(id) => {
+                    setActiveTabEmailId(null);
                     handleSelectEmail(id);
                     if (emailLayoutMode === 'fullscreen') {
                       setIsFullscreenReading(true);
                     }
                   }}
                   onDoubleClickEmail={(id) => {
-                    handleSelectEmail(id);
-                    setIsReaderModalOpen(true);
+                    handleOpenEmailInTab(id);
                   }}
+                  onOpenInNewTab={handleOpenEmailInTab}
                   onToggleStar={handleToggleStar}
                   searchQuery={searchQuery}
                   onSearchChange={setSearchQuery}
@@ -3340,52 +3426,63 @@ export const App: React.FC = () => {
                 <div className="fixed inset-0 z-50 cursor-col-resize" />
               )}
 
-            {/* Column 3: Email Reading View */}
-            {(emailLayoutMode !== 'fullscreen' || (isFullscreenReading && selectedEmail)) && (
-              <EmailView
-                email={selectedEmail}
-                threadMessages={
-                  groupByThread && selectedEmail
-                    ? getThreadMessagesForEmail(selectedEmail, emails)
-                    : undefined
-                }
-                onArchive={handleArchive}
-                onSnooze={handleSnooze}
-                onDelete={handleDelete}
-                onReply={handleReply}
-                onReplyAll={handleReplyAll}
-                onForward={handleForward}
-                onExpandModal={() => setIsReaderModalOpen(true)}
-                customFolders={customFolders.filter((f) => f.accountId === currentAccount.id)}
-                onMoveToFolder={handleMoveToFolder}
-                onMarkSpam={(id) => handleMarkSpam([id])}
-                onUnmarkSpam={handleUnmarkSpam}
-                onAddContact={handleAddContact}
-                isSenderSaved={isEmailSavedAsContact(selectedEmail?.senderEmail)}
-                onToggleTask={handleToggleTask}
-                onToggleReadingList={handleToggleReadingList}
-                onToggleImportant={handleToggleImportant}
-                blockExternalImages={settings.security.blockExternalImages}
-                blockTrackingPixels={settings.security.blockTrackingPixels ?? true}
-                blockBlockedSenders={settings.security.blockBlockedSenders ?? true}
-                onChangePrivacySetting={handleQuickPrivacyChange}
-                onSendReadReceipt={handleSendReadReceipt}
-                onComposeNewEmail={() => {
-                  const defaultAcc =
-                    settings.accounts?.find((a) => a.isDefault) ||
-                    settings.accounts?.[0] ||
-                    currentAccount;
-                  setComposeDraftId(undefined);
-                  setComposeDefaults({ recipient: '', subject: '', body: '' });
-                  setComposeAccountId(defaultAcc?.id);
-                  setIsComposeOpen(true);
-                }}
-                onBackToList={
-                  emailLayoutMode === 'fullscreen'
-                    ? () => setIsFullscreenReading(false)
-                    : undefined
-                }
-              />
+            {/* Column 3: Email Reading View + Abas de E-mail */}
+            {(emailLayoutMode !== 'fullscreen' || (isFullscreenReading && displayedEmail)) && (
+              <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+                <EmailTabsBar
+                  tabs={openEmailTabs}
+                  activeTabId={activeTabEmailId}
+                  onSelectTab={(tabId) => setActiveTabEmailId(tabId)}
+                  onCloseTab={handleCloseEmailTab}
+                  onCloseAllTabs={handleCloseAllEmailTabs}
+                />
+                <EmailView
+                  email={displayedEmail}
+                  threadMessages={
+                    groupByThread && displayedEmail
+                      ? getThreadMessagesForEmail(displayedEmail, emails)
+                      : undefined
+                  }
+                  onArchive={handleArchive}
+                  onSnooze={handleSnooze}
+                  onDelete={handleDelete}
+                  onReply={handleReply}
+                  onReplyAll={handleReplyAll}
+                  onForward={handleForward}
+                  onExpandModal={() => setIsReaderModalOpen(true)}
+                  onOpenInNewTab={handleOpenEmailInTab}
+                  isInTab={Boolean(activeTabEmailId && displayedEmail?.id === activeTabEmailId)}
+                  customFolders={customFolders.filter((f) => f.accountId === currentAccount.id)}
+                  onMoveToFolder={handleMoveToFolder}
+                  onMarkSpam={(id) => handleMarkSpam([id])}
+                  onUnmarkSpam={handleUnmarkSpam}
+                  onAddContact={handleAddContact}
+                  isSenderSaved={isEmailSavedAsContact(displayedEmail?.senderEmail)}
+                  onToggleTask={handleToggleTask}
+                  onToggleReadingList={handleToggleReadingList}
+                  onToggleImportant={handleToggleImportant}
+                  blockExternalImages={settings.security.blockExternalImages}
+                  blockTrackingPixels={settings.security.blockTrackingPixels ?? true}
+                  blockBlockedSenders={settings.security.blockBlockedSenders ?? true}
+                  onChangePrivacySetting={handleQuickPrivacyChange}
+                  onSendReadReceipt={handleSendReadReceipt}
+                  onComposeNewEmail={() => {
+                    const defaultAcc =
+                      settings.accounts?.find((a) => a.isDefault) ||
+                      settings.accounts?.[0] ||
+                      currentAccount;
+                    setComposeDraftId(undefined);
+                    setComposeDefaults({ recipient: '', subject: '', body: '' });
+                    setComposeAccountId(defaultAcc?.id);
+                    setIsComposeOpen(true);
+                  }}
+                  onBackToList={
+                    emailLayoutMode === 'fullscreen'
+                      ? () => setIsFullscreenReading(false)
+                      : undefined
+                  }
+                />
+              </div>
             )}
           </div>
         )}
@@ -3439,10 +3536,10 @@ export const App: React.FC = () => {
       {/* Caixa de Leitura Expandida do E-mail (ao clicar na mensagem) */}
       <EmailReaderModal
         isOpen={isReaderModalOpen}
-        email={selectedEmail}
+        email={displayedEmail}
         threadMessages={
-          groupByThread && selectedEmail
-            ? getThreadMessagesForEmail(selectedEmail, emails)
+          groupByThread && displayedEmail
+            ? getThreadMessagesForEmail(displayedEmail, emails)
             : undefined
         }
         onClose={() => setIsReaderModalOpen(false)}
@@ -3453,7 +3550,7 @@ export const App: React.FC = () => {
         onReplyAll={handleReplyAll}
         onForward={handleForward}
         onAddContact={handleAddContact}
-        isSenderSaved={isEmailSavedAsContact(selectedEmail?.senderEmail)}
+        isSenderSaved={isEmailSavedAsContact(displayedEmail?.senderEmail)}
         onSendReadReceipt={handleSendReadReceipt}
         blockExternalImages={settings.security.blockExternalImages}
         blockTrackingPixels={settings.security.blockTrackingPixels ?? true}

@@ -23,6 +23,7 @@ import {
   CheckCheck,
   Clock,
   MessagesSquare,
+  ExternalLink,
 } from 'lucide-react';
 import { CustomFolder, EmailItem, MailFolder, TimePeriod } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
@@ -42,6 +43,7 @@ interface EmailListProps {
   selectedEmailId: string | null;
   onSelectEmail: (id: string) => void;
   onDoubleClickEmail?: (id: string) => void;
+  onOpenInNewTab?: (id: string) => void;
   onToggleStar: (id: string, e: React.MouseEvent) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
@@ -93,6 +95,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       selectedEmailId,
       onSelectEmail,
       onDoubleClickEmail,
+      onOpenInNewTab,
       onToggleStar,
       searchQuery,
       onSearchChange,
@@ -841,6 +844,14 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                             onDoubleClick={() => {
                               onDoubleClickEmail?.(email.id);
                             }}
+                            onAuxClick={(e) => {
+                              if (e.button === 1 && onOpenInNewTab) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                soundService.play('pop');
+                                onOpenInNewTab(email.id);
+                              }
+                            }}
                             className={`group/card p-3 cursor-pointer transition-all relative rounded-xl border flex items-start space-x-2.5 ${
                               isChecked
                                 ? 'bg-brand-600/10 border-brand-500/50 shadow-md'
@@ -1030,6 +1041,20 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                                       </div>
                                     );
                                   })()
+                                )}
+                                {onOpenInNewTab && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      soundService.play('pop');
+                                      onOpenInNewTab(email.id);
+                                    }}
+                                    title="Abrir em nova aba (ou clique do meio)"
+                                    className="opacity-0 group-hover/card:opacity-100 text-slate-500 hover:text-brand-400 p-0.5 transition-opacity"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                  </button>
                                 )}
                                 <button
                                   onClick={(e) => {

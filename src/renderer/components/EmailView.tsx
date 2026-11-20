@@ -124,6 +124,8 @@ interface EmailViewProps {
   onSendReadReceipt?: (email: EmailItem) => Promise<void> | void;
   onComposeNewEmail?: () => void;
   threadMessages?: EmailItem[];
+  onOpenInNewTab?: (id: string) => void;
+  isInTab?: boolean;
 }
 
 export const EmailView: React.FC<EmailViewProps> = ({
@@ -153,6 +155,8 @@ export const EmailView: React.FC<EmailViewProps> = ({
   onSendReadReceipt,
   onComposeNewEmail,
   threadMessages,
+  onOpenInNewTab,
+  isInTab = false,
 }) => {
   const [revealedImagesEmailIds, setRevealedImagesEmailIds] = useState<Record<string, boolean>>({});
   const [expandedThreadIds, setExpandedThreadIds] = useState<Record<string, boolean>>({});
@@ -665,6 +669,22 @@ export const EmailView: React.FC<EmailViewProps> = ({
                       </select>
                     ) : (
                       <div className="h-[30px]" aria-hidden="true" />
+                    )}
+
+                    {!isModalMode && !isInTab && onOpenInNewTab && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMoreMenuOpen(false);
+                          soundService.play('pop');
+                          onOpenInNewTab(email.id);
+                        }}
+                        className="flex items-center space-x-1.5 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-950/80 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors"
+                        title="Fixar este e-mail em uma nova aba"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0 text-sky-400" />
+                        <span>Abrir em aba</span>
+                      </button>
                     )}
 
                     {!isModalMode && onExpandModal && (

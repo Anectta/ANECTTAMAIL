@@ -1322,6 +1322,24 @@ body.clean-white,
   color: #2563eb;
 }
 
+/* Barra de Abas de E-mail no tema Clean White */
+.clean-white .email-tabs-bar {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+.clean-white .email-tabs-bar [role="tab"][aria-selected="true"],
+.clean-white .email-tabs-bar button.border-brand-500 {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+.clean-white .email-tabs-bar [role="tab"][aria-selected="false"] {
+  color: #475569 !important;
+}
+.clean-white .email-tabs-bar [role="tab"][aria-selected="false"]:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
 /* Coluna lateral de anúncios no Clean White */
 .clean-white .ad-sidebar {
   background-color: #f3f5f7 !important;
