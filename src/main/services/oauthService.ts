@@ -42,6 +42,8 @@ function getProviderConfig(provider: OAuthProvider, customClientId?: string) {
         'https://outlook.office.com/IMAP.AccessAsUser.All',
         'https://outlook.office.com/SMTP.Send',
         'User.Read',
+        'Calendars.ReadWrite',
+        'Contacts.ReadWrite',
       ].join(' '),
     };
   }
@@ -51,7 +53,13 @@ function getProviderConfig(provider: OAuthProvider, customClientId?: string) {
     clientId,
     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenUrl: 'https://oauth2.googleapis.com/token',
-    scopes: 'https://mail.google.com/ email profile',
+    scopes: [
+      'https://mail.google.com/',
+      'https://www.googleapis.com/auth/calendar',
+      'https://www.googleapis.com/auth/contacts',
+      'email',
+      'profile',
+    ].join(' '),
   };
 }
 

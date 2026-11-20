@@ -417,6 +417,14 @@ const electronAPI = {
     ipcRenderer.invoke('oauth:start', payload),
   refreshOAuthToken: (payload: { provider: 'microsoft' | 'google'; refreshToken: string; clientId?: string }) =>
     ipcRenderer.invoke('oauth:refresh', payload),
+  testDavConnection: (payload: { url: string; username: string; password: string }) =>
+    ipcRenderer.invoke('sync:test-dav', payload),
+  syncCloudCalendar: (payload: any) =>
+    ipcRenderer.invoke('sync:calendar', payload),
+  pushCloudCalendarEvent: (payload: any) =>
+    ipcRenderer.invoke('sync:push-calendar-event', payload),
+  syncCloudContacts: (payload: any) =>
+    ipcRenderer.invoke('sync:contacts', payload),
   setMinimizeToTray: (enabled: boolean) =>
     ipcRenderer.invoke('system:set-minimize-to-tray', enabled),
 

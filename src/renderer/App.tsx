@@ -1335,6 +1335,255 @@ export const App: React.FC = () => {
     []
   );
 
+  const handleSyncCloudCalendar = useCallback(async (): Promise<string> => {
+    if (!window.electronAPI?.syncCloudCalendar) {
+      return 'Sincronização em nuvem disponível apenas no aplicativo desktop.';
+    }
+
+    const connectedIds = settings.calendar?.connectedAccountIds || [];
+    const oauthAccounts = (settings.accounts || []).filter((acc) => {
+      const isOAuth =
+        acc.authType === 'oauth2' &&
+        (acc.oauthProvider === 'google' || acc.oauthProvider === 'microsoft') &&
+        Boolean(acc.oauthAccessToken || acc.oauthRefreshToken);
+      if (!isOAuth) return false;
+      if (connectedIds.length > 0 && !connectedIds.includes(acc.id)) return false;
+      return true;
+    });
+
+    const caldavSources = (settings.calendar?.davSources || []).filter(
+      (src) => src.syncCalendar && Boolean(src.caldavUrl?.trim())
+    );
+
+    if (oauthAccounts.length === 0 && caldavSources.length === 0) {
+      return 'Nenhuma conta Google/Microsoft OAuth ou servidor CalDAV configurado. Adicione em Configurações → Calendário.';
+    }
+
+    const fetchedEvents: any[] = [];
+    const errors: string[] = [];
+
+    for (const acc of oauthAccounts) {
+      try {
+        const accessToken = await ensureFreshAccessToken(acc);
+        if (!accessToken || !acc.oauthProvider) {
+          errors.push(`${acc.email}: token OAuth indisponível`);
+          continue;
+        }
+        const res = await window.electronAPI.syncCloudCalendar({
+          provider: acc.oauthProvider,
+          accessToken,
+          sourceLabel: acc.displayName || acc.email,
+        });
+        if (res.success && Array.isArray(res.events)) {
+          fetchedEvents.push(...res.events);
+        } else if (res.error) {
+          errors.push(`${acc.email}: ${res.error}`);
+        }
+      } catch (err: any) {
+        errors.push(`${acc.email}: ${err?.message || 'erro desconhecido'}`);
+      }
+    }
+
+    for (const src of caldavSources) {
+      try {
+        const res = await window.electronAPI.syncCloudCalendar({
+          provider: 'caldav',
+          caldavUrl: src.caldavUrl,
+          username: src.username,
+          password: src.password,
+          sourceLabel: src.name,
+        });
+        if (res.success && Array.isArray(res.events)) {
+          fetchedEvents.push(...res.events);
+        } else if (res.error) {
+          errors.push(`${src.name}: ${res.error}`);
+        }
+      } catch (err: any) {
+        errors.push(`${src.name}: ${err?.message || 'erro desconhecido'}`);
+      }
+    }
+
+    let added = 0;
+    let updated = 0;
+    if (fetchedEvents.length > 0) {
+      try {
+        const key = 'anectta_mail_calendar_events_v1';
+        const raw = localStorage.getItem(key);
+        const existing: any[] = raw ? JSON.parse(raw) : [];
+        const byId = new Map<string, any>();
+        for (const ev of existing) {
+          if (ev?.id) byId.set(String(ev.id), ev);
+        }
+        for (const ev of fetchedEvents) {
+          if (!ev?.id) continue;
+          if (byId.has(String(ev.id))) {
+            updated++;
+          } else {
+            added++;
+          }
+          byId.set(String(ev.id), ev);
+        }
+        const merged = Array.from(byId.values());
+        localStorage.setItem(key, JSON.stringify(merged));
+        window.dispatchEvent(new Event('anectta:calendar-updated'));
+        soundService.play('pop');
+      } catch {
+        // ignore storage parse errors
+      }
+    }
+
+    if (errors.length > 0 && fetchedEvents.length === 0) {
+      const msg = `Falha na sincronização: ${errors[0]}`;
+      showToast(msg);
+      return msg;
+    }
+
+    const summary =
+      errors.length > 0
+        ? `Nuvem sincronizada: ${added} novo(s), ${updated} atualizado(s) (${errors.length} aviso(s)).`
+        : `Nuvem sincronizada: ${added} novo(s), ${updated} atualizado(s).`;
+    showToast(`✓ ${summary}`);
+    return summary;
+  }, [settings.accounts, settings.calendar, ensureFreshAccessToken]);
+
+  const handlePushCalendarEventToCloud = useCallback(
+    async (event: any): Promise<void> => {
+      if (!window.electronAPI?.pushCloudCalendarEvent) return;
+
+      const connectedIds = settings.calendar?.connectedAccountIds || [];
+      const oauthAcc = (settings.accounts || []).find((acc) => {
+        const isOAuth =
+          acc.authType === 'oauth2' &&
+          (acc.oauthProvider === 'google' || acc.oauthProvider === 'microsoft') &&
+          Boolean(acc.oauthAccessToken || acc.oauthRefreshToken);
+        if (!isOAuth) return false;
+        if (connectedIds.length > 0 && !connectedIds.includes(acc.id)) return false;
+        return true;
+      });
+
+      if (oauthAcc && oauthAcc.oauthProvider) {
+        try {
+          const accessToken = await ensureFreshAccessToken(oauthAcc);
+          if (accessToken) {
+            const res = await window.electronAPI.pushCloudCalendarEvent({
+              provider: oauthAcc.oauthProvider,
+              accessToken,
+              event,
+            });
+            if (res.success) {
+              showToast(`☁️ Compromisso enviado para ${oauthAcc.oauthProvider === 'google' ? 'Google Calendar' : 'Microsoft 365'}.`);
+            }
+          }
+        } catch {
+          // ignore background push error
+        }
+        return;
+      }
+
+      const caldavSrc = (settings.calendar?.davSources || []).find(
+        (src) => src.syncCalendar && Boolean(src.caldavUrl?.trim())
+      );
+      if (caldavSrc?.caldavUrl) {
+        try {
+          const res = await window.electronAPI.pushCloudCalendarEvent({
+            provider: 'caldav',
+            caldavUrl: caldavSrc.caldavUrl,
+            username: caldavSrc.username,
+            password: caldavSrc.password,
+            event,
+          });
+          if (res.success) {
+            showToast(`☁️ Compromisso enviado para CalDAV (${caldavSrc.name}).`);
+          }
+        } catch {
+          // ignore background push error
+        }
+      }
+    },
+    [settings.accounts, settings.calendar, ensureFreshAccessToken]
+  );
+
+  const handleSyncCloudContacts = useCallback(async (): Promise<string> => {
+    if (!window.electronAPI?.syncCloudContacts) {
+      return 'Sincronização em nuvem disponível apenas no aplicativo desktop.';
+    }
+
+    const oauthAccounts = (settings.accounts || []).filter(
+      (acc) =>
+        acc.authType === 'oauth2' &&
+        (acc.oauthProvider === 'google' || acc.oauthProvider === 'microsoft') &&
+        Boolean(acc.oauthAccessToken || acc.oauthRefreshToken)
+    );
+
+    const carddavSources = (settings.calendar?.davSources || []).filter(
+      (src) => src.syncContacts && Boolean(src.carddavUrl?.trim())
+    );
+
+    if (oauthAccounts.length === 0 && carddavSources.length === 0) {
+      return 'Nenhuma conta Google/Microsoft OAuth ou servidor CardDAV configurado. Adicione em Configurações → Calendário.';
+    }
+
+    const fetchedContacts: Array<Omit<CorporateContact, 'id'>> = [];
+    const errors: string[] = [];
+
+    for (const acc of oauthAccounts) {
+      try {
+        const accessToken = await ensureFreshAccessToken(acc);
+        if (!accessToken || !acc.oauthProvider) {
+          errors.push(`${acc.email}: token OAuth indisponível`);
+          continue;
+        }
+        const res = await window.electronAPI.syncCloudContacts({
+          provider: acc.oauthProvider,
+          accessToken,
+          sourceLabel: acc.displayName || acc.email,
+        });
+        if (res.success && Array.isArray(res.contacts)) {
+          fetchedContacts.push(...res.contacts);
+        } else if (res.error) {
+          errors.push(`${acc.email}: ${res.error}`);
+        }
+      } catch (err: any) {
+        errors.push(`${acc.email}: ${err?.message || 'erro desconhecido'}`);
+      }
+    }
+
+    for (const src of carddavSources) {
+      try {
+        const res = await window.electronAPI.syncCloudContacts({
+          provider: 'carddav',
+          carddavUrl: src.carddavUrl,
+          username: src.username,
+          password: src.password,
+          sourceLabel: src.name,
+        });
+        if (res.success && Array.isArray(res.contacts)) {
+          fetchedContacts.push(...res.contacts);
+        } else if (res.error) {
+          errors.push(`${src.name}: ${res.error}`);
+        }
+      } catch (err: any) {
+        errors.push(`${src.name}: ${err?.message || 'erro desconhecido'}`);
+      }
+    }
+
+    if (errors.length > 0 && fetchedContacts.length === 0) {
+      const msg = `Falha na sincronização: ${errors[0]}`;
+      showToast(msg);
+      return msg;
+    }
+
+    const addedCount = handleImportContacts(fetchedContacts);
+    const summary =
+      addedCount > 0
+        ? `Sincronização concluída: ${addedCount} novo(s) contato(s) de ${fetchedContacts.length} encontrado(s).`
+        : `Sincronização concluída: ${fetchedContacts.length} contato(s) verificado(s), nenhum novo para adicionar.`;
+    if (addedCount === 0) {
+      showToast(`✓ ${summary}`);
+    }
+    return summary;
+  }, [settings.accounts, settings.calendar, ensureFreshAccessToken, handleImportContacts]);
+
   // Sync with real IMAP server (multi-folder) or POP3 across all configured accounts
   const handleSyncAll = useCallback(async (opts?: { silent?: boolean; background?: boolean }) => {
     const silent = opts?.silent === true;
@@ -3595,6 +3844,8 @@ export const App: React.FC = () => {
             calendarSettings={settings.calendar}
             defaultOrganizer={currentAccount?.displayName || currentAccount?.email}
             accounts={settings.accounts}
+            onSyncCloudCalendar={handleSyncCloudCalendar}
+            onPushEventToCloud={handlePushCalendarEventToCloud}
           />
         )}
 
@@ -3604,6 +3855,7 @@ export const App: React.FC = () => {
             contacts={contacts}
             onAddContact={handleAddContact}
             onImportContacts={handleImportContacts}
+            onSyncCloudContacts={handleSyncCloudContacts}
             onUpdateContact={handleUpdateContact}
             onDeleteContact={handleDeleteContact}
             onComposeToContact={(email) => {

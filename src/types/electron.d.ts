@@ -265,6 +265,35 @@ export interface ElectronAPI {
     clientId?: string;
     error?: string;
   }>;
+  testDavConnection?: (payload: {
+    url: string;
+    username: string;
+    password: string;
+  }) => Promise<{ success: boolean; message: string }>;
+  syncCloudCalendar?: (payload: {
+    provider: 'google' | 'microsoft' | 'caldav';
+    accessToken?: string;
+    caldavUrl?: string;
+    username?: string;
+    password?: string;
+    sourceLabel?: string;
+  }) => Promise<{ success: boolean; events?: any[]; error?: string }>;
+  pushCloudCalendarEvent?: (payload: {
+    provider: 'google' | 'microsoft' | 'caldav';
+    accessToken?: string;
+    caldavUrl?: string;
+    username?: string;
+    password?: string;
+    event: any;
+  }) => Promise<{ success: boolean; remoteId?: string; error?: string }>;
+  syncCloudContacts?: (payload: {
+    provider: 'google' | 'microsoft' | 'carddav';
+    accessToken?: string;
+    carddavUrl?: string;
+    username?: string;
+    password?: string;
+    sourceLabel?: string;
+  }) => Promise<{ success: boolean; contacts?: any[]; error?: string }>;
   setMinimizeToTray?: (enabled: boolean) => Promise<boolean>;
   openExternal?: (url: string) => Promise<{ success: boolean; error?: string }>;
   minimizeWindow: () => void;

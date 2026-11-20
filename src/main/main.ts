@@ -12,6 +12,7 @@ import { SearchIndexService } from './services/searchIndexService';
 import { AIAssistantService } from './services/aiAssistantService';
 import { EmlExporterService } from './services/emlExporterService';
 import { OAuthService, OAuthProvider } from './services/oauthService';
+import { CloudSyncService } from './services/cloudSyncService';
 import { simpleParser } from 'mailparser';
 import { ensureTlsTrust } from './services/tlsTrust';
 import {
@@ -1955,6 +1956,22 @@ ipcMain.handle(
     return await OAuthService.refreshAccessToken(payload);
   }
 );
+
+ipcMain.handle('sync:test-dav', async (_event, payload: { url: string; username: string; password: string }) => {
+  return await CloudSyncService.testDavConnection(payload);
+});
+
+ipcMain.handle('sync:calendar', async (_event, payload: any) => {
+  return await CloudSyncService.syncCalendar(payload);
+});
+
+ipcMain.handle('sync:push-calendar-event', async (_event, payload: any) => {
+  return await CloudSyncService.pushCalendarEvent(payload);
+});
+
+ipcMain.handle('sync:contacts', async (_event, payload: any) => {
+  return await CloudSyncService.syncContacts(payload);
+});
 
 // ==========================================
 // Funções do Sistema: Sons Nativos & Templates Locais

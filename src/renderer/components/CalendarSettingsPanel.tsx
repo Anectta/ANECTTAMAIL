@@ -1,6 +1,6 @@
-import React from 'react';
-import { Calendar, Clock, Globe, Mail } from 'lucide-react';
-import { AccountSettings, CalendarSettings } from '@/types/settings';
+import React, { useState } from 'react';
+import { Calendar, Clock, Globe, Mail, Plus, Trash2, Cloud, CheckCircle, AlertCircle } from 'lucide-react';
+import { AccountSettings, CalendarSettings, DavSyncSource } from '@/types/settings';
 
 interface CalendarSettingsPanelProps {
   calendar: CalendarSettings;
@@ -14,6 +14,74 @@ export const CalendarSettingsPanel: React.FC<CalendarSettingsPanelProps> = ({
   onChangeCalendar,
 }) => {
   const connectedIds = calendar.connectedAccountIds || [];
+  const davSources = calendar.davSources || [];
+
+  const [isAddingDav, setIsAddingDav] = useState(false);
+  const [davName, setDavName] = useState('');
+  const [davCalUrl, setDavCalUrl] = useState('');
+  const [davCardUrl, setDavCardUrl] = useState('');
+  const [davUser, setDavUser] = useState('');
+  const [davPass, setDavPass] = useState('');
+  const [davTestResult, setDavTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [isTestingDav, setIsTestingDav] = useState(false);
+
+  const handleTestDav = async () => {
+    const targetUrl = davCalUrl.trim() || davCardUrl.trim();
+    if (!targetUrl || !window.electronAPI?.testDavConnection) return;
+    setIsTestingDav(true);
+    setDavTestResult(null);
+    try {
+      const res = await window.electronAPI.testDavConnection({
+        url: targetUrl,
+        username: davUser.trim(),
+        password: davPass,
+      });
+      setDavTestResult({ ok: res.success, msg: res.message });
+    } catch (err: any) {
+      setDavTestResult({ ok: false, msg: err?.message || 'Erro ao testar servidor DAV.' });
+    } finally {
+      setIsTestingDav(false);
+    }
+  };
+
+  const handleAddDavSource = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = davName.trim() || 'Servidor DAV';
+    const cleanCal = davCalUrl.trim();
+    const cleanCard = davCardUrl.trim();
+    if (!cleanCal && !cleanCard) return;
+
+    const newSource: DavSyncSource = {
+      id: `dav-${Date.now()}`,
+      name: cleanName,
+      provider: cleanCal && cleanCard ? 'dav_both' : cleanCal ? 'caldav' : 'carddav',
+      caldavUrl: cleanCal || undefined,
+      carddavUrl: cleanCard || undefined,
+      username: davUser.trim(),
+      password: davPass,
+      syncCalendar: Boolean(cleanCal),
+      syncContacts: Boolean(cleanCard),
+    };
+
+    onChangeCalendar({
+      ...calendar,
+      davSources: [...davSources, newSource],
+    });
+    setDavName('');
+    setDavCalUrl('');
+    setDavCardUrl('');
+    setDavUser('');
+    setDavPass('');
+    setDavTestResult(null);
+    setIsAddingDav(false);
+  };
+
+  const handleRemoveDavSource = (id: string) => {
+    onChangeCalendar({
+      ...calendar,
+      davSources: davSources.filter((s) => s.id !== id),
+    });
+  };
 
   const toggleAccount = (accountId: string) => {
     const exists = connectedIds.includes(accountId);
@@ -183,6 +251,144 @@ export const CalendarSettingsPanel: React.FC<CalendarSettingsPanelProps> = ({
             <option value={120}>120 minutos</option>
           </select>
         </div>
+      </div>
+      {/* Card 4: Sincronização em Nuvem (CalDAV / CardDAV / Google / M365) */}
+      <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center space-x-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <Cloud className="w-3.5 h-3.5 text-sky-400" />
+            <span>Servidores CalDAV / CardDAV (Sincronização em Nuvem)</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsAddingDav((v) => !v);
+              setDavTestResult(null);
+            }}
+            className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-brand-600 hover:bg-brand-500 text-white transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{isAddingDav ? 'Cancelar' : 'Adicionar CalDAV / CardDAV'}</span>
+          </button>
+        </div>
+
+        <p className="text-[11px] text-slate-400 leading-relaxed">
+          Contas <strong>Google</strong> e <strong>Microsoft 365</strong> conectadas via OAuth 2.0 sincronizam Calendário e Contatos automaticamente ao clicar em <em>Sincronizar Nuvem</em>. Use esta seção para servidores <strong>CalDAV / CardDAV</strong> (iCloud, Nextcloud, Zimbra, Fastmail, OwnCloud).
+        </p>
+
+        {isAddingDav && (
+          <form
+            onSubmit={handleAddDavSource}
+            className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5 text-xs"
+          >
+            <input
+              type="text"
+              required
+              value={davName}
+              onChange={(e) => setDavName(e.target.value)}
+              placeholder="Nome da conexão (ex: Nextcloud Empresa, iCloud, Zimbra)"
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+            />
+            <input
+              type="url"
+              value={davCalUrl}
+              onChange={(e) => setDavCalUrl(e.target.value)}
+              placeholder="URL CalDAV do Calendário (ex: https://cloud.empresa.com/remote.php/dav/calendars/user/personal/)"
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-brand-500"
+            />
+            <input
+              type="url"
+              value={davCardUrl}
+              onChange={(e) => setDavCardUrl(e.target.value)}
+              placeholder="URL CardDAV de Contatos (ex: https://cloud.empresa.com/remote.php/dav/addressbooks/users/user/contacts/)"
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-brand-500"
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input
+                type="text"
+                required
+                value={davUser}
+                onChange={(e) => setDavUser(e.target.value)}
+                placeholder="Usuário / E-mail"
+                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+              />
+              <input
+                type="password"
+                required
+                value={davPass}
+                onChange={(e) => setDavPass(e.target.value)}
+                placeholder="Senha ou senha de aplicativo"
+                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+              />
+            </div>
+
+            {davTestResult && (
+              <div
+                className={`px-2.5 py-1.5 rounded-lg text-[11px] flex items-center space-x-1.5 border ${
+                  davTestResult.ok
+                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                    : 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                }`}
+              >
+                {davTestResult.ok ? (
+                  <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                )}
+                <span>{davTestResult.msg}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end space-x-2 pt-1">
+              <button
+                type="button"
+                disabled={isTestingDav || (!davCalUrl.trim() && !davCardUrl.trim())}
+                onClick={handleTestDav}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 text-xs font-medium"
+              >
+                {isTestingDav ? 'Testando...' : 'Testar conexão'}
+              </button>
+              <button
+                type="submit"
+                disabled={!davCalUrl.trim() && !davCardUrl.trim()}
+                className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-xs font-semibold"
+              >
+                Salvar servidor
+              </button>
+            </div>
+          </form>
+        )}
+
+        {davSources.length > 0 && (
+          <div className="space-y-2">
+            {davSources.map((src) => (
+              <div
+                key={src.id}
+                className="p-2.5 rounded-lg bg-slate-900/70 border border-slate-800 flex items-center justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-slate-100 truncate">
+                    {src.name}{' '}
+                    <span className="text-[10px] font-normal text-sky-400">
+                      ({src.caldavUrl && src.carddavUrl ? 'CalDAV + CardDAV' : src.caldavUrl ? 'CalDAV' : 'CardDAV'})
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono truncate">
+                    {src.username} • {src.caldavUrl || src.carddavUrl}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveDavSource(src.id)}
+                  className="p-1.5 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors shrink-0"
+                  title="Remover servidor DAV"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

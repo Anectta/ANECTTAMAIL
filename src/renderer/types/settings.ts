@@ -205,12 +205,26 @@ export interface NotificationSettings {
   confirmations?: ConfirmationSettings;
 }
 
+export interface DavSyncSource {
+  id: string;
+  name: string;
+  provider: 'caldav' | 'carddav' | 'dav_both';
+  caldavUrl?: string;
+  carddavUrl?: string;
+  username: string;
+  password: string;
+  syncCalendar: boolean;
+  syncContacts: boolean;
+  lastSyncedAt?: string;
+}
+
 export interface CalendarSettings {
   connectedAccountIds: string[];
   use24HourFormat: boolean;
   showWeekNumbers: boolean;
   weekStartsOn: 'sunday' | 'monday' | 'saturday';
   defaultEventDurationMinutes: 15 | 30 | 60 | 90 | 120;
+  davSources?: DavSyncSource[];
 }
 
 export interface CustomWebApp {

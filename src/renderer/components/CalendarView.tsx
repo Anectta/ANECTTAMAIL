@@ -23,6 +23,7 @@ import {
   Users,
   Video,
   X,
+  RefreshCw,
 } from 'lucide-react';
 import { AccountSettings, CalendarSettings } from '@/types/settings';
 import {
@@ -125,12 +126,16 @@ interface CalendarViewProps {
   calendarSettings?: CalendarSettings;
   defaultOrganizer?: string;
   accounts?: AccountSettings[];
+  onSyncCloudCalendar?: () => Promise<string>;
+  onPushEventToCloud?: (event: CalendarEvent) => Promise<void>;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   calendarSettings,
   defaultOrganizer,
   accounts,
+  onSyncCloudCalendar,
+  onPushEventToCloud,
 }) => {
   const use24HourFormat = calendarSettings?.use24HourFormat ?? true;
   const showWeekNumbers = calendarSettings?.showWeekNumbers ?? false;
@@ -190,6 +195,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedColorFilter, setSelectedColorFilter] = useState<CalendarColorKey | 'all'>('all');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
 
   useEffect(() => {
     const syncFromStorage = () => {
@@ -457,6 +463,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       const nextEvents = [...events, payload];
       setEvents(nextEvents);
       void window.electronAPI?.saveCalendarData?.({ events: nextEvents, calendars, hiddenCalendarIds });
+      void onPushEventToCloud?.(payload);
       showToast('Compromisso salvo no calendário.');
     }
     setIsModalOpen(false);
@@ -864,6 +871,26 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             className="hidden"
             onChange={handleImportIcs}
           />
+          {onSyncCloudCalendar && (
+            <button
+              type="button"
+              disabled={isCloudSyncing}
+              onClick={async () => {
+                setIsCloudSyncing(true);
+                try {
+                  const msg = await onSyncCloudCalendar();
+                  if (msg) showToast(msg);
+                } finally {
+                  setIsCloudSyncing(false);
+                }
+              }}
+              className="flex items-center space-x-1 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-60 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-200 transition-colors"
+              title="Sincronizar compromissos da nuvem (Google, Microsoft 365 e CalDAV)"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-spin' : ''}`} />
+              <span className="hidden lg:inline">{isCloudSyncing ? 'Sincronizando...' : 'Sincronizar Nuvem'}</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}

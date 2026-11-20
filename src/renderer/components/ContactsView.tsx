@@ -15,6 +15,7 @@ import {
   Upload,
   Download,
   Tag,
+  RefreshCw,
 } from 'lucide-react';
 import { SenderAvatar } from './SenderAvatar';
 import {
@@ -46,6 +47,7 @@ interface ContactsViewProps {
   onDeleteContact?: (id: string) => void;
   onComposeToContact?: (email: string) => void;
   onComposeToGroup?: (emails: string[], groupName: string) => void;
+  onSyncCloudContacts?: () => Promise<string>;
 }
 
 export const ContactsView: React.FC<ContactsViewProps> = ({
@@ -56,6 +58,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
   onDeleteContact,
   onComposeToContact,
   onComposeToGroup,
+  onSyncCloudContacts,
 }) => {
   const [internalContacts, setInternalContacts] = useState<CorporateContact[]>(DEFAULT_CORPORATE_CONTACTS);
   const contacts = controlledContacts ?? internalContacts;
@@ -63,6 +66,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
   const [search, setSearch] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [ioNotice, setIoNotice] = useState<string | null>(null);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -292,6 +296,26 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
         </div>
 
         <div className="flex items-center flex-wrap gap-2 shrink-0">
+          {onSyncCloudContacts && (
+            <button
+              type="button"
+              disabled={isSyncingCloud}
+              onClick={async () => {
+                setIsSyncingCloud(true);
+                try {
+                  const msg = await onSyncCloudContacts();
+                  showNotice(msg);
+                } finally {
+                  setIsSyncingCloud(false);
+                }
+              }}
+              className="flex items-center space-x-1.5 px-3 py-2 bg-sky-50 hover:bg-sky-100 disabled:opacity-60 text-sky-700 border border-sky-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+              title="Sincronizar contatos do Google Contacts, Microsoft 365 e CardDAV"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+              <span>{isSyncingCloud ? 'Sincronizando...' : 'Sincronizar Nuvem'}</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
