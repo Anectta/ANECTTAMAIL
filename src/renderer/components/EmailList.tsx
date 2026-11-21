@@ -84,9 +84,11 @@ interface EmailListProps {
   onToggleGroupByThread?: () => void;
   serverTotalCount?: number;
   isLoadingOlder?: boolean;
+  isCancellingOlder?: boolean;
   loadingOlderProgress?: { mode: 'batch' | 'all'; downloaded: number; total?: number } | null;
   onLoadMoreFromServer?: () => void;
   onLoadAllFromServer?: () => void;
+  onCancelLoadOlder?: () => void;
 }
 
 const AUTOMATED_SENDER_REGEX =
@@ -137,9 +139,11 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       onToggleGroupByThread,
       serverTotalCount,
       isLoadingOlder = false,
+      isCancellingOlder = false,
       loadingOlderProgress = null,
       onLoadMoreFromServer,
       onLoadAllFromServer,
+      onCancelLoadOlder,
     },
     ref
   ) => {
@@ -964,11 +968,24 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                       : 'Baixando mais mensagens do servidor...'}
                   </span>
                 </div>
-                {loadingOlderProgress && loadingOlderProgress.downloaded > 0 && (
-                  <span className="text-[10px] font-mono text-brand-300 shrink-0">
-                    +{loadingOlderProgress.downloaded}
-                  </span>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  {loadingOlderProgress && loadingOlderProgress.downloaded > 0 && (
+                    <span className="text-[10px] font-mono text-brand-300">
+                      +{loadingOlderProgress.downloaded}
+                    </span>
+                  )}
+                  {onCancelLoadOlder && (
+                    <button
+                      type="button"
+                      disabled={isCancellingOlder}
+                      onClick={onCancelLoadOlder}
+                      className="px-2 py-0.5 rounded bg-rose-600/90 hover:bg-rose-500 disabled:opacity-50 text-white text-[10px] font-semibold transition-colors"
+                      title="Interromper download mantendo os e-mails já baixados"
+                    >
+                      {isCancellingOlder ? 'Cancelando...' : 'Cancelar'}
+                    </button>
+                  )}
+                </div>
               </div>
               {typeof serverTotalCount === 'number' && serverTotalCount > 0 && (
                 <div className="space-y-1">
@@ -1537,6 +1554,17 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                           ? `Baixando todas${loadingOlderProgress?.downloaded ? ` (+${loadingOlderProgress.downloaded})` : '...'}`
                           : `Baixar todas (+${serverTotalCount - emails.length})`}
                       </span>
+                    </button>
+                  )}
+                  {isLoadingOlder && onCancelLoadOlder && (
+                    <button
+                      type="button"
+                      disabled={isCancellingOlder}
+                      onClick={onCancelLoadOlder}
+                      className="px-3 py-1.5 rounded-lg bg-rose-600/90 hover:bg-rose-500 disabled:opacity-50 text-white text-[11px] font-semibold transition-colors"
+                      title="Interromper download mantendo os e-mails já baixados"
+                    >
+                      {isCancellingOlder ? 'Cancelando...' : 'Cancelar'}
                     </button>
                   )}
                 </div>

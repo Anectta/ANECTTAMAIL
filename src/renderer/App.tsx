@@ -1238,6 +1238,8 @@ export const App: React.FC = () => {
   const [isFlushingOutbox, setIsFlushingOutbox] = useState(false);
   const [serverFolderTotals, setServerFolderTotals] = useState<Record<string, number>>({});
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [isCancellingOlder, setIsCancellingOlder] = useState(false);
+  const cancelLoadOlderRef = useRef(false);
   const [loadingOlderProgress, setLoadingOlderProgress] = useState<{
     mode: 'batch' | 'all';
     downloaded: number;
@@ -1822,6 +1824,13 @@ export const App: React.FC = () => {
     }
   });
 
+  const handleCancelLoadOlder = useCallback(() => {
+    if (!isLoadingOlder) return;
+    cancelLoadOlderRef.current = true;
+    setIsCancellingOlder(true);
+    showToast('⏹️ Cancelando download... Os e-mails já baixados serão mantidos.');
+  }, [isLoadingOlder]);
+
   const handleLoadOlderFromServer = useCallback(
     async (loadAll: boolean = false) => {
       if (isLoadingOlder) return;
@@ -1841,6 +1850,8 @@ export const App: React.FC = () => {
         ? `imap:${customTarget.imapPath || customTarget.name}`
         : currentFolder;
 
+      cancelLoadOlderRef.current = false;
+      setIsCancellingOlder(false);
       setIsLoadingOlder(true);
       const initialKnownTotal =
         serverFolderTotals[`${targetAcc.id}:${currentFolder}`] ??
@@ -1870,7 +1881,7 @@ export const App: React.FC = () => {
               )
           );
 
-          while (keepGoing && loops < 30) {
+          while (keepGoing && loops < 30 && !cancelLoadOlderRef.current) {
             loops++;
             const res = await window.electronAPI.fetchRealInbox({
               protocol: 'pop3',
@@ -1913,7 +1924,7 @@ export const App: React.FC = () => {
               return merged;
             });
             showToast(`📥 Baixadas +${totalFetchedNow} mensagens antigas via POP3...`);
-            keepGoing = Boolean(loadAll && res.hasMore);
+            keepGoing = Boolean(loadAll && res.hasMore && !cancelLoadOlderRef.current);
           }
         } else if (window.electronAPI?.fetchOlderFolderMessages) {
           const accPrefix = `${targetAcc.id}-imap-${targetFolderKey}-`;
@@ -1931,7 +1942,7 @@ export const App: React.FC = () => {
           let keepGoing = true;
           let loops = 0;
 
-          while (keepGoing && loops < 40) {
+          while (keepGoing && loops < 40 && !cancelLoadOlderRef.current) {
             loops++;
             const batchSize = loadAll ? 200 : 150;
             const res = await window.electronAPI.fetchOlderFolderMessages({
@@ -1993,17 +2004,25 @@ export const App: React.FC = () => {
             }
 
             currentOffset += batchSize;
-            keepGoing = Boolean(loadAll && res.hasMore);
+            keepGoing = Boolean(loadAll && res.hasMore && !cancelLoadOlderRef.current);
           }
         }
 
-        if (totalFetchedNow > 0) {
+        if (cancelLoadOlderRef.current) {
+          showToast(
+            totalFetchedNow > 0
+              ? `⏹️ Download interrompido. +${totalFetchedNow} e-mail(s) já baixado(s) foram mantidos.`
+              : '⏹️ Download cancelado.'
+          );
+        } else if (totalFetchedNow > 0) {
           soundService.play('pop');
           showToast(`✓ Histórico atualizado: +${totalFetchedNow} mensagem(ns) baixada(s) do servidor!`);
         } else {
           showToast('✓ Todas as mensagens disponíveis desta pasta já estão baixadas.');
         }
       } finally {
+        cancelLoadOlderRef.current = false;
+        setIsCancellingOlder(false);
         setIsLoadingOlder(false);
         setLoadingOlderProgress(null);
       }
@@ -4663,9 +4682,11 @@ export const App: React.FC = () => {
                   onToggleGroupByThread={handleToggleGroupByThread}
                   serverTotalCount={currentFolderServerTotal}
                   isLoadingOlder={isLoadingOlder}
+                  isCancellingOlder={isCancellingOlder}
                   loadingOlderProgress={loadingOlderProgress}
                   onLoadMoreFromServer={() => void handleLoadOlderFromServer(false)}
                   onLoadAllFromServer={() => void handleLoadOlderFromServer(true)}
+                  onCancelLoadOlder={handleCancelLoadOlder}
                 />
               )}
 
