@@ -2276,7 +2276,12 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               }
             }}
             onDrop={handleEditorDrop}
-            className={`compose-message-canvas relative rounded-xl p-3 border transition-all flex flex-col min-h-[280px] ${
+            onClick={(e) => {
+              if (e.target === composeCanvasRef.current) {
+                editorRef.current?.focus();
+              }
+            }}
+            className={`compose-message-canvas relative rounded-xl p-3 border transition-all flex flex-col justify-between min-h-[256px] ${
               isDragOverEditor ? 'ring-2 ring-brand-500/70' : ''
             }`}
           >
@@ -2409,26 +2414,23 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 backgroundColor: 'transparent',
                 color: 'var(--text-primary)',
               }}
-              className={`compose-message-field compose-rich-editor w-full flex-1 min-h-[250px] max-h-[380px] overflow-y-auto bg-transparent border-0 text-xs focus:outline-none font-sans leading-relaxed custom-scroll ${
-                signatureDisplayHtml ? 'pb-16' : ''
+              className={`compose-message-field compose-rich-editor w-full bg-transparent border-0 text-xs focus:outline-none font-sans leading-relaxed ${
+                signatureDisplayHtml ? 'min-h-[120px] pb-3' : 'flex-1 min-h-[225px]'
               }`}
             />
 
             {signatureDisplayHtml && (
               <div
                 ref={signaturePreviewRef}
-                onMouseDown={startDragSignature}
+                onMouseDown={signaturePos ? startDragSignature : undefined}
                 onDragStart={(e) => e.preventDefault()}
-                title="Arraste para mover a assinatura"
                 style={{
                   color: 'var(--text-primary)',
-                  position: 'absolute',
                   ...(signaturePos
-                    ? { left: signaturePos.x, top: signaturePos.y }
-                    : { left: 12, bottom: 12 }),
-                  cursor: isDraggingSignature ? 'grabbing' : 'grab',
+                    ? { position: 'absolute', left: signaturePos.x, top: signaturePos.y, cursor: isDraggingSignature ? 'grabbing' : 'grab' }
+                    : {}),
                 }}
-                className="text-xs select-none max-w-[90%] z-10 [&_img]:pointer-events-none"
+                className="mt-2 pt-2 text-xs select-none max-w-full shrink-0 z-10 [&_img]:pointer-events-none"
                 dangerouslySetInnerHTML={{ __html: signatureDisplayHtml }}
               />
             )}
