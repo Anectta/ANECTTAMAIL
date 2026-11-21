@@ -374,6 +374,18 @@ export interface ElectronAPI {
     signerKeyId?: string;
     error?: string;
   }>;
+  translateEmailText?: (payload: {
+    text: string;
+    targetLang: string;
+    sourceLang?: string;
+  }) => Promise<{
+    success: boolean;
+    translatedText?: string;
+    detectedLang?: string;
+    targetLang: string;
+    provider?: string;
+    error?: string;
+  }>;
   setMinimizeToTray?: (enabled: boolean) => Promise<boolean>;
   openExternal?: (url: string) => Promise<{ success: boolean; error?: string }>;
   minimizeWindow: () => void;

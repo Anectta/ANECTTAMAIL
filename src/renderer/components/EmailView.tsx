@@ -49,6 +49,8 @@ import {
   StickyNote,
   Lock,
   Unlock,
+  Languages,
+  Copy,
 } from 'lucide-react';
 import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
@@ -212,6 +214,80 @@ export const EmailView: React.FC<EmailViewProps> = ({
     signerKeyId?: string;
     error?: string;
   } | null>(null);
+  const [translateTargetLang, setTranslateTargetLang] = useState<string>(() => {
+    try {
+      return localStorage.getItem('anectta_translate_target_lang') || 'pt';
+    } catch {
+      return 'pt';
+    }
+  });
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [showTranslatedText, setShowTranslatedText] = useState(true);
+  const [translationResult, setTranslationResult] = useState<{
+    emailId: string;
+    subject?: string;
+    body?: string;
+    detectedLang?: string;
+    targetLang: string;
+    error?: string;
+  } | null>(null);
+
+  const handleTranslateEmail = async (langOverride?: string) => {
+    if (!email) return;
+    if (!window.electronAPI?.translateEmailText) {
+      setTranslationResult({
+        emailId: email.id,
+        targetLang: langOverride || translateTargetLang,
+        error: 'Tradução instantânea disponível apenas no aplicativo desktop.',
+      });
+      return;
+    }
+    const targetLang = langOverride || translateTargetLang;
+    const rawBody =
+      (email.body || '').trim() ||
+      (email.bodyHtml
+        ? email.bodyHtml.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        : '');
+    const combined = email.subject
+      ? `[[SUBJECT]]\n${email.subject}\n[[BODY]]\n${rawBody}`
+      : rawBody;
+
+    setIsTranslating(true);
+    setShowTranslatedText(true);
+    try {
+      const res = await window.electronAPI.translateEmailText({
+        text: combined,
+        targetLang,
+      });
+      if (!res.success || !res.translatedText) {
+        setTranslationResult({
+          emailId: email.id,
+          targetLang,
+          error: res.error || 'Falha ao traduzir e-mail.',
+        });
+        return;
+      }
+      let translatedSubject: string | undefined;
+      let translatedBody = res.translatedText;
+      const markerIdx = res.translatedText.indexOf('[[BODY]]');
+      if (markerIdx !== -1) {
+        translatedSubject = res.translatedText
+          .slice(0, markerIdx)
+          .replace('[[SUBJECT]]', '')
+          .trim();
+        translatedBody = res.translatedText.slice(markerIdx + 8).trim();
+      }
+      setTranslationResult({
+        emailId: email.id,
+        subject: translatedSubject,
+        body: translatedBody,
+        detectedLang: res.detectedLang,
+        targetLang,
+      });
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   useEffect(() => {
     if (!email?.id) {
@@ -220,6 +296,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
     }
     setPrivateNotePreview(getPrivateNoteForEmail(email.id));
     setPgpResult((prev) => (prev?.emailId === email.id ? prev : null));
+    setTranslationResult((prev) => (prev?.emailId === email.id ? prev : null));
     const onNotesUpdated = () => setPrivateNotePreview(getPrivateNoteForEmail(email.id));
     window.addEventListener('anectta:notes-updated', onNotesUpdated);
     return () => window.removeEventListener('anectta:notes-updated', onNotesUpdated);
@@ -708,6 +785,25 @@ export const EmailView: React.FC<EmailViewProps> = ({
               <span>+ Tarefa</span>
             </button>
           )}
+
+          <button
+            type="button"
+            disabled={isTranslating}
+            onClick={() => void handleTranslateEmail()}
+            className={`flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap border rounded-xl transition-colors disabled:opacity-60 ${
+              translationResult?.emailId === email.id && !translationResult.error
+                ? 'text-sky-300 bg-sky-500/15 border-sky-500/40'
+                : 'text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border-slate-800'
+            }`}
+            title="Traduzir e-mail instantaneamente"
+          >
+            {isTranslating ? (
+              <Loader2 className="w-4 h-4 shrink-0 text-sky-400 animate-spin" />
+            ) : (
+              <Languages className="w-4 h-4 shrink-0 text-sky-400" />
+            )}
+            <span>{isTranslating ? '...' : 'Traduzir'}</span>
+          </button>
 
           {onToggleContactContext && !isModalMode && (
             <button
@@ -1413,6 +1509,98 @@ export const EmailView: React.FC<EmailViewProps> = ({
               </div>
             );
           })()}
+
+          {/* Banner de Tradução Instantânea */}
+          {translationResult?.emailId === email.id && (
+            <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 space-y-2.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 text-xs text-sky-200">
+                  <Languages className="w-4 h-4 text-sky-400 shrink-0" />
+                  <span className="font-semibold">
+                    Tradução Instantânea
+                    {translationResult.detectedLang
+                      ? ` (${translationResult.detectedLang.toUpperCase()} → ${translationResult.targetLang.toUpperCase()})`
+                      : ''}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <select
+                    value={translateTargetLang}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setTranslateTargetLang(next);
+                      try {
+                        localStorage.setItem('anectta_translate_target_lang', next);
+                      } catch {}
+                      void handleTranslateEmail(next);
+                    }}
+                    className="bg-slate-900 border border-sky-500/30 rounded-lg px-2 py-1 text-[11px] text-slate-200 focus:outline-none"
+                    title="Idioma de destino"
+                  >
+                    <option value="pt">Português</option>
+                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                    <option value="it">Italiano</option>
+                  </select>
+
+                  {translationResult.body && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setShowTranslatedText((v) => !v)}
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold transition-colors"
+                      >
+                        {showTranslatedText ? 'Ocultar tradução' : 'Mostrar tradução'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const txt = translationResult.subject
+                            ? `${translationResult.subject}\n\n${translationResult.body}`
+                            : translationResult.body || '';
+                          navigator.clipboard?.writeText(txt);
+                        }}
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
+                        title="Copiar texto traduzido"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setTranslationResult(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                    title="Fechar tradução"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {translationResult.error && (
+                <p className="text-xs text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-lg px-2.5 py-1.5">
+                  {translationResult.error}
+                </p>
+              )}
+
+              {translationResult.body && showTranslatedText && (
+                <div className="rounded-lg bg-slate-950/90 border border-sky-500/25 p-3 space-y-2">
+                  {translationResult.subject && (
+                    <div className="text-xs font-bold text-sky-200 border-b border-slate-800 pb-1.5">
+                      {translationResult.subject}
+                    </div>
+                  )}
+                  <pre className="text-xs text-slate-100 whitespace-pre-wrap font-sans leading-relaxed">
+                    {translationResult.body}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Sender & Recipient Profile */}
           <div className="flex items-center justify-between gap-3 flex-wrap">

@@ -445,6 +445,8 @@ const electronAPI = {
     ipcRenderer.invoke('pgp:sign', payload),
   pgpDecryptVerify: (payload: any) =>
     ipcRenderer.invoke('pgp:decrypt-verify', payload),
+  translateEmailText: (payload: { text: string; targetLang: string; sourceLang?: string }) =>
+    ipcRenderer.invoke('mail:translate-text', payload),
   setMinimizeToTray: (enabled: boolean) =>
     ipcRenderer.invoke('system:set-minimize-to-tray', enabled),
 

@@ -14,6 +14,7 @@ import { EmlExporterService } from './services/emlExporterService';
 import { OAuthService, OAuthProvider } from './services/oauthService';
 import { CloudSyncService } from './services/cloudSyncService';
 import { PgpService } from './services/pgpService';
+import { TranslateService } from './services/translateService';
 import { simpleParser } from 'mailparser';
 import { ensureTlsTrust } from './services/tlsTrust';
 import {
@@ -2026,6 +2027,16 @@ ipcMain.handle('pgp:sign', async (_event, payload: any) => {
 ipcMain.handle('pgp:decrypt-verify', async (_event, payload: any) => {
   return await PgpService.decryptOrVerify(payload);
 });
+
+// ==========================================
+// Tradução Instantânea de E-mails
+// ==========================================
+ipcMain.handle(
+  'mail:translate-text',
+  async (_event, payload: { text: string; targetLang: string; sourceLang?: string }) => {
+    return await TranslateService.translate(payload);
+  }
+);
 
 // ==========================================
 // Funções do Sistema: Sons Nativos & Templates Locais
