@@ -31,10 +31,46 @@
   !endif
 !macroend
 
+; Encerra o Anectta MAIL antes de instalar.
+; ATENÇÃO: NUNCA use "taskkill /T" aqui. Na atualização automática, o instalador é iniciado
+; pelo próprio app; com /T o taskkill encerra a árvore de processos do app, incluindo o
+; próprio instalador (bug que fez a atualização 1.0.224 -> 1.0.225 falhar).
+; Sem /T, "/IM" já encerra todos os processos "Anectta MAIL.exe" (principal, renderer, GPU).
 !macro customCheckAppRunning
-  nsExec::Exec '"$SYSDIR\taskkill.exe" /F /IM "${APP_EXECUTABLE_FILENAME}" /T'
-  Pop $0
-  Sleep 800
+  ; 1) Aguarda até ~4s o app fechar sozinho (fluxo normal da atualização automática)
+  StrCpy $R7 0
+  ${Do}
+    nsExec::Exec `"$SYSDIR\cmd.exe" /c tasklist /FI "USERNAME eq %USERNAME%" /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FO csv | "$SYSDIR\find.exe" /I "${APP_EXECUTABLE_FILENAME}"`
+    Pop $R6
+    ${If} $R6 != 0
+      ${ExitDo}
+    ${EndIf}
+    IntOp $R7 $R7 + 1
+    ${If} $R7 >= 13
+      ${ExitDo}
+    ${EndIf}
+    Sleep 300
+  ${Loop}
+
+  ; 2) Se ainda estiver aberto, encerra à força (sem /T) e confirma, por até ~10s
+  StrCpy $R7 0
+  ${Do}
+    nsExec::Exec `"$SYSDIR\cmd.exe" /c tasklist /FI "USERNAME eq %USERNAME%" /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FO csv | "$SYSDIR\find.exe" /I "${APP_EXECUTABLE_FILENAME}"`
+    Pop $R6
+    ${If} $R6 != 0
+      ${ExitDo}
+    ${EndIf}
+    nsExec::Exec `"$SYSDIR\cmd.exe" /c taskkill /F /IM "${APP_EXECUTABLE_FILENAME}" /FI "USERNAME eq %USERNAME%"`
+    Pop $R6
+    IntOp $R7 $R7 + 1
+    ${If} $R7 >= 20
+      ${ExitDo}
+    ${EndIf}
+    Sleep 500
+  ${Loop}
+
+  ; Garante que os arquivos do app foram liberados pelo Windows
+  Sleep 500
 !macroend
 
 !macro customInstall

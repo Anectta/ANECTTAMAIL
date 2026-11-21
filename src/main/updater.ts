@@ -18,11 +18,16 @@
  *        `window-all-closed` → `app.quit()` e o processo morre antes do spawn.
  *        Apenas oculte (UpdaterHost.prepareForInstall).
  *    R2. O instalador precisa estar em execução ANTES de qualquer `app.quit()`.
- *        `autoUpdater.quitAndInstall()` faz o spawn de forma síncrona; o canal
- *        de resgate aguarda o evento `spawn` antes de encerrar o app.
+ *        launchInstaller() só encerra o app depois de confirmar que o
+ *        instalador foi iniciado.
  *    R3. Nada de setTimeout/atrasos entre "download concluído" e a instalação.
  *    R4. O canal de resgate NÃO usa electron-updater. Mantenha-o simples e
  *        independente: é a saída de emergência quando o resto quebrar.
+ *    R5. O instalador NÃO pode ser processo filho do app. O build/installer.nsh
+ *        encerra o app antes de instalar; se o instalador estiver na árvore de
+ *        processos do app, ele pode ser encerrado junto (falha 1.0.224 -> 1.0.225).
+ *        Por isso NÃO usamos autoUpdater.quitAndInstall(): o instalador é
+ *        iniciado via "cmd /c start" (startIndependentInstaller).
  * ============================================================================
  */
 import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
@@ -494,26 +499,54 @@ async function downloadInstaller(target: RescueTarget): Promise<string> {
   }
 }
 
-/** Executa o instalador e só então encerra o app (R2). */
-async function launchInstaller(installerPath: string, targetVersion: string): Promise<void> {
-  recordInstallAttempt(targetVersion, 'rescue', installerPath);
-  updaterLog(`Canal de resgate: executando instalador ${installerPath}`);
+const INSTALLER_ARGS = ['--updated', '/S', '--force-run'];
 
-  const child = spawn(installerPath, ['--updated', '/S', '--force-run'], { detached: true, stdio: 'ignore' });
-  try {
-    await new Promise<void>((resolve, reject) => {
-      child.once('spawn', () => resolve());
-      child.once('error', (err) => reject(err));
+/**
+ * Inicia o instalador como processo INDEPENDENTE do app (R5), via "cmd /c start".
+ * O cmd encerra logo após disparar o instalador, então o instalador não fica na árvore
+ * de processos do app — nenhum "taskkill /T" no app consegue derrubá-lo.
+ */
+function startIndependentInstaller(installerPath: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const comspec = process.env.ComSpec || path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
+    const commandLine = `/d /s /c "start "" "${installerPath}" ${INSTALLER_ARGS.join(' ')}"`;
+    const child = spawn(comspec, [commandLine], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      windowsVerbatimArguments: true,
     });
+    const timer = setTimeout(() => reject(new Error('Tempo esgotado ao iniciar o instalador.')), 15_000);
+    child.once('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`cmd start terminou com código ${code}`));
+    });
+    child.unref();
+  });
+}
+
+/** Executa o instalador e só então encerra o app (R2). Usado pela atualização normal e pelo canal de resgate. */
+async function launchInstaller(installerPath: string, targetVersion: string, method: InstallAttempt['method']): Promise<void> {
+  if (!fs.existsSync(installerPath)) throw new Error(`Instalador não encontrado: ${installerPath}`);
+  recordInstallAttempt(targetVersion, method, installerPath);
+  updaterLog(`Executando instalador (${method}) de forma independente: ${installerPath}`);
+
+  try {
+    await startIndependentInstaller(installerPath);
   } catch (err: any) {
-    updaterLog(`Falha ao executar o instalador diretamente (${err?.code || err?.message}). Tentando via shell.`);
+    updaterLog(`Falha ao iniciar o instalador via cmd (${err?.code || err?.message}). Tentando via shell.`);
     const shellError = await shell.openPath(installerPath);
     if (shellError) throw new Error(`Não foi possível executar o instalador: ${shellError}`);
   }
-  child.unref();
 
+  updaterLog('Instalador iniciado. Ocultando janelas e encerrando o app.');
   installingUpdate = true;
-  host?.prepareForInstall();
+  host?.prepareForInstall(); // R1: apenas oculta
   setImmediate(() => app.quit());
 }
 
@@ -546,7 +579,7 @@ async function runRescueInstall(): Promise<{ success: boolean; error?: string }>
       installerPath = await downloadInstaller(target);
     }
 
-    await launchInstaller(installerPath, target.version || 'desconhecida');
+    await launchInstaller(installerPath, target.version || 'desconhecida', 'rescue');
     return { success: true };
   } catch (err: any) {
     const msg = err?.message || String(err);
@@ -707,21 +740,21 @@ async function ensureUpdaterHasUpdateInfo(): Promise<void> {
   }
 }
 
-function installDownloadedUpdate(version: string, downloadedFile?: string): void {
+async function installDownloadedUpdate(version: string, downloadedFile?: string): Promise<void> {
   if (installingUpdate) return;
   installingUpdate = true;
   isDownloadingUpdate = false;
 
-  recordInstallAttempt(version, 'auto', downloadedFile || (autoUpdater as any).installerPath || undefined);
-  updaterLog('Download concluído. Ocultando janelas e executando quitAndInstall(true, true)...');
+  const installerPath = downloadedFile || (autoUpdater as any).installerPath || '';
+  updaterLog(`Download concluído (${version}). Iniciando instalação.`);
 
-  host?.prepareForInstall(); // R1: apenas oculta
-  autoUpdater.quitAndInstall(true, true); // R2/R3: spawn síncrono, sem atrasos
-
-  // quitAndInstall não lança erro: se o instalador não pôde ser iniciado, a flag interna volta a false
-  if (!(autoUpdater as any).quitAndInstallCalled) {
+  try {
+    // R3: sem atrasos. R5: instalador independente do processo do app.
+    await launchInstaller(installerPath, version, 'auto');
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    updaterLog(`Não foi possível iniciar o instalador: ${msg}. Restaurando o aplicativo.`);
     installingUpdate = false;
-    updaterLog('quitAndInstall não iniciou o instalador. Restaurando o aplicativo.');
     host?.restoreAfterFailedInstall();
     sendToRenderer('update-error', 'Não foi possível iniciar o instalador da atualização. Tente novamente.');
   }
@@ -799,7 +832,7 @@ export function initUpdater(updaterHost: UpdaterHost): void {
   });
 
   autoUpdater.on('update-downloaded', (info: any) => {
-    installDownloadedUpdate(String(info?.version || pendingUpdateVersion || ''), info?.downloadedFile);
+    void installDownloadedUpdate(String(info?.version || pendingUpdateVersion || ''), info?.downloadedFile);
   });
 
   autoUpdater.on('error', (err) => {
