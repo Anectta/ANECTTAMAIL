@@ -1676,7 +1676,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
           </div>
 
           {/* Barra de Formatação Rich-Text WYSIWYG */}
-          <div className="compose-rich-toolbar relative flex flex-wrap items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-950/80 border border-slate-800/90">
+          <div className="compose-rich-toolbar relative flex flex-nowrap items-center gap-0.5 px-1.5 py-1 rounded-xl bg-slate-950/80 border border-slate-800/90">
             <input
               ref={inlineImageInputRef}
               type="file"
@@ -1716,7 +1716,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 execRichCommand('fontName', e.target.value);
               }}
               title="Família da fonte"
-              className="bg-slate-900 border border-slate-800 rounded-md px-1.5 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-brand-500 cursor-pointer max-w-[106px]"
+              className="bg-slate-900 border border-slate-800 rounded-md px-1 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-brand-500 cursor-pointer max-w-[84px] shrink-0"
             >
               {FONT_FAMILIES.map((font) => (
                 <option key={font} value={font}>
@@ -1731,7 +1731,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 execRichCommand('fontSize', e.target.value);
               }}
               title="Tamanho do texto"
-              className="bg-slate-900 border border-slate-800 rounded-md px-1.5 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-brand-500 cursor-pointer w-[54px]"
+              className="bg-slate-900 border border-slate-800 rounded-md px-1 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-brand-500 cursor-pointer w-[56px] shrink-0"
             >
               {FONT_SIZES.map((sz) => (
                 <option key={sz.cmdValue} value={sz.cmdValue}>
@@ -2068,11 +2068,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 closeRichPopovers();
                 inlineImageInputRef.current?.click();
               }}
-              className="flex items-center space-x-1 px-2 py-1 rounded-lg text-[11px] font-medium text-sky-300 hover:text-white bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/25 transition-colors"
+              className="p-1.5 rounded-lg text-sky-300 hover:text-white bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/25 transition-colors shrink-0"
               title="Inserir imagem inline no corpo do e-mail (ou cole com Ctrl+V / arraste)"
             >
               <ImageIcon className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Imagem</span>
             </button>
 
             {/* Tabela */}
