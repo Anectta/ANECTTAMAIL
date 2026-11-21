@@ -3164,8 +3164,8 @@ export const App: React.FC = () => {
   }, [selectedEmailId, currentFolderEmails]);
 
   const handleDeleteSelected = useCallback(
-    (ids: string[]) => {
-      if (!ids || ids.length === 0) return;
+    async (ids: string[]): Promise<boolean> => {
+      if (!ids || ids.length === 0) return false;
       const conf = {
         ...DEFAULT_CONFIRMATION_SETTINGS,
         ...(settings.notifications?.confirmations || {}),
@@ -3177,18 +3177,24 @@ export const App: React.FC = () => {
               `Deseja realmente apagar ${ids.length} ${ids.length === 1 ? 'mensagem' : 'mensagens'} de uma vez por todas?`
             )
           ) {
-            return;
+            return false;
           }
         }
-      } else if (conf.askBeforeDeleteMessage) {
+      } else if (conf.askBeforeDeleteMessage || ids.length > 1) {
         if (
           !window.confirm(
-            `Deseja realmente apagar ${ids.length} ${ids.length === 1 ? 'mensagem' : 'mensagens'}?`
+            `Deseja realmente excluir ${ids.length} ${ids.length === 1 ? 'mensagem selecionada' : 'mensagens selecionadas'}?`
           )
         ) {
-          return;
+          return false;
         }
       }
+
+      showToast(
+        `🗑️ Excluindo ${ids.length} ${ids.length === 1 ? 'e-mail selecionado' : 'e-mails selecionados'}...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, 450));
+
       const idSet = new Set(ids);
       if (currentFolder === 'trash') {
         setEmails((prev) => prev.filter((e) => !idSet.has(e.id)));
@@ -3209,6 +3215,7 @@ export const App: React.FC = () => {
       if (!selectedEmailId || idSet.has(selectedEmailId)) {
         setSelectedEmailId(remaining.length > 0 ? remaining[0].id : null);
       }
+      return true;
     },
     [currentFolder, currentFolderEmails, selectedEmailId, settings.notifications?.confirmations]
   );

@@ -29,6 +29,7 @@ import {
   Newspaper,
   Bell,
   Trash2,
+  Loader2,
 } from 'lucide-react';
 import { CustomFolder, EmailItem, MailFolder, TimePeriod, TriageCategory } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
@@ -59,7 +60,7 @@ interface EmailListProps {
   onToggleSelectId?: (id: string) => void;
   onSelectAllVisible?: (ids: string[]) => void;
   onClearSelection?: () => void;
-  onDeleteSelected?: (ids: string[]) => void;
+  onDeleteSelected?: (ids: string[]) => Promise<boolean> | boolean | void;
   onMarkSpamSelected?: (ids: string[]) => void;
   customFolders?: CustomFolder[];
   onMoveSelectedToFolder?: (ids: string[], targetFolder: MailFolder) => void;
@@ -141,8 +142,11 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
     ref
   ) => {
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const listScrollRef = useRef<HTMLDivElement>(null);
     const sortMenuRef = useRef<HTMLDivElement>(null);
     const moreMenuRef = useRef<HTMLDivElement>(null);
+    const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+    const [deletingBulkCount, setDeletingBulkCount] = useState(0);
     const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'favorites'>('all');
     const [triageFilter, setTriageFilter] = useState<TriageCategory>('all');
     const [isAdvSearchOpen, setIsAdvSearchOpen] = useState(false);
@@ -946,8 +950,19 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
             </div>
           </div>
 
+          {/* Aviso de andamento enquanto exclui e-mails em lote */}
+          {isDeletingBulk && (
+            <div className="px-2.5 py-2 bg-rose-500/15 border border-rose-500/35 rounded-md flex items-center gap-2 text-xs text-rose-200 font-semibold">
+              <Loader2 className="w-3.5 h-3.5 text-rose-400 animate-spin shrink-0" />
+              <span>
+                Excluindo {deletingBulkCount}{' '}
+                {deletingBulkCount === 1 ? 'e-mail selecionado' : 'e-mails selecionados'}...
+              </span>
+            </div>
+          )}
+
           {/* Banner de resultado de busca + Selecionar todos & Excluir */}
-          {(searchQuery.trim() || activeAdvFilterCount > 0) && (() => {
+          {!isDeletingBulk && (searchQuery.trim() || activeAdvFilterCount > 0) && (() => {
             const visibleIds = filteredEmails.map((e) => e.id);
             const selectedSet = new Set(selectedIds);
             const selectedInSearchIds = visibleIds.filter((id) => selectedSet.has(id));
@@ -987,6 +1002,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                     {onSelectAllVisible && (
                       <button
                         type="button"
+                        disabled={isDeletingBulk}
                         onClick={() => {
                           soundService.play('click');
                           if (allSelectedInSearch) {
@@ -995,7 +1011,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                             onSelectAllVisible(visibleIds);
                           }
                         }}
-                        className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 text-slate-200 text-[11px] font-semibold transition-colors"
+                        className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-900/80 hover:bg-slate-800 disabled:opacity-50 border border-slate-700/80 text-slate-200 text-[11px] font-semibold transition-colors"
                         title={
                           allSelectedInSearch
                             ? 'Desmarcar todos os e-mails da busca'
@@ -1018,19 +1034,32 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                     {onDeleteSelected && (
                       <button
                         type="button"
-                        disabled={selectedInSearchIds.length === 0}
-                        onClick={() => {
-                          if (selectedInSearchIds.length === 0) return;
-                          if (
-                            selectedInSearchIds.length > 1 &&
-                            !window.confirm(
-                              `Deseja excluir os ${selectedInSearchIds.length} e-mails selecionados desta busca?`
-                            )
-                          ) {
-                            return;
+                        disabled={selectedInSearchIds.length === 0 || isDeletingBulk}
+                        onClick={async () => {
+                          if (selectedInSearchIds.length === 0 || isDeletingBulk) return;
+                          setDeletingBulkCount(selectedInSearchIds.length);
+                          setIsDeletingBulk(true);
+                          try {
+                            const deleted = await onDeleteSelected(selectedInSearchIds);
+                            if (deleted !== false) {
+                              // Limpa busca e filtros e retorna ao início da lista para nova pesquisa
+                              onSearchChange('');
+                              setAdvSender('');
+                              setAdvDateFrom('');
+                              setAdvDateTo('');
+                              setAdvHasAttachment(false);
+                              setAdvUnreadOnly(false);
+                              setIsAdvSearchOpen(false);
+                              onClearSelection?.();
+                              requestAnimationFrame(() => {
+                                listScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                                searchInputRef.current?.focus();
+                              });
+                            }
+                          } finally {
+                            setIsDeletingBulk(false);
+                            setDeletingBulkCount(0);
                           }
-                          soundService.play('click');
-                          onDeleteSelected(selectedInSearchIds);
                         }}
                         className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-600/90 hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-semibold transition-colors shrink-0"
                         title="Excluir os e-mails selecionados"
@@ -1049,7 +1078,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
         </div>
 
         {/* Grouped Email Cards by Date Period */}
-        <div className="flex-1 overflow-y-auto custom-scroll">
+        <div ref={listScrollRef} className="flex-1 overflow-y-auto custom-scroll">
           {filteredEmails.length === 0 ? (
             <div className="p-8 text-center text-slate-500 space-y-2">
               <Mail className="w-8 h-8 mx-auto text-slate-600" />
