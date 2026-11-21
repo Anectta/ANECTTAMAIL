@@ -14,6 +14,7 @@ import { EmlExporterService } from './services/emlExporterService';
 import { OAuthService, OAuthProvider } from './services/oauthService';
 import { CloudSyncService } from './services/cloudSyncService';
 import { PgpService } from './services/pgpService';
+import { SmimeService } from './services/smimeService';
 import { TranslateService } from './services/translateService';
 import { simpleParser } from 'mailparser';
 import { ensureTlsTrust } from './services/tlsTrust';
@@ -2026,6 +2027,29 @@ ipcMain.handle('pgp:sign', async (_event, payload: any) => {
 
 ipcMain.handle('pgp:decrypt-verify', async (_event, payload: any) => {
   return await PgpService.decryptOrVerify(payload);
+});
+
+// ==========================================
+// S/MIME — Certificados X.509 (.p12/.pfx) & PKCS#7
+// ==========================================
+ipcMain.handle('smime:import-p12', async (_event, payload: { p12Base64: string; passphrase: string }) => {
+  return SmimeService.importPkcs12(payload);
+});
+
+ipcMain.handle('smime:inspect-cert', async (_event, certContent: string) => {
+  return SmimeService.inspectPublicCert(certContent);
+});
+
+ipcMain.handle('smime:sign', async (_event, payload: { text: string; certPem: string; privateKeyPem: string }) => {
+  return SmimeService.signMessage(payload);
+});
+
+ipcMain.handle('smime:encrypt', async (_event, payload: { text: string; recipientCertPems: string[] }) => {
+  return SmimeService.encryptMessage(payload);
+});
+
+ipcMain.handle('smime:decrypt-verify', async (_event, payload: { pkcs7Pem: string; privateKeyPem?: string; certPem?: string }) => {
+  return SmimeService.decryptOrVerify(payload);
 });
 
 // ==========================================

@@ -445,6 +445,16 @@ const electronAPI = {
     ipcRenderer.invoke('pgp:sign', payload),
   pgpDecryptVerify: (payload: any) =>
     ipcRenderer.invoke('pgp:decrypt-verify', payload),
+  smimeImportP12: (payload: { p12Base64: string; passphrase: string }) =>
+    ipcRenderer.invoke('smime:import-p12', payload),
+  smimeInspectCert: (certContent: string) =>
+    ipcRenderer.invoke('smime:inspect-cert', certContent),
+  smimeSign: (payload: { text: string; certPem: string; privateKeyPem: string }) =>
+    ipcRenderer.invoke('smime:sign', payload),
+  smimeEncrypt: (payload: { text: string; recipientCertPems: string[] }) =>
+    ipcRenderer.invoke('smime:encrypt', payload),
+  smimeDecryptVerify: (payload: { pkcs7Pem: string; privateKeyPem?: string; certPem?: string }) =>
+    ipcRenderer.invoke('smime:decrypt-verify', payload),
   translateEmailText: (payload: { text: string; targetLang: string; sourceLang?: string }) =>
     ipcRenderer.invoke('mail:translate-text', payload),
   setMinimizeToTray: (enabled: boolean) =>

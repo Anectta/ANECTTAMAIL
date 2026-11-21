@@ -386,6 +386,53 @@ export interface ElectronAPI {
     provider?: string;
     error?: string;
   }>;
+  smimeImportP12?: (payload: { p12Base64: string; passphrase: string }) => Promise<{
+    success: boolean;
+    metadata?: {
+      commonName: string;
+      email: string;
+      issuer: string;
+      validFrom: string;
+      validTo: string;
+      fingerprint: string;
+      certPem: string;
+    };
+    privateKeyPem?: string;
+    error?: string;
+  }>;
+  smimeInspectCert?: (certContent: string) => Promise<{
+    success: boolean;
+    metadata?: {
+      commonName: string;
+      email: string;
+      issuer: string;
+      validFrom: string;
+      validTo: string;
+      fingerprint: string;
+      certPem: string;
+    };
+    error?: string;
+  }>;
+  smimeSign?: (payload: { text: string; certPem: string; privateKeyPem: string }) => Promise<{
+    success: boolean;
+    pkcs7Pem?: string;
+    error?: string;
+  }>;
+  smimeEncrypt?: (payload: { text: string; recipientCertPems: string[] }) => Promise<{
+    success: boolean;
+    pkcs7Pem?: string;
+    error?: string;
+  }>;
+  smimeDecryptVerify?: (payload: { pkcs7Pem: string; privateKeyPem?: string; certPem?: string }) => Promise<{
+    success: boolean;
+    mode?: 'decrypted' | 'verified';
+    plainText?: string;
+    signerSubject?: string;
+    signerIssuer?: string;
+    signerEmail?: string;
+    validTo?: string;
+    error?: string;
+  }>;
   setMinimizeToTray?: (enabled: boolean) => Promise<boolean>;
   openExternal?: (url: string) => Promise<{ success: boolean; error?: string }>;
   minimizeWindow: () => void;

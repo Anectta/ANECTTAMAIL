@@ -51,6 +51,7 @@ import {
   Unlock,
   Languages,
   Copy,
+  Award,
 } from 'lucide-react';
 import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
@@ -65,6 +66,7 @@ import {
   findContactPublicKeyByEmail,
   findOwnKeyByEmail,
 } from '../utils/pgpKeyring';
+import { detectSmimeBlock, findOwnSmimeCertByEmail } from '../utils/smimeStore';
 
 /**
  * Sanitiza marcação HTML de e-mails para prevenir injeções de script ou eventos maliciosos
@@ -212,6 +214,16 @@ export const EmailView: React.FC<EmailViewProps> = ({
     plainText?: string;
     verified?: boolean;
     signerKeyId?: string;
+    error?: string;
+  } | null>(null);
+  const [smimeBusy, setSmimeBusy] = useState(false);
+  const [smimeResult, setSmimeResult] = useState<{
+    emailId: string;
+    mode?: 'decrypted' | 'verified';
+    plainText?: string;
+    signerSubject?: string;
+    signerIssuer?: string;
+    validTo?: string;
     error?: string;
   } | null>(null);
   const [translateTargetLang, setTranslateTargetLang] = useState<string>(() => {
@@ -1601,6 +1613,83 @@ export const EmailView: React.FC<EmailViewProps> = ({
               )}
             </div>
           )}
+
+          {/* Banner S/MIME (Certificado X.509 / PKCS#7) */}
+          {(() => {
+            const pkcs7Block = detectSmimeBlock(email.body);
+            if (!pkcs7Block) return null;
+            const currentSmime = smimeResult?.emailId === email.id ? smimeResult : null;
+            const ownCert = findOwnSmimeCertByEmail(email.recipient) || findOwnSmimeCertByEmail();
+            return (
+              <div className="p-3 rounded-xl bg-violet-500/10 border border-violet-500/30 space-y-2.5">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 text-xs text-violet-200">
+                    <Award className="w-4 h-4 text-violet-400 shrink-0" />
+                    <span className="font-semibold">
+                      Mensagem Protegida com S/MIME (X.509 / PKCS#7)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={smimeBusy}
+                    onClick={async () => {
+                      if (!window.electronAPI?.smimeDecryptVerify) return;
+                      setSmimeBusy(true);
+                      try {
+                        const res = await window.electronAPI.smimeDecryptVerify({
+                          pkcs7Pem: pkcs7Block,
+                          privateKeyPem: ownCert?.privateKeyPem,
+                          certPem: ownCert?.certPem,
+                        });
+                        setSmimeResult({
+                          emailId: email.id,
+                          mode: res.mode,
+                          plainText: res.plainText,
+                          signerSubject: res.signerSubject,
+                          signerIssuer: res.signerIssuer,
+                          validTo: res.validTo,
+                          error: res.success ? undefined : res.error,
+                        });
+                      } finally {
+                        setSmimeBusy(false);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    <span>{smimeBusy ? 'Processando...' : 'Abrir / Verificar S/MIME'}</span>
+                  </button>
+                </div>
+
+                {currentSmime?.error && (
+                  <p className="text-xs text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-lg px-2.5 py-1.5">
+                    {currentSmime.error}
+                  </p>
+                )}
+
+                {currentSmime?.plainText && (
+                  <div className="rounded-lg bg-slate-950/90 border border-violet-500/30 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap text-[11px]">
+                      <span className="text-violet-300 font-semibold">
+                        {currentSmime.mode === 'decrypted'
+                          ? '✓ Conteúdo S/MIME Descriptografado'
+                          : '✓ Assinatura Digital X.509 Verificada'}
+                      </span>
+                      {currentSmime.signerSubject && (
+                        <span className="px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-200 text-[10px]">
+                          {currentSmime.signerSubject}
+                          {currentSmime.signerIssuer ? ` · AC: ${currentSmime.signerIssuer}` : ''}
+                        </span>
+                      )}
+                    </div>
+                    <pre className="text-xs text-slate-100 whitespace-pre-wrap font-sans leading-relaxed">
+                      {currentSmime.plainText}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Sender & Recipient Profile */}
           <div className="flex items-center justify-between gap-3 flex-wrap">

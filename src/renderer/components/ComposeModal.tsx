@@ -38,6 +38,7 @@ import {
   LayoutTemplate,
   Lock,
   ShieldCheck,
+  Award,
 } from 'lucide-react';
 import { EmailTemplateItem, PriorityLevel } from '@/types/email';
 import {
@@ -71,6 +72,7 @@ import {
   saveEmailTemplates,
 } from '../utils/triageAndTemplates';
 import { findOwnKeyByEmail, findPublicKeysForRecipients } from '../utils/pgpKeyring';
+import { findOwnSmimeCertByEmail, findSmimeCertsForRecipients } from '../utils/smimeStore';
 
 const EMOJI_CATEGORIES: Array<{ id: string; label: string; icon: string; emojis: string[] }> = [
   {
@@ -403,6 +405,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const [pgpEncryptEnabled, setPgpEncryptEnabled] = useState(false);
   const [pgpSignEnabled, setPgpSignEnabled] = useState(false);
   const [pgpPassphraseInput, setPgpPassphraseInput] = useState('');
+  const [smimeMode, setSmimeMode] = useState<'none' | 'sign' | 'encrypt'>('none');
   const [scheduledDateTime, setScheduledDateTime] = useState('');
 
   // Confirmação de Leitura & Monitoramento de Abertura por Destinatário (desmarcado por padrão)
@@ -1022,6 +1025,72 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
         }
         finalBody = signRes.armored;
         finalHtml = `<pre style="font-family:monospace;white-space:pre-wrap;font-size:12px;">${signRes.armored
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')}</pre>`;
+      }
+    } else if (smimeMode !== 'none') {
+      const ownCert = findOwnSmimeCertByEmail(currentAccount?.email);
+      if (smimeMode === 'encrypt') {
+        if (!window.electronAPI?.smimeEncrypt) {
+          setIsDispatching(false);
+          setIsSending(false);
+          setErrorMessage('S/MIME disponível apenas no aplicativo desktop.');
+          return;
+        }
+        const { foundCerts, missingEmails } = findSmimeCertsForRecipients(
+          [recipient, cc, bcc].filter(Boolean).join(', ')
+        );
+        if (missingEmails.length > 0 || foundCerts.length === 0) {
+          setIsDispatching(false);
+          setIsSending(false);
+          setErrorMessage(
+            `Certificado público X.509 ausente para: ${missingEmails.join(', ') || 'destinatário'}. Importe em Configurações → Privacidade → S/MIME.`
+          );
+          formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        const allCerts = ownCert ? Array.from(new Set([...foundCerts, ownCert.certPem])) : foundCerts;
+        const encRes = await window.electronAPI.smimeEncrypt({
+          text: live.text,
+          recipientCertPems: allCerts,
+        });
+        if (!encRes.success || !encRes.pkcs7Pem) {
+          setIsDispatching(false);
+          setIsSending(false);
+          setErrorMessage(encRes.error || 'Falha ao criptografar com S/MIME.');
+          formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        finalBody = encRes.pkcs7Pem;
+        finalHtml = `<pre style="font-family:monospace;white-space:pre-wrap;font-size:12px;">${encRes.pkcs7Pem
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')}</pre>`;
+      } else if (smimeMode === 'sign') {
+        if (!window.electronAPI?.smimeSign || !ownCert) {
+          setIsDispatching(false);
+          setIsSending(false);
+          setErrorMessage(
+            'Nenhum certificado digital .p12/.pfx encontrado. Importe em Configurações → Privacidade → S/MIME.'
+          );
+          formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        const signRes = await window.electronAPI.smimeSign({
+          text: live.text,
+          certPem: ownCert.certPem,
+          privateKeyPem: ownCert.privateKeyPem,
+        });
+        if (!signRes.success || !signRes.pkcs7Pem) {
+          setIsDispatching(false);
+          setIsSending(false);
+          setErrorMessage(signRes.error || 'Falha ao assinar com S/MIME.');
+          formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        finalBody = signRes.pkcs7Pem;
+        finalHtml = `<pre style="font-family:monospace;white-space:pre-wrap;font-size:12px;">${signRes.pkcs7Pem
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')}</pre>`;
@@ -2741,6 +2810,31 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   className="w-24 px-2 py-1.5 rounded-lg bg-slate-950 border border-sky-500/40 text-[11px] text-slate-200 focus:outline-none"
                 />
               )}
+
+              {/* S/MIME X.509 (.p12 / .pfx) */}
+              <button
+                type="button"
+                onClick={() =>
+                  setSmimeMode((prev) =>
+                    prev === 'none' ? 'sign' : prev === 'sign' ? 'encrypt' : 'none'
+                  )
+                }
+                className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs transition-colors border ${
+                  smimeMode !== 'none'
+                    ? 'bg-violet-600/20 text-violet-300 border-violet-500/50 font-semibold'
+                    : 'text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border-slate-700/60'
+                }`}
+                title="Alternar S/MIME X.509: Desativado → Assinar S/MIME → Criptografar S/MIME"
+              >
+                <Award className="w-3.5 h-3.5 text-violet-400" />
+                <span className="hidden md:inline">
+                  {smimeMode === 'none'
+                    ? 'S/MIME'
+                    : smimeMode === 'sign'
+                    ? 'S/MIME: Assinar'
+                    : 'S/MIME: Cripto'}
+                </span>
+              </button>
             </div>
 
             <div className="flex items-center space-x-3">

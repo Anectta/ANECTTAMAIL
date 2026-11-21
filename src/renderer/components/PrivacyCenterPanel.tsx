@@ -20,6 +20,7 @@ import {
   Copy,
   Download,
   Upload,
+  Award,
 } from 'lucide-react';
 import { SecuritySettings } from '@/types/settings';
 import {
@@ -29,6 +30,13 @@ import {
   PgpKeyringData,
   savePgpKeyring,
 } from '../utils/pgpKeyring';
+import {
+  ContactSmimeCert,
+  loadSmimeStore,
+  OwnSmimeCert,
+  saveSmimeStore,
+  SmimeStoreData,
+} from '../utils/smimeStore';
 
 const ToggleSwitch: React.FC<{
   checked: boolean;
@@ -167,6 +175,96 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
     a.download = `${email.replace(/[^a-z0-9@._-]/gi, '_')}-public.asc`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // S/MIME X.509 (.p12 / .pfx) state
+  const [smimeStore, setSmimeStore] = useState<SmimeStoreData>(() => loadSmimeStore());
+  const [p12Base64, setP12Base64] = useState('');
+  const [p12FileName, setP12FileName] = useState('');
+  const [p12Passphrase, setP12Passphrase] = useState('');
+  const [p12OverrideEmail, setP12OverrideEmail] = useState('');
+  const [smimeContactEmail, setSmimeContactEmail] = useState('');
+  const [smimeContactPem, setSmimeContactPem] = useState('');
+  const [smimeFeedback, setSmimeFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const handleImportP12 = async () => {
+    if (!p12Base64) {
+      setSmimeFeedback({ ok: false, msg: 'Selecione um arquivo de certificado digital .p12 ou .pfx.' });
+      return;
+    }
+    if (!window.electronAPI?.smimeImportP12) {
+      setSmimeFeedback({ ok: false, msg: 'S/MIME disponível apenas no aplicativo desktop.' });
+      return;
+    }
+    const res = await window.electronAPI.smimeImportP12({
+      p12Base64,
+      passphrase: p12Passphrase,
+    });
+    if (!res.success || !res.metadata || !res.privateKeyPem) {
+      setSmimeFeedback({ ok: false, msg: res.error || 'Falha ao importar certificado .p12/.pfx.' });
+      return;
+    }
+    const emailClean = (p12OverrideEmail.trim() || res.metadata.email || '').toLowerCase();
+    const ownCert: OwnSmimeCert = {
+      id: `smime-own-${Date.now()}`,
+      email: emailClean || res.metadata.commonName,
+      commonName: res.metadata.commonName,
+      issuer: res.metadata.issuer,
+      validFrom: res.metadata.validFrom,
+      validTo: res.metadata.validTo,
+      fingerprint: res.metadata.fingerprint,
+      certPem: res.metadata.certPem,
+      privateKeyPem: res.privateKeyPem,
+      addedAt: new Date().toISOString(),
+    };
+    const next: SmimeStoreData = {
+      ...smimeStore,
+      ownCerts: [ownCert, ...smimeStore.ownCerts.filter((c) => c.fingerprint !== ownCert.fingerprint)],
+    };
+    setSmimeStore(next);
+    saveSmimeStore(next);
+    setP12Base64('');
+    setP12FileName('');
+    setP12Passphrase('');
+    setP12OverrideEmail('');
+    setSmimeFeedback({
+      ok: true,
+      msg: `Certificado X.509 "${ownCert.commonName}" importado com sucesso!`,
+    });
+  };
+
+  const handleImportContactSmimeCert = async () => {
+    if (!smimeContactPem.trim() || !window.electronAPI?.smimeInspectCert) return;
+    const res = await window.electronAPI.smimeInspectCert(smimeContactPem);
+    if (!res.success || !res.metadata) {
+      setSmimeFeedback({ ok: false, msg: res.error || 'Certificado público X.509 inválido.' });
+      return;
+    }
+    const emailClean = (smimeContactEmail.trim() || res.metadata.email || '').toLowerCase();
+    if (!emailClean || !emailClean.includes('@')) {
+      setSmimeFeedback({ ok: false, msg: 'Informe o e-mail do contato para associar o certificado.' });
+      return;
+    }
+    const contactCert: ContactSmimeCert = {
+      id: `smime-contact-${Date.now()}`,
+      email: emailClean,
+      commonName: res.metadata.commonName,
+      issuer: res.metadata.issuer,
+      validFrom: res.metadata.validFrom,
+      validTo: res.metadata.validTo,
+      fingerprint: res.metadata.fingerprint,
+      certPem: res.metadata.certPem,
+      addedAt: new Date().toISOString(),
+    };
+    const next: SmimeStoreData = {
+      ...smimeStore,
+      contactCerts: [contactCert, ...smimeStore.contactCerts.filter((c) => c.email !== emailClean)],
+    };
+    setSmimeStore(next);
+    saveSmimeStore(next);
+    setSmimeContactEmail('');
+    setSmimeContactPem('');
+    setSmimeFeedback({ ok: true, msg: `Certificado público X.509 de ${emailClean} importado!` });
   };
 
   useEffect(() => {
@@ -683,6 +781,189 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Card 3C: Certificados Digitais S/MIME (X.509 — .p12 / .pfx / ICP-Brasil A1) */}
+      <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Award className="w-4 h-4 text-violet-400 shrink-0" />
+            <div>
+              <div className="text-xs font-semibold text-slate-200">
+                Certificados Digitais S/MIME (X.509 — .p12 / .pfx / ICP-Brasil A1)
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Importe seu certificado pessoal/corporativo .p12/.pfx para assinar e criptografar e-mails no padrão corporativo S/MIME (PKCS#7).
+              </p>
+            </div>
+          </div>
+          <span className="px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/30 text-[10px] font-semibold text-violet-300 shrink-0">
+            {smimeStore.ownCerts.length} próprio(s) · {smimeStore.contactCerts.length} contato(s)
+          </span>
+        </div>
+
+        {smimeFeedback && (
+          <div
+            className={`px-3 py-2 rounded-lg text-[11px] border ${
+              smimeFeedback.ok
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+            }`}
+          >
+            {smimeFeedback.msg}
+          </div>
+        )}
+
+        {/* 1. Importar certificado próprio .p12 / .pfx */}
+        <div className="p-3 rounded-lg bg-slate-900/70 border border-slate-800 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-slate-300">
+              1. Importar meu certificado (.p12 / .pfx)
+            </span>
+            <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 rounded bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/40 text-[10px] font-semibold text-violet-200">
+              <Upload className="w-3 h-3" />
+              <span>{p12FileName || 'Selecionar .p12 / .pfx'}</span>
+              <input
+                type="file"
+                accept=".p12,.pfx"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setP12FileName(file.name);
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const result = String(reader.result || '');
+                    const base64 = result.includes(',') ? result.split(',')[1] : result;
+                    setP12Base64(base64);
+                  };
+                  reader.readAsDataURL(file);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input
+              type="password"
+              value={p12Passphrase}
+              onChange={(e) => setP12Passphrase(e.target.value)}
+              placeholder="Senha do arquivo .p12 / .pfx"
+              className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
+            />
+            <input
+              type="email"
+              value={p12OverrideEmail}
+              onChange={(e) => setP12OverrideEmail(e.target.value)}
+              placeholder="E-mail da conta (opcional se constar no cert)"
+              className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={!p12Base64}
+            onClick={handleImportP12}
+            className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+          >
+            Importar Certificado .p12 / .pfx
+          </button>
+
+          {smimeStore.ownCerts.length > 0 && (
+            <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+              {smimeStore.ownCerts.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-950/90 border border-slate-800 text-[11px]"
+                >
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-200 truncate">
+                      {c.commonName} <span className="text-slate-400 font-normal">&lt;{c.email}&gt;</span>
+                    </div>
+                    <div className="text-[10px] text-violet-300 truncate">
+                      AC: {c.issuer} · Válido até {new Date(c.validTo).toLocaleDateString('pt-BR')}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const blob = new Blob([c.certPem], { type: 'application/x-pem-file;charset=utf-8' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${c.email.replace(/[^a-z0-9@._-]/gi, '_')}-smime.pem`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+                      title="Exportar certificado público (.pem)"
+                    >
+                      <Download className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = { ...smimeStore, ownCerts: smimeStore.ownCerts.filter((x) => x.id !== c.id) };
+                        setSmimeStore(next);
+                        saveSmimeStore(next);
+                      }}
+                      className="p-1.5 rounded bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400"
+                      title="Remover certificado"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 2. Importar certificado público X.509 de contato (.pem / .crt / .cer) */}
+        <div className="p-3 rounded-lg bg-slate-900/70 border border-slate-800 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-slate-300">
+              2. Importar certificado público de contato (.pem / .crt / .cer)
+            </span>
+            <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-semibold text-slate-300">
+              <Upload className="w-3 h-3" />
+              <span>Carregar .pem/.crt</span>
+              <input
+                type="file"
+                accept=".pem,.crt,.cer,.txt"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  f.text().then((txt) => setSmimeContactPem(txt));
+                  e.target.value = '';
+                }}
+              />
+            </label>
+          </div>
+          <input
+            type="email"
+            value={smimeContactEmail}
+            onChange={(e) => setSmimeContactEmail(e.target.value)}
+            placeholder="E-mail do contato (opcional se constar no certificado)"
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
+          />
+          <textarea
+            rows={2}
+            value={smimeContactPem}
+            onChange={(e) => setSmimeContactPem(e.target.value)}
+            placeholder="-----BEGIN CERTIFICATE----- ..."
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500 resize-none"
+          />
+          <button
+            type="button"
+            disabled={!smimeContactPem.trim()}
+            onClick={handleImportContactSmimeCert}
+            className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+          >
+            Importar Certificado Público
+          </button>
         </div>
       </div>
 
