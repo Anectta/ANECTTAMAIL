@@ -2445,8 +2445,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 </span>
                 <span className="text-[10px] text-slate-500 font-mono">1 clique para anexar</span>
               </div>
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
-                {recentDownloads.map((file) => {
+              <div className="grid grid-cols-4 gap-1.5 pt-0.5">
+                {recentDownloads.slice(0, 4).map((file) => {
                   const isAttached = attachments.some((a) => a.path === file.path);
                   return (
                     <button
@@ -2454,15 +2454,16 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                       key={file.path}
                       onClick={() => handleAddRecentDownload(file)}
                       disabled={isAttached}
-                      className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-[11px] transition-all border ${
+                      title={`${file.name} (${formatFileSize(file.size)})`}
+                      className={`min-w-0 flex items-center space-x-1 px-2 py-1 rounded-lg text-[11px] transition-all border ${
                         isAttached
                           ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 opacity-70 cursor-default'
                           : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700/80 hover:border-brand-500/50'
                       }`}
                     >
                       <Plus className="w-3 h-3 text-brand-400 shrink-0" />
-                      <span className="truncate max-w-[150px] font-mono">{file.name}</span>
-                      <span className="text-[9px] text-slate-500 font-mono">({formatFileSize(file.size)})</span>
+                      <span className="truncate font-mono">{file.name}</span>
+                      <span className="text-[9px] text-slate-500 font-mono shrink-0">({formatFileSize(file.size)})</span>
                     </button>
                   );
                 })}
