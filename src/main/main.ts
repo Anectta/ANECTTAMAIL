@@ -3162,22 +3162,20 @@ if (!gotTheLock) {
   autoUpdater.on('update-downloaded', () => {
     if (isInstallingUpdate) return;
     isInstallingUpdate = true;
-    console.log('[AUTO-UPDATER] Download concluído. Reiniciando e instalando...');
+    updaterLog('Download concluído. Ocultando janelas e executando quitAndInstall(true, true)...');
     isDownloadingUpdate = false;
     isQuitting = true;
     isClosingAfterSync = true;
 
-    // Fecha/oculta imediatamente todas as janelas do Electron para não deixar tela preta no fundo durante a instalação
+    // Apenas OCULTA as janelas (não destrói antes do quitAndInstall para não disparar window-all-closed prematuramente)
     for (const win of BrowserWindow.getAllWindows()) {
       if (win && !win.isDestroyed()) {
         try {
+          win.removeAllListeners('close');
           win.hide();
-          win.destroy();
         } catch {}
       }
     }
-    splashWindow = null;
-    mainWindow = null;
 
     if (systemTray && !systemTray.isDestroyed()) {
       try {
@@ -3186,10 +3184,9 @@ if (!gotTheLock) {
       } catch {}
     }
 
-    setTimeout(() => {
-      // isSilent = true, isForceRunAfter = true -> instala silenciosamente e reabre o Anectta MAIL ao terminar
+    setImmediate(() => {
       autoUpdater.quitAndInstall(true, true);
-    }, 150);
+    });
   });
 
   autoUpdater.on('error', (err) => {
@@ -3275,6 +3272,7 @@ app.on('will-quit', () => {
 });
 
 app.on('window-all-closed', () => {
+  if (isInstallingUpdate) return;
   if (process.platform !== 'darwin') {
     app.quit();
   }
