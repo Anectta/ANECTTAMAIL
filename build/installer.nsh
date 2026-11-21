@@ -3,6 +3,13 @@
 
 !macro customInit
   !ifndef BUILD_UNINSTALLER
+    ; Garante instância única do instalador/atualizador (evita executar a mesma atualização duas vezes)
+    System::Call 'kernel32::CreateMutex(p 0, i 0, t "Local\AnecttaMailSetupMutex") p .r1 ?e'
+    Pop $R0
+    ${If} $R0 == 183
+      Abort
+    ${EndIf}
+
     SetSilent silent
     InitPluginsDir
     File /oname=$PLUGINSDIR\installer-logo.png "${BUILD_RESOURCES_DIR}\icon.png"

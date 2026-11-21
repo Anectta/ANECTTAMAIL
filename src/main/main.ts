@@ -2843,12 +2843,13 @@ async function ensureUpdaterHasUpdateInfo(): Promise<void> {
 let startupRetryTimers: NodeJS.Timeout[] = [];
 let periodicUpdateTimer: NodeJS.Timeout | null = null;
 let updaterFeedConfigured = false;
+let isInstallingUpdate = false;
 
 function ensureUpdaterConfigured(): void {
   if (updaterFeedConfigured) return;
   updaterFeedConfigured = true;
   autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.requestHeaders = {
     ...(autoUpdater.requestHeaders || {}),
     'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -3159,27 +3160,42 @@ if (!gotTheLock) {
   });
 
   autoUpdater.on('update-downloaded', () => {
+    if (isInstallingUpdate) return;
+    isInstallingUpdate = true;
     console.log('[AUTO-UPDATER] Download concluído. Reiniciando e instalando...');
     isDownloadingUpdate = false;
     isQuitting = true;
     isClosingAfterSync = true;
-    if (splashWindow && !splashWindow.isDestroyed()) {
-      try { splashWindow.destroy(); } catch {}
+
+    // Fecha/oculta imediatamente todas as janelas do Electron para não deixar tela preta no fundo durante a instalação
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (win && !win.isDestroyed()) {
+        try {
+          win.hide();
+          win.destroy();
+        } catch {}
+      }
     }
+    splashWindow = null;
+    mainWindow = null;
+
     if (systemTray && !systemTray.isDestroyed()) {
       try {
         systemTray.destroy();
         systemTray = null;
       } catch {}
     }
-    setImmediate(() => {
+
+    setTimeout(() => {
+      // isSilent = true, isForceRunAfter = true -> instala silenciosamente e reabre o Anectta MAIL ao terminar
       autoUpdater.quitAndInstall(true, true);
-    });
+    }, 150);
   });
 
   autoUpdater.on('error', (err) => {
     const wasDownloading = isDownloadingUpdate;
     isDownloadingUpdate = false;
+    isInstallingUpdate = false;
     const msg = err?.message || String(err);
     updaterLog(`evento error (download=${wasDownloading}): ${msg}`);
     // Erros de verificação já são tratados (com fallback) em performUpdateCheck
@@ -3189,7 +3205,7 @@ if (!gotTheLock) {
   });
 
   ipcMain.on('iniciar-download-atualizacao', () => {
-    if (isDownloadingUpdate) return;
+    if (isDownloadingUpdate || isInstallingUpdate) return;
     isDownloadingUpdate = true;
     updaterLog('Iniciando download da atualização...');
     ensureUpdaterHasUpdateInfo()
