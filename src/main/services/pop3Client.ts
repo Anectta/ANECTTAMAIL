@@ -101,6 +101,28 @@ export class SimplePop3Client {
     return await this.sendMultilineCommand(`RETR ${msgNumber}`);
   }
 
+  public async uidl(): Promise<Map<number, string>> {
+    const map = new Map<number, string>();
+    try {
+      const raw = await this.sendMultilineCommand('UIDL');
+      const lines = raw.split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('+OK') || trimmed === '.') continue;
+        const spaceIdx = trimmed.indexOf(' ');
+        if (spaceIdx <= 0) continue;
+        const seq = parseInt(trimmed.slice(0, spaceIdx), 10);
+        const uid = trimmed.slice(spaceIdx + 1).trim();
+        if (Number.isFinite(seq) && uid) {
+          map.set(seq, uid);
+        }
+      }
+    } catch {
+      // Alguns servidores POP3 antigos não suportam UIDL; faz fallback por sequência
+    }
+    return map;
+  }
+
   public async dele(msgNumber: number): Promise<void> {
     await this.sendCommand(`DELE ${msgNumber}`);
   }

@@ -38,6 +38,9 @@ export interface FetchResult {
   emails?: any[];
   error?: string;
   count?: number;
+  serverTotal?: number;
+  serverTotals?: Record<string, number>;
+  hasMore?: boolean;
   folderStats?: Record<string, number>;
   customFolders?: DiscoveredCustomFolder[];
   quota?: QuotaInfo;
@@ -962,11 +965,13 @@ export class MailService {
 
       const lock = await client.getMailboxLock(mailboxPath);
       const messages: any[] = [];
+      let serverTotal = 0;
 
       try {
         const total = client.mailbox ? client.mailbox.exists : 0;
+        serverTotal = total;
         if (total > 0) {
-          const startIdx = Math.max(1, total - limit + 1);
+          const startIdx = limit <= 0 ? 1 : Math.max(1, total - limit + 1);
           const range = `${startIdx}:${total}`;
 
             for await (const message of client.fetch(range, {
@@ -1001,12 +1006,126 @@ export class MailService {
         success: true,
         emails: messages,
         count: messages.length,
+        serverTotal,
         quota: quotaInfo,
       };
     } catch (err: any) {
       return {
         success: false,
         error: `Erro ao sincronizar pasta ${targetFolder} via IMAP: ${err.message}`,
+      };
+    }
+  }
+
+  /**
+   * Busca um lote de mensagens mais antigas de uma pasta IMAP (paginação / backfill completo).
+   */
+  public static async fetchOlderFolderMessages(
+    config: MailServerConfig,
+    targetFolder: string,
+    options?: {
+      offset?: number;
+      batchSize?: number;
+      imapPath?: string;
+      knownUids?: number[];
+    }
+  ): Promise<FetchResult> {
+    if (config.protocol === 'pop3') {
+      return this.fetchPop3Inbox(config);
+    }
+
+    const offset = Math.max(0, options?.offset ?? 0);
+    const batchSize = Math.max(10, Math.min(options?.batchSize ?? 150, 500));
+    const knownUids = new Set<number>(options?.knownUids || []);
+
+    const client = new ImapFlow({
+      host: config.host,
+      port: config.port || 993,
+      secure: config.secure !== false,
+      auth: config.accessToken
+        ? { user: config.user, accessToken: config.accessToken }
+        : { user: config.user, pass: config.pass },
+      tls: {
+        rejectUnauthorized: !isTlsHostTrusted(config.host),
+      },
+      logger: false,
+    });
+    client.on('error', (err: any) => {
+      console.warn('[IMAP] Erro assíncrono no socket IMAP (fetchOlderFolderMessages):', err?.message || err);
+    });
+
+    try {
+      await client.connect();
+      const mailboxes = await client.list();
+      const systemFolders: SupportedFolder[] = ['inbox', 'sent', 'drafts', 'trash', 'junk', 'archive'];
+      let mailboxPath: string | null = options?.imapPath || null;
+
+      if (!mailboxPath) {
+        if (systemFolders.includes(targetFolder as SupportedFolder)) {
+          mailboxPath =
+            this.findServerMailbox(mailboxes, targetFolder as SupportedFolder) ||
+            (targetFolder === 'inbox' ? 'INBOX' : null);
+        } else {
+          const cleanTarget = targetFolder.startsWith('imap:') ? targetFolder.slice(5) : targetFolder;
+          const match = mailboxes.find(
+            (m: any) =>
+              !(m.flags && (m.flags.has('\\Noselect') || m.flags.has('\\NonExistent'))) &&
+              (m.path === cleanTarget || m.name === cleanTarget)
+          );
+          mailboxPath = match?.path || null;
+        }
+      }
+
+      if (!mailboxPath) {
+        await client.logout();
+        return { success: true, emails: [], count: 0, serverTotal: 0, hasMore: false };
+      }
+
+      const lock = await client.getMailboxLock(mailboxPath);
+      let serverTotal = 0;
+      let startIdx = 1;
+      let fetchedMessages: any[] = [];
+      const flagUpdates: Array<{ id: string; isRead: boolean; isStarred: boolean }> = [];
+
+      try {
+        serverTotal = client.mailbox ? client.mailbox.exists : 0;
+        const endIdx = serverTotal - offset;
+        if (serverTotal > 0 && endIdx >= 1) {
+          startIdx = Math.max(1, endIdx - batchSize + 1);
+          const range = `${startIdx}:${endIdx}`;
+          const res = await this.fetchFolderIncremental(
+            client,
+            range,
+            targetFolder,
+            config,
+            knownUids,
+            flagUpdates
+          );
+          fetchedMessages = res.messages;
+        }
+      } finally {
+        lock.release();
+      }
+
+      await client.logout();
+
+      fetchedMessages.sort((a, b) => {
+        const timeA = a.dateStr ? new Date(a.dateStr).getTime() : 0;
+        const timeB = b.dateStr ? new Date(b.dateStr).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      return {
+        success: true,
+        emails: fetchedMessages,
+        count: fetchedMessages.length,
+        serverTotal,
+        hasMore: startIdx > 1,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: `Erro ao carregar mensagens antigas da pasta ${targetFolder}: ${err.message}`,
       };
     }
   }
@@ -1098,7 +1217,7 @@ export class MailService {
    */
   public static async syncAllFolders(
     config: MailServerConfig,
-    limitPerFolder: number = 25
+    limitPerFolder: number = 150
   ): Promise<FetchResult & { folderStats?: Record<string, number> }> {
     if (!config.host || !config.user || (!config.pass && !config.accessToken)) {
       return {
@@ -1155,6 +1274,7 @@ export class MailService {
       const allMessages: any[] = [];
       const flagUpdates: Array<{ id: string; isRead: boolean; isStarred: boolean }> = [];
       const folderStats: Record<string, number> = {};
+      const serverTotals: Record<string, number> = {};
       const systemPathToFolder = new Map<string, SupportedFolder>();
       const discoveredCustomFolders: DiscoveredCustomFolder[] = [];
       const knownUidsByFolder = config.knownUidsByFolder || {};
@@ -1174,8 +1294,14 @@ export class MailService {
 
           try {
             const total = client.mailbox ? client.mailbox.exists : 0;
+            serverTotals[folder] = total;
             if (total > 0) {
-              const effectiveLimit = folder === 'inbox' ? Math.max(limitPerFolder, 50) : limitPerFolder;
+              const effectiveLimit =
+                limitPerFolder <= 0
+                  ? total
+                  : folder === 'inbox'
+                  ? Math.max(limitPerFolder, 200)
+                  : limitPerFolder;
               const startIdx = Math.max(1, total - effectiveLimit + 1);
               const range = `${startIdx}:${total}`;
               const knownUids = new Set<number>(knownUidsByFolder[folder] || []);
@@ -1249,8 +1375,9 @@ export class MailService {
           let customMessages: any[] = [];
           try {
             const total = client.mailbox ? client.mailbox.exists : 0;
+            serverTotals[`imap:${m.path}`] = total;
             if (total > 0) {
-              const effectiveLimit = Math.min(limitPerFolder, 30);
+              const effectiveLimit = limitPerFolder <= 0 ? total : Math.min(limitPerFolder, 100);
               const startIdx = Math.max(1, total - effectiveLimit + 1);
               const range = `${startIdx}:${total}`;
               const folderKey = `imap:${m.path}`;
@@ -1296,6 +1423,7 @@ export class MailService {
         emails: allMessages,
         count: allMessages.length,
         folderStats: folderStats,
+        serverTotals,
         customFolders: discoveredCustomFolders,
         quota: quotaInfo,
         flagUpdates: flagUpdates.length > 0 ? flagUpdates : undefined,
@@ -1464,12 +1592,28 @@ export class MailService {
       await pop3.connect();
       await pop3.login();
       const stat = await pop3.stat();
+      const uidlMap = await pop3.uidl();
+      const knownPop3Set = new Set<string>(
+        Array.isArray((config as any).knownPop3Ids) ? (config as any).knownPop3Ids : []
+      );
+      const batchLimit =
+        typeof (config as any).pop3BatchLimit === 'number' && (config as any).pop3BatchLimit > 0
+          ? (config as any).pop3BatchLimit
+          : 200;
+
       const messages: any[] = [];
       const total = stat.count;
 
-      // Download the last 15 messages via POP3 RETR
-      const startIdx = Math.max(1, total - 14);
-      for (let i = total; i >= startIdx; i--) {
+      // Baixa mensagens novas do servidor POP3 (mais recentes primeiro, até batchLimit por ciclo, sem duplicar via UIDL)
+      for (let i = total; i >= 1; i--) {
+        if (messages.length >= batchLimit) break;
+        const uidlToken = uidlMap.get(i);
+        const deterministicId = uidlToken
+          ? `pop3-uidl-${uidlToken.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+          : `pop3-seq-${i}`;
+        if (knownPop3Set.has(deterministicId)) {
+          continue;
+        }
         try {
           const rawMessage = await pop3.retr(i);
           const parsed: any = await simpleParser(rawMessage);
@@ -1478,7 +1622,7 @@ export class MailService {
           const senderEmail = parsed.from?.value?.[0]?.address || '';
           const subject = parsed.subject || '(Sem Assunto)';
           const date = parsed.date ? new Date(parsed.date) : new Date();
-          const pop3MessageId = `pop3-${i}-${Date.now()}`;
+          const pop3MessageId = deterministicId;
 
           let popAttachments: any[] = [];
           if (parsed.attachments && Array.isArray(parsed.attachments) && parsed.attachments.length > 0) {
@@ -1548,6 +1692,8 @@ export class MailService {
         success: true,
         emails: messages,
         count: messages.length,
+        serverTotal: total,
+        hasMore: knownPop3Set.size + messages.length < total,
       };
     } catch (err: any) {
       pop3.close();

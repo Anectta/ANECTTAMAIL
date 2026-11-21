@@ -80,6 +80,10 @@ interface EmailListProps {
   onToggleMinimalLayout?: () => void;
   groupByThread?: boolean;
   onToggleGroupByThread?: () => void;
+  serverTotalCount?: number;
+  isLoadingOlder?: boolean;
+  onLoadMoreFromServer?: () => void;
+  onLoadAllFromServer?: () => void;
 }
 
 const AUTOMATED_SENDER_REGEX =
@@ -125,6 +129,10 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       onToggleMinimalLayout,
       groupByThread = true,
       onToggleGroupByThread,
+      serverTotalCount,
+      isLoadingOlder = false,
+      onLoadMoreFromServer,
+      onLoadAllFromServer,
     },
     ref
   ) => {
@@ -1328,6 +1336,42 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
               );
             })
           )}
+
+          {/* Rodapé de Paginação / Download Completo do Servidor */}
+          {typeof serverTotalCount === 'number' &&
+            serverTotalCount > emails.length &&
+            (onLoadMoreFromServer || onLoadAllFromServer) && (
+              <div className="p-3 m-2 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2 text-center">
+                <div className="text-[11px] text-slate-400">
+                  Exibindo <strong className="text-slate-200">{emails.length}</strong> de{' '}
+                  <strong className="text-brand-400">{serverTotalCount}</strong> mensagens no servidor
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  {onLoadMoreFromServer && (
+                    <button
+                      type="button"
+                      disabled={isLoadingOlder}
+                      onClick={onLoadMoreFromServer}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 text-[11px] font-semibold transition-colors"
+                    >
+                      {isLoadingOlder ? 'Baixando...' : 'Carregar +150 antigas'}
+                    </button>
+                  )}
+                  {onLoadAllFromServer && (
+                    <button
+                      type="button"
+                      disabled={isLoadingOlder}
+                      onClick={onLoadAllFromServer}
+                      className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-[11px] font-semibold transition-colors"
+                    >
+                      {isLoadingOlder
+                        ? 'Sincronizando...'
+                        : `Baixar todas (+${serverTotalCount - emails.length})`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
         </div>
       </section>
     );

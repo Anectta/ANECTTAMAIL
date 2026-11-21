@@ -1763,9 +1763,22 @@ ipcMain.handle('mail:fetch-folder', async (_event, payload: any, maybeFolder?: a
 ipcMain.handle('mail:sync-all-folders', async (_event, payload: any) => {
   { const g = await tlsGate(payload?.config || payload); if (g) return g; }
   const config: MailServerConfig = payload?.config || payload;
-  const limitPerFolder = payload?.limitPerFolder || 50;
-  console.log('[MAIN] mail:sync-all-folders para', config?.user, 'no servidor', config?.host);
+  const limitPerFolder =
+    typeof payload?.limitPerFolder === 'number' ? payload.limitPerFolder : 150;
+  console.log('[MAIN] mail:sync-all-folders para', config?.user, 'no servidor', config?.host, 'limit:', limitPerFolder);
   return await MailService.syncAllFolders(config, limitPerFolder);
+});
+
+ipcMain.handle('mail:fetch-older-folder', async (_event, payload: any) => {
+  { const g = await tlsGate(payload?.config || payload); if (g) return g; }
+  const config: MailServerConfig = payload?.config || payload;
+  const folder: string = payload?.folder || 'inbox';
+  return await MailService.fetchOlderFolderMessages(config, folder, {
+    offset: payload?.offset,
+    batchSize: payload?.batchSize,
+    imapPath: payload?.imapPath,
+    knownUids: payload?.knownUids,
+  });
 });
 
 ipcMain.handle('mail:start-idle', async (_event, payload: any) => {

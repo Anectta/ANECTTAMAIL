@@ -109,12 +109,27 @@ export interface ElectronAPI {
   summarizeEmailWithAI: (content: string, subject?: string) => Promise<AISummaryResult>;
   suggestRepliesWithAI: (emailContent: string) => Promise<string[]>;
   testImapConnection: (config: any) => Promise<{ success: boolean; message: string }>;
-  fetchRealInbox: (config: any) => Promise<{ success: boolean; emails?: EmailItem[]; error?: string; count?: number; quota?: QuotaInfo }>;
-  fetchRealFolder: (config: any, folder: string, limit?: number, imapPath?: string) => Promise<{ success: boolean; emails?: EmailItem[]; error?: string; count?: number; quota?: QuotaInfo }>;
+  fetchRealInbox: (config: any) => Promise<{ success: boolean; emails?: EmailItem[]; error?: string; count?: number; serverTotal?: number; hasMore?: boolean; quota?: QuotaInfo }>;
+  fetchRealFolder: (config: any, folder: string, limit?: number, imapPath?: string) => Promise<{ success: boolean; emails?: EmailItem[]; error?: string; count?: number; serverTotal?: number; quota?: QuotaInfo }>;
   loadMessageCache: () => Promise<any[] | null>;
   startImapIdle: (config: any) => Promise<{ success: boolean }>;
   onNewMail: (callback: (accountKey: string) => void) => () => void;
-  syncAllRealFolders: (config: any, limitPerFolder?: number) => Promise<{ success: boolean; emails?: EmailItem[]; error?: string; count?: number; folderStats?: Record<string, number>; customFolders?: Array<{ imapPath: string; name: string; parentImapPath?: string; parentSystemFolder?: string; delimiter?: string }>; quota?: QuotaInfo }>;
+  syncAllRealFolders: (config: any, limitPerFolder?: number) => Promise<{ success: boolean; emails?: EmailItem[]; error?: string; count?: number; folderStats?: Record<string, number>; serverTotals?: Record<string, number>; customFolders?: Array<{ imapPath: string; name: string; parentImapPath?: string; parentSystemFolder?: string; delimiter?: string }>; quota?: QuotaInfo; flagUpdates?: Array<{ id: string; isRead: boolean; isStarred: boolean }> }>;
+  fetchOlderFolderMessages?: (payload: {
+    config: any;
+    folder: string;
+    offset?: number;
+    batchSize?: number;
+    imapPath?: string;
+    knownUids?: number[];
+  }) => Promise<{
+    success: boolean;
+    emails?: EmailItem[];
+    count?: number;
+    serverTotal?: number;
+    hasMore?: boolean;
+    error?: string;
+  }>;
   createImapFolder?: (config: any, folderName: string, parentFolderOrPath?: string) => Promise<{ success: boolean; imapPath?: string; error?: string }>;
   renameImapFolder?: (config: any, oldImapPath: string, newName: string) => Promise<{ success: boolean; imapPath?: string; error?: string }>;
   deleteImapFolder?: (config: any, imapPath: string) => Promise<{ success: boolean; error?: string }>;

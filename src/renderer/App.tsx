@@ -1236,6 +1236,8 @@ export const App: React.FC = () => {
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
   const [isFlushingOutbox, setIsFlushingOutbox] = useState(false);
+  const [serverFolderTotals, setServerFolderTotals] = useState<Record<string, number>>({});
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [offlineOutboxQueue, setOfflineOutboxQueue] = useState<OfflineOutboxItem[]>(() => {
     try {
       const saved = localStorage.getItem('anectta_offline_outbox_v1');
@@ -1815,6 +1817,171 @@ export const App: React.FC = () => {
     }
   });
 
+  const handleLoadOlderFromServer = useCallback(
+    async (loadAll: boolean = false) => {
+      if (isLoadingOlder) return;
+      const targetAcc = currentAccount;
+      if (!targetAcc) return;
+      const incoming = targetAcc.incomingServer;
+      const host = incoming?.host?.trim();
+      const user = incoming?.username || targetAcc.email;
+      const password = incoming?.password || targetAcc.password || '';
+      const protocol = incoming?.protocol || 'imap';
+      if (!host || !user || (!password && !targetAcc.oauthAccessToken)) return;
+
+      const customTarget = customFolders.find(
+        (f) => f.id === currentFolder && f.accountId === targetAcc.id
+      );
+      const targetFolderKey = customTarget
+        ? `imap:${customTarget.imapPath || customTarget.name}`
+        : currentFolder;
+
+      setIsLoadingOlder(true);
+      try {
+        const accessToken = await ensureFreshAccessToken(targetAcc);
+        let totalFetchedNow = 0;
+
+        if (protocol === 'pop3' && window.electronAPI?.fetchRealInbox) {
+          let keepGoing = true;
+          let loops = 0;
+          const localKnown = new Set<string>(
+            emailsRef.current
+              .filter((e) => e.accountId === targetAcc.id && e.id.includes('pop3-'))
+              .map((e) =>
+                e.id.startsWith(`${targetAcc.id}-`) ? e.id.slice(`${targetAcc.id}-`.length) : e.id
+              )
+          );
+
+          while (keepGoing && loops < 30) {
+            loops++;
+            const res = await window.electronAPI.fetchRealInbox({
+              protocol: 'pop3',
+              host,
+              port: incoming.port || 995,
+              secure: incoming.security !== 'none',
+              user,
+              pass: password,
+              accessToken,
+              leaveOnServer: incoming.leaveOnServer ?? true,
+              knownPop3Ids: Array.from(localKnown),
+              pop3BatchLimit: 200,
+            });
+            if (typeof res.serverTotal === 'number') {
+              setServerFolderTotals((prev) => ({
+                ...prev,
+                [`${targetAcc.id}:inbox`]: res.serverTotal!,
+              }));
+            }
+            if (!res.success || !res.emails || res.emails.length === 0) {
+              break;
+            }
+            for (const m of res.emails) localKnown.add(m.id);
+            const tagged: EmailItem[] = res.emails.map((m) => ({
+              ...m,
+              id: m.id.startsWith(`${targetAcc.id}-`) ? m.id : `${targetAcc.id}-${m.id}`,
+              accountId: targetAcc.id,
+            }));
+            totalFetchedNow += tagged.length;
+            setEmails((prev) => {
+              const map = new Map(prev.map((e) => [e.id, e]));
+              for (const item of tagged) map.set(item.id, item);
+              const merged = Array.from(map.values());
+              merged.sort((a, b) => getEmailTimestampMs(b) - getEmailTimestampMs(a));
+              return merged;
+            });
+            showToast(`📥 Baixadas +${totalFetchedNow} mensagens antigas via POP3...`);
+            keepGoing = Boolean(loadAll && res.hasMore);
+          }
+        } else if (window.electronAPI?.fetchOlderFolderMessages) {
+          const accPrefix = `${targetAcc.id}-imap-${targetFolderKey}-`;
+          const knownUidsSet = new Set<number>();
+          for (const e of emailsRef.current) {
+            if (e.accountId === targetAcc.id && e.id.startsWith(accPrefix)) {
+              const uid = Number(e.id.slice(accPrefix.length));
+              if (Number.isFinite(uid)) knownUidsSet.add(uid);
+            }
+          }
+
+          let currentOffset = emailsRef.current.filter(
+            (e) => e.accountId === targetAcc.id && e.folder === currentFolder
+          ).length;
+          let keepGoing = true;
+          let loops = 0;
+
+          while (keepGoing && loops < 40) {
+            loops++;
+            const batchSize = loadAll ? 200 : 150;
+            const res = await window.electronAPI.fetchOlderFolderMessages({
+              config: {
+                protocol: 'imap',
+                host,
+                port: incoming.port || 993,
+                secure: incoming.security !== 'none',
+                user,
+                pass: password,
+                accessToken,
+              },
+              folder: targetFolderKey,
+              offset: currentOffset,
+              batchSize,
+              imapPath: customTarget ? customTarget.imapPath || customTarget.name : undefined,
+              knownUids: Array.from(knownUidsSet),
+            });
+
+            if (typeof res.serverTotal === 'number') {
+              setServerFolderTotals((prev) => ({
+                ...prev,
+                [`${targetAcc.id}:${currentFolder}`]: res.serverTotal!,
+                [`${targetAcc.id}:${targetFolderKey}`]: res.serverTotal!,
+              }));
+            }
+
+            if (!res.success) {
+              if (res.error) showToast(`⚠️ ${res.error}`);
+              break;
+            }
+
+            const batchEmails = res.emails || [];
+            if (batchEmails.length > 0) {
+              const tagged: EmailItem[] = batchEmails.map((m) => {
+                const rawUid = Number(String(m.id).split('-').pop());
+                if (Number.isFinite(rawUid)) knownUidsSet.add(rawUid);
+                return {
+                  ...m,
+                  id: m.id.startsWith(`${targetAcc.id}-`) ? m.id : `${targetAcc.id}-${m.id}`,
+                  accountId: targetAcc.id,
+                  folder: currentFolder,
+                };
+              });
+              totalFetchedNow += tagged.length;
+              setEmails((prev) => {
+                const map = new Map(prev.map((e) => [e.id, e]));
+                for (const item of tagged) map.set(item.id, item);
+                const merged = Array.from(map.values());
+                merged.sort((a, b) => getEmailTimestampMs(b) - getEmailTimestampMs(a));
+                return merged;
+              });
+              showToast(`📥 Baixadas +${totalFetchedNow} mensagens antigas do servidor...`);
+            }
+
+            currentOffset += batchSize;
+            keepGoing = Boolean(loadAll && res.hasMore);
+          }
+        }
+
+        if (totalFetchedNow > 0) {
+          soundService.play('pop');
+          showToast(`✓ Histórico atualizado: +${totalFetchedNow} mensagem(ns) baixada(s) do servidor!`);
+        } else {
+          showToast('✓ Todas as mensagens disponíveis desta pasta já estão baixadas.');
+        }
+      } finally {
+        setIsLoadingOlder(false);
+      }
+    },
+    [isLoadingOlder, currentAccount, customFolders, currentFolder, ensureFreshAccessToken]
+  );
+
   const handleToggleContactContext = useCallback(() => {
     setIsContactContextOpen((prev) => {
       const next = !prev;
@@ -2153,6 +2320,18 @@ export const App: React.FC = () => {
             }));
           }
 
+          if (res.serverTotals) {
+            setServerFolderTotals((prev) => {
+              const next = { ...prev };
+              for (const [fKey, totalNum] of Object.entries(res.serverTotals!)) {
+                if (typeof totalNum === 'number') {
+                  next[`${acc.id}:${fKey}`] = totalNum;
+                }
+              }
+              return next;
+            });
+          }
+
           const imapFolderKeyToId = new Map<string, string>();
           if (res.success && Array.isArray(res.customFolders) && res.customFolders.length > 0) {
             const discovered = res.customFolders;
@@ -2269,6 +2448,11 @@ export const App: React.FC = () => {
             });
           }
         } else if (window.electronAPI?.fetchRealInbox) {
+          const accPop3Prefix = `${acc.id}-`;
+          const knownPop3Ids = emailsRef.current
+            .filter((e) => e.accountId === acc.id && e.id.includes('pop3-'))
+            .map((e) => (e.id.startsWith(accPop3Prefix) ? e.id.slice(accPop3Prefix.length) : e.id));
+
           const res = await window.electronAPI.fetchRealInbox({
             protocol: protocol as any,
             host: host,
@@ -2278,7 +2462,16 @@ export const App: React.FC = () => {
             pass: password,
             accessToken,
             leaveOnServer: incoming.leaveOnServer ?? true,
+            knownPop3Ids,
+            pop3BatchLimit: 200,
           });
+
+          if (typeof res.serverTotal === 'number') {
+            setServerFolderTotals((prev) => ({
+              ...prev,
+              [`${acc.id}:inbox`]: res.serverTotal!,
+            }));
+          }
 
           if (res.quota) {
             setAccountQuotas((prev) => ({
@@ -2612,6 +2805,21 @@ export const App: React.FC = () => {
 
   const isUnifiedView = settings.activeAccountId === '__unified__';
 
+  const currentFolderServerTotal = useMemo(() => {
+    if (isUnifiedView) return undefined;
+    const customTarget = customFolders.find(
+      (f) => f.id === currentFolder && f.accountId === currentAccount.id
+    );
+    const direct = serverFolderTotals[`${currentAccount.id}:${currentFolder}`];
+    if (typeof direct === 'number') return direct;
+    if (customTarget) {
+      const byImap =
+        serverFolderTotals[`${currentAccount.id}:imap:${customTarget.imapPath || customTarget.name}`];
+      if (typeof byImap === 'number') return byImap;
+    }
+    return undefined;
+  }, [isUnifiedView, customFolders, currentFolder, currentAccount.id, serverFolderTotals]);
+
   // Emails na pasta selecionada ou na busca estritamente restrita à conta marcada (ou unificada)
   const currentFolderEmails = useMemo(() => {
     const accountEmails = isUnifiedView
@@ -2849,6 +3057,12 @@ export const App: React.FC = () => {
             setAccountQuotas((prev) => ({
               ...prev,
               [targetAcc.id]: res.quota!,
+            }));
+          }
+          if (typeof res.serverTotal === 'number') {
+            setServerFolderTotals((prev) => ({
+              ...prev,
+              [`${targetAcc.id}:${folder}`]: res.serverTotal!,
             }));
           }
 
@@ -4411,6 +4625,10 @@ export const App: React.FC = () => {
                   onToggleMinimalLayout={handleToggleMinimalLayout}
                   groupByThread={groupByThread}
                   onToggleGroupByThread={handleToggleGroupByThread}
+                  serverTotalCount={currentFolderServerTotal}
+                  isLoadingOlder={isLoadingOlder}
+                  onLoadMoreFromServer={() => void handleLoadOlderFromServer(false)}
+                  onLoadAllFromServer={() => void handleLoadOlderFromServer(true)}
                 />
               )}
 

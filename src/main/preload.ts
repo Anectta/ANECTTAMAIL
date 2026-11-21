@@ -206,6 +206,14 @@ const electronAPI = {
     ipcRenderer.invoke('mail:fetch-folder', { config, folder, limit, imapPath }),
   syncAllRealFolders: (config: any, limitPerFolder?: number) =>
     ipcRenderer.invoke('mail:sync-all-folders', { config, limitPerFolder }),
+  fetchOlderFolderMessages: (payload: {
+    config: any;
+    folder: string;
+    offset?: number;
+    batchSize?: number;
+    imapPath?: string;
+    knownUids?: number[];
+  }) => ipcRenderer.invoke('mail:fetch-older-folder', payload),
   startImapIdle: (config: any) => ipcRenderer.invoke('mail:start-idle', { config }),
   onNewMail: (callback: (accountKey: string) => void) => {
     const listener = (_event: any, key: string) => callback(key);
