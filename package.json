@@ -1,6 +1,6 @@
 {
   "name": "anectta-mail",
-  "version": "1.0.209",
+  "version": "1.0.210",
   "description": "Anectta MAIL - High Performance Corporate Desktop Email Client",
   "main": "dist-electron/main/main.js",
   "author": "Anectta Enterprise",
@@ -11,7 +11,9 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "start": "electron .",
     "rebuild": "node scripts/rebuild.cjs",
-    "dist": "npm run build && electron-builder --win"
+    "dist": "npm run build && electron-builder --win",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@types/mailparser": "^3.9.0",
@@ -46,7 +48,8 @@
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.16",
     "typescript": "^5.7.2",
-    "vite": "^6.0.3"
+    "vite": "^6.0.3",
+    "vitest": "^5.1.1"
   },
   "build": {
     "appId": "com.anectta.mail",

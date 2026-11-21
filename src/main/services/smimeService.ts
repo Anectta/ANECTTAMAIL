@@ -230,7 +230,25 @@ export class SmimeService {
       }
 
       // SignedData (digitally signed)
-      const plainText = p7.content ? p7.content.toString('utf8') : '';
+      const extractAsn1Text = (node: any): string => {
+        if (!node) return '';
+        if (typeof node === 'string') return forge.util.decodeUtf8(node);
+        if (typeof node.toString === 'function' && node.bytes && typeof node.bytes === 'function') {
+          return node.toString('utf8');
+        }
+        if (typeof node.value === 'string') return forge.util.decodeUtf8(node.value);
+        if (Array.isArray(node.value)) {
+          return node.value.map((child: any) => extractAsn1Text(child)).join('');
+        }
+        return '';
+      };
+
+      let plainText = '';
+      if (p7.content && typeof p7.content.toString === 'function' && p7.content.length && p7.content.length() > 0) {
+        plainText = p7.content.toString('utf8');
+      } else if (p7.rawCapture?.content) {
+        plainText = extractAsn1Text(p7.rawCapture.content);
+      }
       let signerSubject: string | undefined;
       let signerIssuer: string | undefined;
       let signerEmail: string | undefined;
