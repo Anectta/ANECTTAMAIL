@@ -41,6 +41,7 @@ import {
   Eye,
   EyeOff,
   GripVertical,
+  BarChart3,
 } from 'lucide-react';
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount } from '@/types/email';
 import { AccountSettings, AppsSettings } from '@/types/settings';
@@ -75,8 +76,8 @@ interface SidebarProps {
   onReorderFolder?: (folderId: string, direction: 'up' | 'down') => void;
   onToggleFavoriteFolder?: (accountId: string, folderId: MailFolder, label: string) => void;
   folderCreateRequest?: number;
-  activeModule?: 'mail' | 'calendar' | 'contacts' | 'tasks' | 'webapp';
-  onSelectModule?: (mod: 'mail' | 'calendar' | 'contacts' | 'tasks' | 'webapp') => void;
+  activeModule?: 'mail' | 'calendar' | 'contacts' | 'tasks' | 'stats' | 'webapp';
+  onSelectModule?: (mod: 'mail' | 'calendar' | 'contacts' | 'tasks' | 'stats' | 'webapp') => void;
   onOpenSettings?: () => void;
   onOpenPrivacyCenter?: () => void;
   appsSettings?: AppsSettings;
@@ -732,6 +733,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Users className="w-4 h-4 text-sky-400" />
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => onSelectModule('tasks')}
+                title="Tarefas"
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                  activeModule === 'tasks'
+                    ? 'bg-white/10 text-white'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <CheckSquare className="w-4 h-4 text-emerald-400" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onSelectModule('stats')}
+                title="Estatísticas & Produtividade"
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                  activeModule === 'stats'
+                    ? 'bg-white/10 text-white'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4 text-violet-400" />
+              </button>
               {appsSettings?.enableWhatsAppApp && (
                 <button
                   type="button"
@@ -1613,6 +1638,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span>Contatos</span>
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => onSelectModule('tasks')}
+              className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg transition-colors ${
+                activeModule === 'tasks'
+                  ? 'bg-white/10 text-white font-semibold'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Tarefas</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectModule('stats')}
+              className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg transition-colors ${
+                activeModule === 'stats'
+                  ? 'bg-white/10 text-white font-semibold'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-violet-400" />
+              <span>Estatísticas</span>
+            </button>
             {appsSettings?.enableWhatsAppApp && (
               <button
                 type="button"

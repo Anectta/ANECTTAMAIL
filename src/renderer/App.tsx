@@ -12,6 +12,7 @@ import { ComposeModal } from '@/components/ComposeModal';
 import { SettingsModal } from '@/components/SettingsModal';
 import { CalendarView } from '@/components/CalendarView';
 import { TasksView } from '@/components/TasksView';
+import { ProductivityDashboardView } from '@/components/ProductivityDashboardView';
 import { WebAppPanel } from '@/components/WebAppPanel';
 import { WhatsAppPanel } from '@/components/WhatsAppPanel';
 import {
@@ -4027,6 +4028,7 @@ export const App: React.FC = () => {
     if (activeModule === 'calendar') return 'Calendário';
     if (activeModule === 'contacts') return 'Contatos';
     if (activeModule === 'tasks') return 'Tarefas';
+    if (activeModule === 'stats') return 'Estatísticas & Produtividade';
     if (activeModule === 'webapp' && activeWebApp) return activeWebApp.name;
     if (isUnifiedView && currentFolder === 'inbox') return 'Caixa de Entrada Unificada';
     const map: Record<string, string> = {
@@ -4541,6 +4543,22 @@ export const App: React.FC = () => {
               setActiveModule('mail');
               handleSelectEmail(emailId);
             }}
+          />
+        )}
+
+        {/* Module: Estatísticas & Produtividade */}
+        {activeModule === 'stats' && (
+          <ProductivityDashboardView
+            emails={emails}
+            tasks={tasks}
+            accounts={settings.accounts || []}
+            offlineQueueCount={offlineOutboxQueue.length}
+            onFilterBySender={(senderEmail) => {
+              setActiveModule('mail');
+              setCurrentFolder('inbox');
+              setSearchQuery(senderEmail);
+            }}
+            onOpenModule={(mod) => setActiveModule(mod)}
           />
         )}
 

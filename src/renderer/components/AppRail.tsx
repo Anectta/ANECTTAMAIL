@@ -4,13 +4,14 @@ import {
   Calendar,
   Users,
   CheckSquare,
+  BarChart3,
   Settings,
   ShieldCheck,
 } from 'lucide-react';
 import { UserAccount } from '@/types/email';
 import logoImg from '../assets/logo.png';
 
-export type ActiveModule = 'mail' | 'calendar' | 'contacts' | 'tasks' | 'webapp';
+export type ActiveModule = 'mail' | 'calendar' | 'contacts' | 'tasks' | 'stats' | 'webapp';
 
 interface AppRailProps {
   activeModule: ActiveModule;
@@ -31,6 +32,7 @@ export const AppRail: React.FC<AppRailProps> = ({
     { id: 'calendar' as ActiveModule, label: 'Calendário', icon: Calendar },
     { id: 'contacts' as ActiveModule, label: 'Contatos', icon: Users },
     { id: 'tasks' as ActiveModule, label: 'Tarefas', icon: CheckSquare },
+    { id: 'stats' as ActiveModule, label: 'Estatísticas', icon: BarChart3 },
   ];
 
   return (
