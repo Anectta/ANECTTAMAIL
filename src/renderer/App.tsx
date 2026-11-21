@@ -1,25 +1,14 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { RotateCw, MailPlus, Search, Minus, Square, X } from 'lucide-react';
 import { ActiveModule } from '@/components/AppRail';
 import { Sidebar } from '@/components/Sidebar';
 import { EmailList, EmailListRef, EmailLayoutMode } from '@/components/EmailList';
 import { EmailView } from '@/components/EmailView';
-import { ContactContextSidebar } from '@/components/ContactContextSidebar';
 import { EmailTabsBar } from '@/components/EmailTabsBar';
-import { EmailReaderModal } from '@/components/EmailReaderModal';
 import { CommandPalette } from '@/components/CommandPalette';
-import { ComposeModal } from '@/components/ComposeModal';
-import { SettingsModal } from '@/components/SettingsModal';
-import { CalendarView } from '@/components/CalendarView';
-import { TasksView } from '@/components/TasksView';
-import { ProductivityDashboardView } from '@/components/ProductivityDashboardView';
 import { WebAppPanel } from '@/components/WebAppPanel';
 import { WhatsAppPanel } from '@/components/WhatsAppPanel';
-import {
-  ContactsView,
-  CorporateContact,
-  DEFAULT_CORPORATE_CONTACTS,
-} from '@/components/ContactsView';
+import type { CorporateContact } from '@/components/ContactsView';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount, PriorityLevel, TaskItem } from '@/types/email';
 import {
@@ -29,10 +18,53 @@ import {
   DEFAULT_CONFIRMATION_SETTINGS,
 } from '@/types/settings';
 import { EmailAnimationPreviewModal } from './components/animated-icons';
-import { AccountSetupWizardView } from './components/AccountSetupWizardView';
-import { RulesModal } from './components/RulesModal';
 import { MotivationalBanner } from './components/MotivationalBanner';
 import { ForceUpdateModal } from './components/ForceUpdateModal';
+
+// Code-Splitting (React.lazy): módulos pesados carregados sob demanda para abertura instantânea
+const CalendarView = lazy(() =>
+  import('@/components/CalendarView').then((m) => ({ default: m.CalendarView }))
+);
+const ContactsView = lazy(() =>
+  import('@/components/ContactsView').then((m) => ({ default: m.ContactsView }))
+);
+const TasksView = lazy(() =>
+  import('@/components/TasksView').then((m) => ({ default: m.TasksView }))
+);
+const ProductivityDashboardView = lazy(() =>
+  import('@/components/ProductivityDashboardView').then((m) => ({
+    default: m.ProductivityDashboardView,
+  }))
+);
+const SettingsModal = lazy(() =>
+  import('@/components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
+);
+const ComposeModal = lazy(() =>
+  import('@/components/ComposeModal').then((m) => ({ default: m.ComposeModal }))
+);
+const RulesModal = lazy(() =>
+  import('./components/RulesModal').then((m) => ({ default: m.RulesModal }))
+);
+const EmailReaderModal = lazy(() =>
+  import('@/components/EmailReaderModal').then((m) => ({ default: m.EmailReaderModal }))
+);
+const AccountSetupWizardView = lazy(() =>
+  import('./components/AccountSetupWizardView').then((m) => ({
+    default: m.AccountSetupWizardView,
+  }))
+);
+const ContactContextSidebar = lazy(() =>
+  import('@/components/ContactContextSidebar').then((m) => ({
+    default: m.ContactContextSidebar,
+  }))
+);
+
+const LazyModuleFallback: React.FC = () => (
+  <div className="flex-1 flex items-center justify-center bg-slate-50 text-slate-500 text-xs gap-2">
+    <div className="w-4 h-4 rounded-full border-2 border-brand-500/30 border-t-brand-600 animate-spin" />
+    <span>Carregando módulo...</span>
+  </div>
+);
 import { soundService } from './services/soundService';
 import { saveSettingsLocal, loadSettingsLocal } from './utils/secureSettingsStorage';
 import { themeService } from './services/themeService';
@@ -508,13 +540,13 @@ export const App: React.FC = () => {
       if (!localStorage.getItem(PURGE_FLAG)) {
         localStorage.removeItem('anectta_mail_contacts_v1');
         localStorage.setItem(PURGE_FLAG, '1');
-        return DEFAULT_CORPORATE_CONTACTS;
+        return [];
       }
       const saved = localStorage.getItem('anectta_mail_contacts_v1');
-      const parsed = saved ? JSON.parse(saved) : DEFAULT_CORPORATE_CONTACTS;
-      return Array.isArray(parsed) ? parsed : DEFAULT_CORPORATE_CONTACTS;
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return DEFAULT_CORPORATE_CONTACTS;
+      return [];
     }
   });
 
@@ -4471,95 +4503,105 @@ export const App: React.FC = () => {
               </div>
             )}
             {isContactContextOpen && displayedEmail && (
-              <ContactContextSidebar
-                email={displayedEmail}
-                allEmails={emails}
-                contacts={contacts}
-                onClose={handleToggleContactContext}
-                onSelectEmail={(id) => handleSelectEmail(id)}
-                onAddContact={(c) => {
-                  handleAddContact({
-                    name: c.name,
-                    email: c.email,
-                    role: 'Contato',
-                    company: '',
-                  });
-                }}
-                onComposeToContact={(addr) => {
-                  setComposeDefaults({ recipient: addr, subject: '' });
-                  setIsComposeOpen(true);
-                }}
-              />
+              <Suspense fallback={null}>
+                <ContactContextSidebar
+                  email={displayedEmail}
+                  allEmails={emails}
+                  contacts={contacts}
+                  onClose={handleToggleContactContext}
+                  onSelectEmail={(id) => handleSelectEmail(id)}
+                  onAddContact={(c) => {
+                    handleAddContact({
+                      name: c.name,
+                      email: c.email,
+                      role: 'Contato',
+                      company: '',
+                    });
+                  }}
+                  onComposeToContact={(addr) => {
+                    setComposeDefaults({ recipient: addr, subject: '' });
+                    setIsComposeOpen(true);
+                  }}
+                />
+              </Suspense>
             )}
           </div>
         )}
 
         {/* Module: Calendário */}
         {activeModule === 'calendar' && (
-          <CalendarView
-            calendarSettings={settings.calendar}
-            defaultOrganizer={currentAccount?.displayName || currentAccount?.email}
-            accounts={settings.accounts}
-            onSyncCloudCalendar={handleSyncCloudCalendar}
-            onPushEventToCloud={handlePushCalendarEventToCloud}
-            onUpdateEventInCloud={handleUpdateCalendarEventInCloud}
-            onDeleteEventInCloud={handleDeleteCalendarEventInCloud}
-          />
+          <Suspense fallback={<LazyModuleFallback />}>
+            <CalendarView
+              calendarSettings={settings.calendar}
+              defaultOrganizer={currentAccount?.displayName || currentAccount?.email}
+              accounts={settings.accounts}
+              onSyncCloudCalendar={handleSyncCloudCalendar}
+              onPushEventToCloud={handlePushCalendarEventToCloud}
+              onUpdateEventInCloud={handleUpdateCalendarEventInCloud}
+              onDeleteEventInCloud={handleDeleteCalendarEventInCloud}
+            />
+          </Suspense>
         )}
 
         {/* Module: Contatos */}
         {activeModule === 'contacts' && (
-          <ContactsView
-            contacts={contacts}
-            onAddContact={handleAddContact}
-            onImportContacts={handleImportContacts}
-            onSyncCloudContacts={handleSyncCloudContacts}
-            onUpdateContact={handleUpdateContact}
-            onDeleteContact={handleDeleteContact}
-            onComposeToContact={(email) => {
-              setComposeDefaults({ recipient: email, subject: '' });
-              setIsComposeOpen(true);
-            }}
-            onComposeToGroup={(groupEmails, groupName) => {
-              setComposeDefaults({
-                recipient: groupEmails.join(', '),
-                subject: '',
-              });
-              setIsComposeOpen(true);
-              showToast(`✉️ Compondo mensagem para o grupo "${groupName}" (${groupEmails.length} contatos).`);
-            }}
-          />
+          <Suspense fallback={<LazyModuleFallback />}>
+            <ContactsView
+              contacts={contacts}
+              onAddContact={handleAddContact}
+              onImportContacts={handleImportContacts}
+              onSyncCloudContacts={handleSyncCloudContacts}
+              onUpdateContact={handleUpdateContact}
+              onDeleteContact={handleDeleteContact}
+              onComposeToContact={(email) => {
+                setComposeDefaults({ recipient: email, subject: '' });
+                setIsComposeOpen(true);
+              }}
+              onComposeToGroup={(groupEmails, groupName) => {
+                setComposeDefaults({
+                  recipient: groupEmails.join(', '),
+                  subject: '',
+                });
+                setIsComposeOpen(true);
+                showToast(`✉️ Compondo mensagem para o grupo "${groupName}" (${groupEmails.length} contatos).`);
+              }}
+            />
+          </Suspense>
         )}
 
         {/* Module: Tarefas */}
         {activeModule === 'tasks' && (
-          <TasksView
-            tasks={tasks}
-            onAddTask={handleAddTask}
-            onUpdateTask={handleUpdateTask}
-            onDeleteTask={handleDeleteTask}
-            onSyncTaskToCalendar={handleSyncTaskToCalendar}
-            onOpenSourceEmail={(emailId) => {
-              setActiveModule('mail');
-              handleSelectEmail(emailId);
-            }}
-          />
+          <Suspense fallback={<LazyModuleFallback />}>
+            <TasksView
+              tasks={tasks}
+              onAddTask={handleAddTask}
+              onUpdateTask={handleUpdateTask}
+              onDeleteTask={handleDeleteTask}
+              onSyncTaskToCalendar={handleSyncTaskToCalendar}
+              onOpenSourceEmail={(emailId) => {
+                setActiveModule('mail');
+                handleSelectEmail(emailId);
+              }}
+            />
+          </Suspense>
         )}
 
         {/* Module: Estatísticas & Produtividade */}
         {activeModule === 'stats' && (
-          <ProductivityDashboardView
-            emails={emails}
-            tasks={tasks}
-            accounts={settings.accounts || []}
-            offlineQueueCount={offlineOutboxQueue.length}
-            onFilterBySender={(senderEmail) => {
-              setActiveModule('mail');
-              setCurrentFolder('inbox');
-              setSearchQuery(senderEmail);
-            }}
-            onOpenModule={(mod) => setActiveModule(mod)}
-          />
+          <Suspense fallback={<LazyModuleFallback />}>
+            <ProductivityDashboardView
+              emails={emails}
+              tasks={tasks}
+              accounts={settings.accounts || []}
+              offlineQueueCount={offlineOutboxQueue.length}
+              onFilterBySender={(senderEmail) => {
+                setActiveModule('mail');
+                setCurrentFolder('inbox');
+                setSearchQuery(senderEmail);
+              }}
+              onOpenModule={(mod) => setActiveModule(mod)}
+            />
+          </Suspense>
         )}
 
         {/* Module: Aplicativo Web Integrado */}
@@ -4578,30 +4620,34 @@ export const App: React.FC = () => {
       )}
 
       {/* Caixa de Leitura Expandida do E-mail (ao clicar na mensagem) */}
-      <EmailReaderModal
-        isOpen={isReaderModalOpen}
-        email={displayedEmail}
-        threadMessages={
-          groupByThread && displayedEmail
-            ? getThreadMessagesForEmail(displayedEmail, emails)
-            : undefined
-        }
-        onClose={() => setIsReaderModalOpen(false)}
-        onArchive={handleArchive}
-        onSnooze={handleSnooze}
-        onDelete={handleDelete}
-        onReply={handleReply}
-        onReplyAll={handleReplyAll}
-        onForward={handleForward}
-        onAddContact={handleAddContact}
-        isSenderSaved={isEmailSavedAsContact(displayedEmail?.senderEmail)}
-        onSendReadReceipt={handleSendReadReceipt}
-        onRespondCalendarInvite={handleRespondCalendarInvite}
-        blockExternalImages={settings.security.blockExternalImages}
-        blockTrackingPixels={settings.security.blockTrackingPixels ?? true}
-        blockBlockedSenders={settings.security.blockBlockedSenders ?? true}
-        onChangePrivacySetting={handleQuickPrivacyChange}
-      />
+      {isReaderModalOpen && (
+        <Suspense fallback={null}>
+          <EmailReaderModal
+            isOpen={isReaderModalOpen}
+            email={displayedEmail}
+            threadMessages={
+              groupByThread && displayedEmail
+                ? getThreadMessagesForEmail(displayedEmail, emails)
+                : undefined
+            }
+            onClose={() => setIsReaderModalOpen(false)}
+            onArchive={handleArchive}
+            onSnooze={handleSnooze}
+            onDelete={handleDelete}
+            onReply={handleReply}
+            onReplyAll={handleReplyAll}
+            onForward={handleForward}
+            onAddContact={handleAddContact}
+            isSenderSaved={isEmailSavedAsContact(displayedEmail?.senderEmail)}
+            onSendReadReceipt={handleSendReadReceipt}
+            onRespondCalendarInvite={handleRespondCalendarInvite}
+            blockExternalImages={settings.security.blockExternalImages}
+            blockTrackingPixels={settings.security.blockTrackingPixels ?? true}
+            blockBlockedSenders={settings.security.blockBlockedSenders ?? true}
+            onChangePrivacySetting={handleQuickPrivacyChange}
+          />
+        </Suspense>
+      )}
 
       {/* Productivity Command Palette (Ctrl+K) */}
       <CommandPalette
@@ -4642,36 +4688,40 @@ export const App: React.FC = () => {
       />
 
       {/* Compose Modal */}
-      <ComposeModal
-        isOpen={isComposeOpen}
-        onClose={() => {
-          setIsComposeOpen(false);
-          setComposeDraftId(undefined);
-          setComposeAccountId(undefined);
-        }}
-        onSend={handleSendEmail}
-        draftId={composeDraftId}
-        draftAttachments={composeDraftId ? emails.find((e) => e.id === composeDraftId)?.draftAttachments : undefined}
-        onSaveDraft={handleSaveDraft}
-        onDiscardDraft={handleDiscardDraft}
-        defaultRecipient={composeDefaults.recipient}
-        defaultCc={composeDefaults.cc}
-        defaultBcc={composeDefaults.bcc}
-        defaultSubject={composeDefaults.subject}
-        defaultBody={composeDefaults.body}
-        defaultBodyHtml={composeDefaults.bodyHtml}
-        defaultInReplyTo={composeDefaults.inReplyTo}
-        defaultReferences={composeDefaults.references}
-        accounts={settings.accounts}
-        activeAccountId={composeAccountId || currentAccount.id}
-        signatures={settings.signatures || []}
-        contacts={contacts}
-        draftAutoSaveEnabled={settings.drafts?.autoSaveEnabled ?? true}
-        draftAutoSaveMinutes={settings.drafts?.autoSaveMinutes ?? 3}
-        spellCheckEnabled={(settings.spellcheck?.enabled ?? true) && (settings.spellcheck?.checkEmailCompose ?? true)}
-        outgoingAnimation={settings.sending?.outgoingAnimation ?? 'airplane'}
-        confirmations={settings.notifications?.confirmations}
-      />
+      {isComposeOpen && (
+        <Suspense fallback={null}>
+          <ComposeModal
+            isOpen={isComposeOpen}
+            onClose={() => {
+              setIsComposeOpen(false);
+              setComposeDraftId(undefined);
+              setComposeAccountId(undefined);
+            }}
+            onSend={handleSendEmail}
+            draftId={composeDraftId}
+            draftAttachments={composeDraftId ? emails.find((e) => e.id === composeDraftId)?.draftAttachments : undefined}
+            onSaveDraft={handleSaveDraft}
+            onDiscardDraft={handleDiscardDraft}
+            defaultRecipient={composeDefaults.recipient}
+            defaultCc={composeDefaults.cc}
+            defaultBcc={composeDefaults.bcc}
+            defaultSubject={composeDefaults.subject}
+            defaultBody={composeDefaults.body}
+            defaultBodyHtml={composeDefaults.bodyHtml}
+            defaultInReplyTo={composeDefaults.inReplyTo}
+            defaultReferences={composeDefaults.references}
+            accounts={settings.accounts}
+            activeAccountId={composeAccountId || currentAccount.id}
+            signatures={settings.signatures || []}
+            contacts={contacts}
+            draftAutoSaveEnabled={settings.drafts?.autoSaveEnabled ?? true}
+            draftAutoSaveMinutes={settings.drafts?.autoSaveMinutes ?? 3}
+            spellCheckEnabled={(settings.spellcheck?.enabled ?? true) && (settings.spellcheck?.checkEmailCompose ?? true)}
+            outgoingAnimation={settings.sending?.outgoingAnimation ?? 'airplane'}
+            confirmations={settings.notifications?.confirmations}
+          />
+        </Suspense>
+      )}
 
       {/* Undo Send Floating Toast (8s) */}
       {pendingUndoSend && (
@@ -4706,51 +4756,61 @@ export const App: React.FC = () => {
       )}
 
       {/* Configurações Internas Modal */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        initialTab={settingsInitialTab}
-        onClose={() => setIsSettingsOpen(false)}
-        settings={settings}
-        onSaveSettings={handleSaveSettings}
-        onOpenRules={() => {
-          setIsSettingsOpen(false);
-          setIsRulesModalOpen(true);
-        }}
-        activeRulesCount={rules.filter((r) => r.enabled).length}
-        onOpenSetupWizard={() => {
-          setIsSettingsOpen(false);
-          setIsSetupWizardOpen(true);
-        }}
-        onComposeSupport={(recipient, subject, body) => {
-          setComposeDefaults({ recipient, subject, body });
-          setIsComposeOpen(true);
-        }}
-        emails={emails}
-        onImportEmails={(imported) => {
-          setEmails((prev) => [...imported, ...prev]);
-          showToast(`✓ ${imported.length} mensagem(ns) importada(s)!`);
-        }}
-      />
+      {isSettingsOpen && (
+        <Suspense fallback={null}>
+          <SettingsModal
+            isOpen={isSettingsOpen}
+            initialTab={settingsInitialTab}
+            onClose={() => setIsSettingsOpen(false)}
+            settings={settings}
+            onSaveSettings={handleSaveSettings}
+            onOpenRules={() => {
+              setIsSettingsOpen(false);
+              setIsRulesModalOpen(true);
+            }}
+            activeRulesCount={rules.filter((r) => r.enabled).length}
+            onOpenSetupWizard={() => {
+              setIsSettingsOpen(false);
+              setIsSetupWizardOpen(true);
+            }}
+            onComposeSupport={(recipient, subject, body) => {
+              setComposeDefaults({ recipient, subject, body });
+              setIsComposeOpen(true);
+            }}
+            emails={emails}
+            onImportEmails={(imported) => {
+              setEmails((prev) => [...imported, ...prev]);
+              showToast(`✓ ${imported.length} mensagem(ns) importada(s)!`);
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Motor de Regras Automáticas */}
-      <RulesModal
-        isOpen={isRulesModalOpen}
-        onClose={() => setIsRulesModalOpen(false)}
-        rules={rules}
-        onSaveRules={handleSaveRules}
-        onRunRulesNow={handleRunRulesNow}
-        customFolders={customFolders}
-        accounts={settings.accounts}
-      />
+      {isRulesModalOpen && (
+        <Suspense fallback={null}>
+          <RulesModal
+            isOpen={isRulesModalOpen}
+            onClose={() => setIsRulesModalOpen(false)}
+            rules={rules}
+            onSaveRules={handleSaveRules}
+            onRunRulesNow={handleRunRulesNow}
+            customFolders={customFolders}
+            accounts={settings.accounts}
+          />
+        </Suspense>
+      )}
 
       {/* Assistente de Conexão de Contas (Primeiro Acesso ou ao Adicionar Nova Conta) */}
       {isSetupWizardOpen && (
-        <AccountSetupWizardView
-          currentSettings={settings}
-          onAccountConnected={handleAccountConnectedFromWizard}
-          onClose={handleCloseWizard}
-          isFirstRun={isFirstRunSetup}
-        />
+        <Suspense fallback={null}>
+          <AccountSetupWizardView
+            currentSettings={settings}
+            onAccountConnected={handleAccountConnectedFromWizard}
+            onClose={handleCloseWizard}
+            isFirstRun={isFirstRunSetup}
+          />
+        </Suspense>
       )}
 
       {/* Modal de Atualização Obrigatória (Auto-Update) */}
