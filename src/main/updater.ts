@@ -384,7 +384,18 @@ async function resolveRescueTarget(): Promise<RescueTarget> {
 
   let version = policy?.targetVersion ? String(policy.targetVersion) : '';
   if (!version) {
-    version = await withTimeout(fetchLatestStableVersion(), 15_000, 'Tempo esgotado ao consultar a versão mais recente.');
+    // Mais recente entre: release liberada (Latest) e a versão já detectada pelo updater
+    // (no canal beta, a detectada pode ser uma pre-release mais nova que a Latest).
+    let stable = '';
+    try {
+      stable = await withTimeout(fetchLatestStableVersion(), 15_000, 'Tempo esgotado ao consultar a versão mais recente.');
+    } catch (err: any) {
+      updaterLog(`Canal de resgate: falha ao consultar a Latest (${err?.message || err}).`);
+    }
+    version =
+      [stable, pendingUpdateVersion || '', failedInstall?.targetVersion || '']
+        .filter(Boolean)
+        .sort((a, b) => compareSemver(b, a))[0] || '';
   }
   if (!version) throw new Error('Não foi possível identificar a versão mais recente.');
 
