@@ -39,7 +39,7 @@ import {
   ShieldCheck,
   Award,
 } from 'lucide-react';
-import { EmailTemplateItem, PriorityLevel } from '@/types/email';
+import { PriorityLevel } from '@/types/email';
 import {
   AccountSettings,
   EmailSignature,
@@ -67,8 +67,6 @@ import {
   AiComposeAction,
   applyTemplateVariables,
   composeAssistLocal,
-  loadEmailTemplates,
-  saveEmailTemplates,
 } from '../utils/triageAndTemplates';
 import { findOwnKeyByEmail, findPublicKeysForRecipients } from '../utils/pgpKeyring';
 import { findOwnSmimeCertByEmail, findSmimeCertsForRecipients } from '../utils/smimeStore';
@@ -395,7 +393,6 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
 
   // Agendamento de Envio (Send Later)
   const [isSchedulePickerOpen, setIsSchedulePickerOpen] = useState(false);
-  const [emailTemplates, setEmailTemplates] = useState<EmailTemplateItem[]>(() => loadEmailTemplates());
   const [templateCompanyVar, setTemplateCompanyVar] = useState('');
   const [newTemplateName, setNewTemplateName] = useState('');
   const [isAiAssistOpen, setIsAiAssistOpen] = useState(false);
@@ -2247,30 +2244,9 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto custom-scroll">
                 {snippets.map((snip) => (
-                  <button
-                    key={snip.id}
-                    type="button"
-                    onClick={() => handleInsertSnippet(snip.content)}
-                    className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-emerald-500/50 hover:bg-slate-900/80 transition-all text-left flex flex-col justify-start gap-1"
-                  >
-                    <div className="flex items-center justify-between gap-1 w-full">
-                      <span className="text-xs font-semibold text-emerald-300 truncate">
-                        {snip.title}
-                      </span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-semibold shrink-0">
-                        Rápida
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-slate-400 line-clamp-2">
-                      {snip.content}
-                    </div>
-                  </button>
-                ))}
-
-                {emailTemplates.map((tpl) => (
                   <div
-                    key={tpl.id}
-                    className="group relative p-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-900/80 transition-all text-left flex flex-col justify-start gap-1"
+                    key={snip.id}
+                    className="group relative p-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-emerald-500/50 hover:bg-slate-900/80 transition-all text-left flex flex-col justify-start gap-1"
                   >
                     <button
                       type="button"
@@ -2291,43 +2267,36 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                           empresa: inferredCompany,
                           email: firstRec,
                         };
-                        const appliedBody = applyTemplateVariables(tpl.body, vars);
-                        if (!subject.trim() && tpl.subject) {
-                          setSubject(applyTemplateVariables(tpl.subject, vars));
+                        const appliedText = applyTemplateVariables(snip.content, vars);
+                        if (!subject.trim() && snip.subject) {
+                          setSubject(applyTemplateVariables(snip.subject, vars));
                         }
-                        const html = plainTextToEditorHtml(appliedBody);
-                        if (editorRef.current) {
-                          editorRef.current.innerHTML = html;
-                          syncEditorFromDom();
-                        } else {
-                          setBody(appliedBody);
-                          setBodyHtml(html);
-                        }
-                        setIsSnippetPickerOpen(false);
+                        handleInsertSnippet(appliedText);
                       }}
                       className="text-left flex flex-col gap-1 w-full pr-4"
                     >
                       <div className="flex items-center justify-between gap-1 w-full">
-                        <span className="text-xs font-semibold text-indigo-300 truncate">
-                          {tpl.name}
+                        <span className="text-xs font-semibold text-emerald-300 truncate">
+                          {snip.title}
                         </span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold shrink-0">
-                          {tpl.category}
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-semibold shrink-0">
+                          {snip.category || 'Rápida'}
                         </span>
                       </div>
                       <div className="text-[10px] text-slate-400 line-clamp-2">
-                        {tpl.body}
+                        {snip.content}
                       </div>
                     </button>
                     <button
                       type="button"
                       onClick={() => {
-                        const next = emailTemplates.filter((x) => x.id !== tpl.id);
-                        setEmailTemplates(next);
-                        saveEmailTemplates(next);
+                        const saved = QuickRepliesService.saveSnippets(
+                          snippets.filter((x) => x.id !== snip.id)
+                        );
+                        setSnippets(saved);
                       }}
                       className="absolute top-2 right-1.5 p-1 text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Remover template"
+                      title="Remover resposta rápida / modelo"
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -2340,8 +2309,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   type="text"
                   value={newTemplateName}
                   onChange={(e) => setNewTemplateName(e.target.value)}
-                  placeholder="Salvar texto atual como novo modelo (suporta {{nome}}, {{empresa}}, {{data}})..."
-                  className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[11px] text-slate-200 focus:outline-none focus:border-indigo-500"
+                  placeholder="Salvar texto atual em Respostas Rápidas (suporta {{nome}}, {{empresa}}, {{data}})..."
+                  className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[11px] text-slate-200 focus:outline-none focus:border-emerald-500"
                 />
                 <button
                   type="button"
@@ -2349,20 +2318,18 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   onClick={() => {
                     const live = getLiveEditorContent();
                     if (!live.text.trim()) return;
-                    const created: EmailTemplateItem = {
-                      id: `tpl-${Date.now()}`,
-                      name: newTemplateName.trim(),
+                    const created: QuickSnippetItem = {
+                      id: `snip-${Date.now()}`,
+                      title: newTemplateName.trim(),
                       category: 'Meu modelo',
                       subject: subject.trim() || undefined,
-                      body: live.text.trim(),
-                      createdAt: new Date().toISOString(),
+                      content: live.text.trim(),
                     };
-                    const next = [created, ...emailTemplates];
-                    setEmailTemplates(next);
-                    saveEmailTemplates(next);
+                    const saved = QuickRepliesService.saveSnippets([created, ...snippets]);
+                    setSnippets(saved);
                     setNewTemplateName('');
                   }}
-                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[11px] font-semibold transition-colors"
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[11px] font-semibold transition-colors"
                 >
                   Salvar modelo
                 </button>

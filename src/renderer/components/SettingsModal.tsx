@@ -1887,8 +1887,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
 
                         {isEditing && (
-                          <div className="pl-7 pr-2 pt-1 border-t border-slate-800/70 flex items-center space-x-2">
-                            <span className="text-[10px] text-slate-400 shrink-0">Título do Snippet:</span>
+                          <div className="pl-7 pr-2 pt-1.5 border-t border-slate-800/70 grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <input
                               type="text"
                               value={snip.title}
@@ -1897,8 +1896,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 updated[idx] = { ...updated[idx], title: e.target.value };
                                 setQuickSnippetsList(updated);
                               }}
-                              placeholder="Título exibido no painel de Snippets..."
-                              className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-emerald-300 focus:outline-none focus:border-brand-500"
+                              placeholder="Título do modelo..."
+                              className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-emerald-300 focus:outline-none focus:border-brand-500"
+                            />
+                            <input
+                              type="text"
+                              value={snip.category || ''}
+                              onChange={(e) => {
+                                const updated = [...quickSnippetsList];
+                                updated[idx] = { ...updated[idx], category: e.target.value };
+                                setQuickSnippetsList(updated);
+                              }}
+                              placeholder="Categoria (ex: Comercial, Rápida)"
+                              className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-sky-300 focus:outline-none focus:border-brand-500"
+                            />
+                            <input
+                              type="text"
+                              value={snip.subject || ''}
+                              onChange={(e) => {
+                                const updated = [...quickSnippetsList];
+                                updated[idx] = { ...updated[idx], subject: e.target.value };
+                                setQuickSnippetsList(updated);
+                              }}
+                              placeholder="Assunto automático (opcional)"
+                              className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-300 focus:outline-none focus:border-brand-500"
                             />
                           </div>
                         )}
@@ -1909,9 +1930,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 {/* Adicionar nova */}
                 <div className="pt-2 border-t border-slate-800 space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 block">
-                    Adicionar Nova Resposta:
-                  </label>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <label className="text-xs font-semibold text-slate-300 block">
+                      Adicionar Nova Resposta / Modelo:
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      Variáveis suportadas: <code className="text-emerald-300">{'{{nome}}'}</code>,{' '}
+                      <code className="text-emerald-300">{'{{empresa}}'}</code>,{' '}
+                      <code className="text-emerald-300">{'{{data}}'}</code>
+                    </span>
+                  </div>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <input
                       type="text"
