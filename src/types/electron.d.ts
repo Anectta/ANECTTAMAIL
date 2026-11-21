@@ -470,6 +470,23 @@ export interface UpdaterAPI {
     error?: string;
   }>;
   startDownload: () => void;
+  getRescueState?: () => Promise<RescueState>;
+  startRescueInstall?: () => Promise<{ success: boolean; error?: string }>;
+  openRescueDownloadPage?: () => Promise<boolean>;
+  onRescueState?: (callback: (state: RescueState) => void) => () => void;
+  onRescueProgress?: (callback: (percent: number) => void) => () => void;
+  onRescueError?: (callback: (message: string) => void) => () => void;
+}
+
+export interface RescueState {
+  kind: 'none' | 'blocked' | 'install-failed';
+  message: string;
+  currentVersion: string;
+  targetVersion?: string;
+  attempts?: number;
+  busy: boolean;
+  progress: number;
+  error?: string;
 }
 
 declare global {

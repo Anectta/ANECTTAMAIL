@@ -1,9 +1,17 @@
 name: Build and Publish Windows Release
 
+# IMPORTANTE: a release é publicada como PRE-RELEASE (beta). Os clientes NÃO a recebem.
+# Depois de testar, libere para os clientes com:
+#   gh release edit v<versão> --prerelease=false --latest
+# (ver RELEASE.md)
+
 on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'update-policy.json'
+      - '**/*.md'
   workflow_dispatch:
 
 permissions:
@@ -60,8 +68,17 @@ jobs:
         if: steps.check_release.outputs.exists != 'true'
         run: npm run build
 
-      - name: Build and Publish Windows Installer to GitHub Releases
+      - name: Build and Publish Windows Installer to GitHub Releases (pre-release)
         if: steps.check_release.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --win --publish always
+
+      - name: Garantir que a release ficou como pre-release (não chega aos clientes)
+        if: steps.check_release.outputs.exists != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ steps.pkg.outputs.tag }}" --repo "${{ github.repository }}" --prerelease --draft=false
+          Write-Host "Release ${{ steps.pkg.outputs.tag }} publicada como PRE-RELEASE. Libere com: gh release edit ${{ steps.pkg.outputs.tag }} --prerelease=false --latest"

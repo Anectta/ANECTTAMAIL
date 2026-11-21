@@ -8,6 +8,13 @@
   - `c:\ANECTTA MAIL\release\Anectta MAIL Setup <nova_versão>.exe`
   - `c:\ANECTTA MAIL\release\win-unpacked\Anectta MAIL.exe`
 
+## Publicação para Clientes (Pre-release) e Atualizador Crítico
+- **Push não libera para clientes:** O push na `main` gera a release como **pre-release (beta)**. Os clientes só a recebem depois que o usuário a promover (`gh release edit v<versão> --prerelease=false --latest`). **Nunca** promova uma release para Latest sem pedido explícito do usuário.
+- **Ao entregar:** Informe sempre que a versão foi publicada como pre-release e o comando para liberá-la aos clientes.
+- **Atualizador isolado:** Todo o fluxo de atualização fica em `src/main/updater.ts`. Não coloque lógica de atualização em outro arquivo e respeite as regras R1–R4 do cabeçalho desse arquivo.
+- **Teste obrigatório:** Qualquer alteração em `src/main/updater.ts`, `build/installer.nsh` ou `build/installer-ui.ps1` exige o teste real de atualização da versão N para a N+1 descrito em `RELEASE.md`, antes de liberar a versão. Avise o usuário disso na entrega.
+- **Canal de resgate:** O `update-policy.json` na raiz do repositório bloqueia versões com defeito remotamente. Só o altere a pedido do usuário (ver `RELEASE.md`).
+
 ## Commit e Push Obrigatórios no GitHub ao Finalizar Atualizações
 - **Commit Obrigatório no GitHub:** Ao finalizar qualquer atualização no código-fonte, configuração ou versão do sistema, você **DEVE** registrar as alterações com `git add`, criar um `git commit` descritivo (mencionando a nova versão, ex.: `chore: release v1.0.122`) e enviar para o repositório remoto no GitHub (`git push origin <branch>`) antes de concluir a tarefa.
 - **Segurança:** Nunca inclua tokens, credenciais ou arquivos binários pesados ignorados pelo `.gitignore` (como `release/`) no commit. Caso o `git push` falhe por falta de autenticação ou conflito, informe o erro claramente ao usuário.

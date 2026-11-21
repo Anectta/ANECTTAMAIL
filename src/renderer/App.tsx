@@ -20,6 +20,7 @@ import {
 import { EmailAnimationPreviewModal } from './components/animated-icons';
 import { MotivationalBanner } from './components/MotivationalBanner';
 import { ForceUpdateModal } from './components/ForceUpdateModal';
+import { RescueUpdateBanner } from './components/RescueUpdateBanner';
 
 // Code-Splitting (React.lazy): módulos pesados carregados sob demanda para abertura instantânea
 const CalendarView = lazy(() =>
@@ -5091,6 +5092,9 @@ export const App: React.FC = () => {
 
       {/* Modal de Atualização Obrigatória (Auto-Update) */}
       <ForceUpdateModal />
+
+      {/* Canal de resgate: versão bloqueada remotamente ou falha de instalação detectada */}
+      <RescueUpdateBanner />
 
       {/* Overlay de Envio e Recebimento ao Fechar o Aplicativo */}
       {isClosingSync && (

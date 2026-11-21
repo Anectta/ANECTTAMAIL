@@ -501,6 +501,25 @@ const updaterAPI = {
   getPendingUpdate: () => ipcRenderer.invoke('updater:get-pending'),
   checkForUpdatesManual: () => ipcRenderer.invoke('updater:check-manual'),
   startDownload: () => ipcRenderer.send('iniciar-download-atualizacao'),
+  // Canal de resgate (versão bloqueada remotamente ou falha de instalação detectada)
+  getRescueState: () => ipcRenderer.invoke('rescue:get-state'),
+  startRescueInstall: () => ipcRenderer.invoke('rescue:install'),
+  openRescueDownloadPage: () => ipcRenderer.invoke('rescue:open-download-page'),
+  onRescueState: (callback: (state: any) => void) => {
+    const listener = (_event: any, state: any) => callback(state);
+    ipcRenderer.on('rescue:state', listener);
+    return () => ipcRenderer.removeListener('rescue:state', listener);
+  },
+  onRescueProgress: (callback: (percent: number) => void) => {
+    const listener = (_event: any, percent: number) => callback(percent);
+    ipcRenderer.on('rescue:progress', listener);
+    return () => ipcRenderer.removeListener('rescue:progress', listener);
+  },
+  onRescueError: (callback: (message: string) => void) => {
+    const listener = (_event: any, message: string) => callback(message);
+    ipcRenderer.on('rescue:error', listener);
+    return () => ipcRenderer.removeListener('rescue:error', listener);
+  },
 };
 
 contextBridge.exposeInMainWorld('updaterAPI', updaterAPI);

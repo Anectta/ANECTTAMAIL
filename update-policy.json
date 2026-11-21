@@ -1,0 +1,7 @@
+{
+  "_comment": "Canal de resgate do Anectta MAIL (lido pelo app a partir da v1.0.224). Veja RELEASE.md antes de editar.",
+  "blockedVersions": ["1.0.220", "1.0.221", "1.0.222"],
+  "minVersion": "",
+  "message": "Esta versão do Anectta MAIL tem um problema na atualização automática. Clique em \"Atualizar agora\" para instalar a versão corrigida.",
+  "targetVersion": ""
+}

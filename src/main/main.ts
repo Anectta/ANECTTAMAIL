@@ -1,5 +1,12 @@
 import { app, safeStorage, BrowserWindow, ipcMain, shell, Menu, globalShortcut, session, dialog, Notification, screen, Tray, nativeImage } from 'electron';
-import { autoUpdater } from 'electron-updater';
+import {
+  initUpdater,
+  isUpdateInstallInProgress,
+  hasPendingUpdate,
+  notifyPendingUpdate,
+  performUpdateCheck,
+  triggerStartupUpdateCheck,
+} from './updater';
 import path from 'path';
 import { pathToFileURL } from 'url';
 import fs from 'fs';
@@ -58,7 +65,6 @@ let lastNotifierData: any = null;
 let blockedTrackersCount = 0;
 let isClosingAfterSync = false;
 let closeSafetyTimer: NodeJS.Timeout | null = null;
-let pendingUpdateVersion: string | null = null;
 
 const MIN_ZOOM_FACTOR = 0.85;
 const MAX_ZOOM_FACTOR = 1.2;
@@ -317,9 +323,7 @@ function closeSplashAndShowMain(): void {
       mainWindow.maximize();
       mainWindow.show();
       mainWindow.focus();
-      if (pendingUpdateVersion) {
-        mainWindow.webContents.send('update-available', pendingUpdateVersion);
-      }
+      notifyPendingUpdate();
     }
     if (splashWindow && !splashWindow.isDestroyed()) {
       splashWindow.close();
@@ -2775,193 +2779,37 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.anectta.mail');
 }
 
-function compareSemver(a: string, b: string): number {
-  const pa = a.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
-  const pb = b.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
-  const len = Math.max(pa.length, pb.length);
-  for (let i = 0; i < len; i++) {
-    const diff = (pa[i] || 0) - (pb[i] || 0);
-    if (diff !== 0) return diff;
-  }
-  return 0;
-}
-
-let inFlightUpdateCheck: Promise<{ latestVersion: string; error?: string }> | null = null;
-let lastUpdateCheckAt = 0;
-
-function updaterLog(message: string): void {
-  const line = `[${new Date().toISOString()}] ${message}`;
-  console.log('[AUTO-UPDATER]', message);
-  try {
-    fs.appendFileSync(path.join(app.getPath('userData'), 'updater.log'), line + '\n');
-  } catch {
-    // ignore
-  }
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(message)), ms);
-    promise.then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (e) => {
-        clearTimeout(timer);
-        reject(e);
-      }
-    );
-  });
-}
-
-async function fetchLatestGithubVersion(): Promise<string> {
-  // Usa a sessão padrão (respeita o proxy configurado no app)
-  const res = await session.defaultSession.fetch(
-    `https://api.github.com/repos/Anectta/ANECTTAMAIL/releases/latest?t=${Date.now()}`,
-    {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': `AnecttaMAIL/${app.getVersion()}`,
-        'Cache-Control': 'no-cache',
-      },
-    }
-  );
-  if (!res.ok) throw new Error(`GitHub respondeu HTTP ${res.status}`);
-  const data: any = await res.json();
-  return String(data?.tag_name || data?.name || '').replace(/^v/i, '');
-}
-
-// Garante que o electron-updater conheça a versão nova antes de baixar
-async function ensureUpdaterHasUpdateInfo(): Promise<void> {
-  const result = await withTimeout(autoUpdater.checkForUpdates(), 25_000, 'Tempo esgotado ao preparar o download.');
-  const v = result?.updateInfo?.version || '';
-  if (!v || compareSemver(v, app.getVersion()) <= 0) {
-    throw new Error('O servidor de atualizações ainda está propagando a nova versão. Tente novamente em alguns minutos.');
-  }
-}
-let startupRetryTimers: NodeJS.Timeout[] = [];
-let periodicUpdateTimer: NodeJS.Timeout | null = null;
-let updaterFeedConfigured = false;
-let isInstallingUpdate = false;
-
-function ensureUpdaterConfigured(): void {
-  if (updaterFeedConfigured) return;
-  updaterFeedConfigured = true;
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = false;
-  autoUpdater.requestHeaders = {
-    ...(autoUpdater.requestHeaders || {}),
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-    Pragma: 'no-cache',
-  };
-  try {
-    const appUpdateYml = path.join(process.resourcesPath, 'app-update.yml');
-    if (!fs.existsSync(appUpdateYml)) {
-      autoUpdater.setFeedURL({
-        provider: 'github',
-        owner: 'Anectta',
-        repo: 'ANECTTAMAIL',
-      });
-    }
-  } catch {
-    // ignore
-  }
-}
-
-function notifyUpdateAvailable(version: string): void {
-  if (!version) return;
-  pendingUpdateVersion = version;
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update-available', version);
-  }
-}
-
-async function performUpdateCheck(force = false): Promise<{ latestVersion: string; error?: string }> {
-  if (!app.isPackaged) {
-    return { latestVersion: app.getVersion() };
-  }
-  if (pendingUpdateVersion) {
-    notifyUpdateAvailable(pendingUpdateVersion);
-    return { latestVersion: pendingUpdateVersion };
-  }
-  if (inFlightUpdateCheck) {
-    return inFlightUpdateCheck;
-  }
-  const now = Date.now();
-  if (!force && now - lastUpdateCheckAt < 60_000) {
-    return { latestVersion: app.getVersion() };
-  }
-
-  ensureUpdaterConfigured();
-  lastUpdateCheckAt = now;
-
-  inFlightUpdateCheck = (async () => {
-    const current = app.getVersion();
-    let updaterVersion = '';
-    let updaterError = '';
-    try {
-      const result = await withTimeout(autoUpdater.checkForUpdates(), 25_000, 'Tempo esgotado ao consultar o servidor de atualizações.');
-      updaterVersion = result?.updateInfo?.version || '';
-      updaterLog(`electron-updater: versão publicada=${updaterVersion || '(nenhuma)'} instalada=${current}`);
-    } catch (err: any) {
-      updaterError = err?.message || String(err);
-      updaterLog(`electron-updater falhou: ${updaterError}`);
-    }
-
-    // Fallback/confirmação direta pela API do GitHub (evita cache do feed atom e falhas do updater)
-    let apiVersion = '';
-    if (!updaterVersion || compareSemver(updaterVersion, current) <= 0) {
+/**
+ * Prepara o app para o instalador da atualização.
+ * ATENÇÃO (regra R1 de ./updater): apenas OCULTA as janelas. Destruí-las dispara
+ * window-all-closed → app.quit() antes de o instalador ser iniciado.
+ */
+function prepareAppForUpdateInstall(): void {
+  isQuitting = true;
+  isClosingAfterSync = true;
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win && !win.isDestroyed()) {
       try {
-        apiVersion = await withTimeout(fetchLatestGithubVersion(), 15_000, 'Tempo esgotado ao consultar o GitHub.');
-        updaterLog(`GitHub API: versão publicada=${apiVersion || '(nenhuma)'}`);
-      } catch (err: any) {
-        updaterLog(`GitHub API falhou: ${err?.message || err}`);
-      }
+        // O handler 'close' da janela principal já libera o fechamento quando isQuitting = true
+        win.hide();
+      } catch {}
     }
-
+  }
+  if (systemTray && !systemTray.isDestroyed()) {
     try {
-      const candidates = [updaterVersion, apiVersion].filter(Boolean);
-      const latestVersion = candidates.sort((a, b) => compareSemver(b, a))[0] || '';
-      if (latestVersion && compareSemver(latestVersion, current) > 0) {
-        notifyUpdateAvailable(latestVersion);
-        return { latestVersion };
-      }
-      if (!latestVersion && updaterError) {
-        return { latestVersion: '', error: updaterError };
-      }
-      return { latestVersion: latestVersion || current };
-    } finally {
-      inFlightUpdateCheck = null;
-    }
-  })();
-
-  return inFlightUpdateCheck;
+      systemTray.destroy();
+    } catch {}
+  }
+  systemTray = null;
 }
 
-function triggerStartupUpdateCheck(): void {
-  if (!app.isPackaged) return;
-  for (const t of startupRetryTimers) clearTimeout(t);
-  startupRetryTimers = [];
-
-  void performUpdateCheck(true);
-
-  // Retries automáticos caso a rede/DNS/GitHub ainda não esteja disponível na abertura
-  for (const delayMs of [20_000, 90_000]) {
-    const t = setTimeout(() => {
-      if (!pendingUpdateVersion) {
-        void performUpdateCheck(true);
-      }
-    }, delayMs);
-    startupRetryTimers.push(t);
-  }
-
-  if (!periodicUpdateTimer) {
-    periodicUpdateTimer = setInterval(() => {
-      if (!pendingUpdateVersion) {
-        void performUpdateCheck(true);
-      }
-    }, 30 * 60 * 1000);
+function restoreAppAfterFailedInstall(): void {
+  isQuitting = false;
+  isClosingAfterSync = false;
+  createSystemTray();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
   }
 }
 
@@ -2975,8 +2823,8 @@ if (!gotTheLock) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       mainWindow.focus();
-      if (pendingUpdateVersion) {
-        notifyUpdateAvailable(pendingUpdateVersion);
+      if (hasPendingUpdate()) {
+        notifyPendingUpdate();
       } else {
         void performUpdateCheck(false);
       }
@@ -3106,133 +2954,12 @@ if (!gotTheLock) {
   createSystemTray();
   createWindow();
 
-  // Auto-Updater (Atualização Obrigatória via GitHub Releases)
-  ensureUpdaterConfigured();
-  let isDownloadingUpdate = false;
-
-  ipcMain.handle('updater:get-pending', () => pendingUpdateVersion);
-
-  ipcMain.handle('updater:check-manual', async () => {
-    const currentVersion = app.getVersion();
-    if (!app.isPackaged) {
-      return {
-        status: 'dev',
-        currentVersion,
-        message: 'Verificação automática de atualização disponível apenas no aplicativo instalado.',
-      };
-    }
-    const res = await performUpdateCheck(true);
-    if (res.error) {
-      return {
-        status: 'error',
-        currentVersion,
-        error: res.error,
-      };
-    }
-    const latestVersion = pendingUpdateVersion || res.latestVersion;
-    if (latestVersion && compareSemver(latestVersion, currentVersion) > 0) {
-      pendingUpdateVersion = latestVersion;
-      return {
-        status: 'available',
-        currentVersion,
-        latestVersion,
-      };
-    }
-    return {
-      status: 'up-to-date',
-      currentVersion,
-      latestVersion: latestVersion || currentVersion,
-    };
+  // Auto-Updater: todo o fluxo fica isolado em ./updater (módulo crítico — ver RELEASE.md)
+  initUpdater({
+    getMainWindow: () => mainWindow,
+    prepareForInstall: prepareAppForUpdateInstall,
+    restoreAfterFailedInstall: restoreAppAfterFailedInstall,
   });
-
-  autoUpdater.on('update-available', (info) => {
-    const version = info?.version || '';
-    if (!version || compareSemver(version, app.getVersion()) <= 0) return;
-    console.log('[AUTO-UPDATER] Nova atualização disponível:', version);
-    notifyUpdateAvailable(version);
-  });
-
-  autoUpdater.on('download-progress', (progressObj) => {
-    const percent = Math.round(progressObj?.percent || 0);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('download-progress', percent);
-    }
-  });
-
-  autoUpdater.on('update-downloaded', () => {
-    if (isInstallingUpdate) return;
-    isInstallingUpdate = true;
-    updaterLog('Download concluído. Ocultando janelas e executando quitAndInstall(true, true)...');
-    isDownloadingUpdate = false;
-    isQuitting = true;
-    isClosingAfterSync = true;
-
-    // Apenas OCULTA as janelas (não destrói antes do quitAndInstall para não disparar window-all-closed prematuramente)
-    for (const win of BrowserWindow.getAllWindows()) {
-      if (win && !win.isDestroyed()) {
-        try {
-          win.removeAllListeners('close');
-          win.hide();
-        } catch {}
-      }
-    }
-
-    if (systemTray && !systemTray.isDestroyed()) {
-      try {
-        systemTray.destroy();
-        systemTray = null;
-      } catch {}
-    }
-
-    setImmediate(() => {
-      autoUpdater.quitAndInstall(true, true);
-    });
-  });
-
-  autoUpdater.on('error', (err) => {
-    const wasDownloading = isDownloadingUpdate;
-    isDownloadingUpdate = false;
-    isInstallingUpdate = false;
-    const msg = err?.message || String(err);
-    updaterLog(`evento error (download=${wasDownloading}): ${msg}`);
-    // Erros de verificação já são tratados (com fallback) em performUpdateCheck
-    if (wasDownloading && mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update-error', msg);
-    }
-  });
-
-  ipcMain.on('iniciar-download-atualizacao', () => {
-    if (isDownloadingUpdate || isInstallingUpdate) return;
-    isDownloadingUpdate = true;
-    updaterLog('Iniciando download da atualização...');
-    ensureUpdaterHasUpdateInfo()
-      .then(() => autoUpdater.downloadUpdate())
-      .catch((err) => {
-        isDownloadingUpdate = false;
-        const msg = err?.message || String(err);
-        updaterLog(`Falha ao baixar atualização: ${msg}`);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('update-error', msg);
-        }
-      });
-  });
-
-  if (mainWindow) {
-    mainWindow.webContents.on('did-finish-load', () => {
-      if (pendingUpdateVersion) {
-        notifyUpdateAvailable(pendingUpdateVersion);
-      }
-    });
-    mainWindow.on('show', () => {
-      if (pendingUpdateVersion) {
-        notifyUpdateAvailable(pendingUpdateVersion);
-      } else {
-        void performUpdateCheck(false);
-      }
-    });
-  }
-
-  triggerStartupUpdateCheck();
 
   // Registra o atalho global corporativo: Ctrl+Shift+E ou Cmd+Shift+E para Quick Compose
   try {
@@ -3272,7 +2999,7 @@ app.on('will-quit', () => {
 });
 
 app.on('window-all-closed', () => {
-  if (isInstallingUpdate) return;
+  if (isUpdateInstallInProgress()) return;
   if (process.platform !== 'darwin') {
     app.quit();
   }
