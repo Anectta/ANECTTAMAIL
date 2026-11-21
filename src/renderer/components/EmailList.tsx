@@ -28,6 +28,7 @@ import {
   Sparkles,
   Newspaper,
   Bell,
+  Trash2,
 } from 'lucide-react';
 import { CustomFolder, EmailItem, MailFolder, TimePeriod, TriageCategory } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
@@ -112,6 +113,9 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       width,
       selectedIds = [],
       onToggleSelectId,
+      onSelectAllVisible,
+      onClearSelection,
+      onDeleteSelected,
       peopleOnly = false,
       onTogglePeopleOnly,
       domainOnly = false,
@@ -942,24 +946,106 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
             </div>
           </div>
 
-          {/* Banner de resultado de busca restrito à conta marcada */}
-          {searchQuery.trim() && (
-            <div className="px-2 py-1.5 bg-brand-500/10 border border-brand-500/20 rounded-md flex items-center justify-between text-[11px] text-brand-300">
-              <div className="flex items-center space-x-1.5 truncate">
-                <Search className="w-3 h-3 text-brand-400 shrink-0" />
-                <span className="truncate">
-                  <strong>{filteredEmails.length}</strong> {filteredEmails.length === 1 ? 'e-mail' : 'e-mails'} encontrado(s) na conta marcada
-                </span>
+          {/* Banner de resultado de busca + Selecionar todos & Excluir */}
+          {(searchQuery.trim() || activeAdvFilterCount > 0) && (() => {
+            const visibleIds = filteredEmails.map((e) => e.id);
+            const selectedSet = new Set(selectedIds);
+            const selectedInSearchIds = visibleIds.filter((id) => selectedSet.has(id));
+            const allSelectedInSearch =
+              visibleIds.length > 0 && selectedInSearchIds.length === visibleIds.length;
+
+            return (
+              <div className="px-2 py-1.5 bg-brand-500/10 border border-brand-500/20 rounded-md space-y-1.5 text-[11px] text-brand-300">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5 truncate">
+                    <Search className="w-3 h-3 text-brand-400 shrink-0" />
+                    <span className="truncate">
+                      <strong>{filteredEmails.length}</strong>{' '}
+                      {filteredEmails.length === 1 ? 'e-mail' : 'e-mails'} encontrado(s) na conta marcada
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSearchChange('');
+                      setAdvSender('');
+                      setAdvDateFrom('');
+                      setAdvDateTo('');
+                      setAdvHasAttachment(false);
+                      setAdvUnreadOnly(false);
+                      onClearSelection?.();
+                    }}
+                    className="text-slate-400 hover:text-white shrink-0 ml-1.5 p-0.5 rounded hover:bg-slate-800 transition-colors"
+                    title="Limpar pesquisa"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {filteredEmails.length > 0 && (onSelectAllVisible || onDeleteSelected) && (
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-brand-500/20">
+                    {onSelectAllVisible && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          soundService.play('click');
+                          if (allSelectedInSearch) {
+                            onClearSelection?.();
+                          } else {
+                            onSelectAllVisible(visibleIds);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 text-slate-200 text-[11px] font-semibold transition-colors"
+                        title={
+                          allSelectedInSearch
+                            ? 'Desmarcar todos os e-mails da busca'
+                            : 'Selecionar todos os e-mails encontrados na busca'
+                        }
+                      >
+                        {allSelectedInSearch ? (
+                          <CheckSquare className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+                        ) : (
+                          <Square className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        )}
+                        <span>
+                          {allSelectedInSearch
+                            ? `Desmarcar todos (${visibleIds.length})`
+                            : `Selecionar todos (${visibleIds.length})`}
+                        </span>
+                      </button>
+                    )}
+
+                    {onDeleteSelected && (
+                      <button
+                        type="button"
+                        disabled={selectedInSearchIds.length === 0}
+                        onClick={() => {
+                          if (selectedInSearchIds.length === 0) return;
+                          if (
+                            selectedInSearchIds.length > 1 &&
+                            !window.confirm(
+                              `Deseja excluir os ${selectedInSearchIds.length} e-mails selecionados desta busca?`
+                            )
+                          ) {
+                            return;
+                          }
+                          soundService.play('click');
+                          onDeleteSelected(selectedInSearchIds);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-600/90 hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-semibold transition-colors shrink-0"
+                        title="Excluir os e-mails selecionados"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                        <span>
+                          Excluir{selectedInSearchIds.length > 0 ? ` (${selectedInSearchIds.length})` : ''}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-              <button
-                onClick={() => onSearchChange('')}
-                className="text-slate-400 hover:text-white shrink-0 ml-1.5 p-0.5 rounded hover:bg-slate-800 transition-colors"
-                title="Limpar pesquisa"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Grouped Email Cards by Date Period */}
