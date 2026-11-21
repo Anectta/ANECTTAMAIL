@@ -1238,6 +1238,11 @@ export const App: React.FC = () => {
   const [isFlushingOutbox, setIsFlushingOutbox] = useState(false);
   const [serverFolderTotals, setServerFolderTotals] = useState<Record<string, number>>({});
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [loadingOlderProgress, setLoadingOlderProgress] = useState<{
+    mode: 'batch' | 'all';
+    downloaded: number;
+    total?: number;
+  } | null>(null);
   const [offlineOutboxQueue, setOfflineOutboxQueue] = useState<OfflineOutboxItem[]>(() => {
     try {
       const saved = localStorage.getItem('anectta_offline_outbox_v1');
@@ -1837,6 +1842,19 @@ export const App: React.FC = () => {
         : currentFolder;
 
       setIsLoadingOlder(true);
+      const initialKnownTotal =
+        serverFolderTotals[`${targetAcc.id}:${currentFolder}`] ??
+        serverFolderTotals[`${targetAcc.id}:${targetFolderKey}`];
+      setLoadingOlderProgress({
+        mode: loadAll ? 'all' : 'batch',
+        downloaded: 0,
+        total: initialKnownTotal,
+      });
+      showToast(
+        loadAll
+          ? '📥 Baixando todas as mensagens do servidor... Aguarde.'
+          : '📥 Baixando mais mensagens antigas do servidor... Aguarde.'
+      );
       try {
         const accessToken = await ensureFreshAccessToken(targetAcc);
         let totalFetchedNow = 0;
@@ -1882,6 +1900,11 @@ export const App: React.FC = () => {
               accountId: targetAcc.id,
             }));
             totalFetchedNow += tagged.length;
+            setLoadingOlderProgress({
+              mode: loadAll ? 'all' : 'batch',
+              downloaded: totalFetchedNow,
+              total: typeof res.serverTotal === 'number' ? res.serverTotal : initialKnownTotal,
+            });
             setEmails((prev) => {
               const map = new Map(prev.map((e) => [e.id, e]));
               for (const item of tagged) map.set(item.id, item);
@@ -1954,6 +1977,11 @@ export const App: React.FC = () => {
                 };
               });
               totalFetchedNow += tagged.length;
+              setLoadingOlderProgress({
+                mode: loadAll ? 'all' : 'batch',
+                downloaded: totalFetchedNow,
+                total: typeof res.serverTotal === 'number' ? res.serverTotal : initialKnownTotal,
+              });
               setEmails((prev) => {
                 const map = new Map(prev.map((e) => [e.id, e]));
                 for (const item of tagged) map.set(item.id, item);
@@ -1977,9 +2005,10 @@ export const App: React.FC = () => {
         }
       } finally {
         setIsLoadingOlder(false);
+        setLoadingOlderProgress(null);
       }
     },
-    [isLoadingOlder, currentAccount, customFolders, currentFolder, ensureFreshAccessToken]
+    [isLoadingOlder, currentAccount, customFolders, currentFolder, ensureFreshAccessToken, serverFolderTotals]
   );
 
   const handleToggleContactContext = useCallback(() => {
@@ -4634,6 +4663,7 @@ export const App: React.FC = () => {
                   onToggleGroupByThread={handleToggleGroupByThread}
                   serverTotalCount={currentFolderServerTotal}
                   isLoadingOlder={isLoadingOlder}
+                  loadingOlderProgress={loadingOlderProgress}
                   onLoadMoreFromServer={() => void handleLoadOlderFromServer(false)}
                   onLoadAllFromServer={() => void handleLoadOlderFromServer(true)}
                 />

@@ -84,6 +84,7 @@ interface EmailListProps {
   onToggleGroupByThread?: () => void;
   serverTotalCount?: number;
   isLoadingOlder?: boolean;
+  loadingOlderProgress?: { mode: 'batch' | 'all'; downloaded: number; total?: number } | null;
   onLoadMoreFromServer?: () => void;
   onLoadAllFromServer?: () => void;
 }
@@ -136,6 +137,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       onToggleGroupByThread,
       serverTotalCount,
       isLoadingOlder = false,
+      loadingOlderProgress = null,
       onLoadMoreFromServer,
       onLoadAllFromServer,
     },
@@ -950,6 +952,47 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
             </div>
           </div>
 
+          {/* Aviso persistente no topo enquanto baixa mais mensagens do servidor */}
+          {isLoadingOlder && (
+            <div className="px-2.5 py-2 bg-brand-500/15 border border-brand-500/35 rounded-md space-y-1.5 text-xs text-brand-200">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-semibold min-w-0">
+                  <Loader2 className="w-3.5 h-3.5 text-brand-400 animate-spin shrink-0" />
+                  <span className="truncate">
+                    {loadingOlderProgress?.mode === 'all'
+                      ? 'Baixando todas as mensagens do servidor...'
+                      : 'Baixando mais mensagens do servidor...'}
+                  </span>
+                </div>
+                {loadingOlderProgress && loadingOlderProgress.downloaded > 0 && (
+                  <span className="text-[10px] font-mono text-brand-300 shrink-0">
+                    +{loadingOlderProgress.downloaded}
+                  </span>
+                )}
+              </div>
+              {typeof serverTotalCount === 'number' && serverTotalCount > 0 && (
+                <div className="space-y-1">
+                  <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                    <div
+                      className="h-full bg-brand-500 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.min(100, Math.max(8, Math.round((emails.length / serverTotalCount) * 100)))}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                    <span>
+                      {emails.length} de {serverTotalCount} baixadas
+                    </span>
+                    <span>
+                      {Math.min(100, Math.round((emails.length / serverTotalCount) * 100))}%
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Aviso de andamento enquanto exclui e-mails em lote */}
           {isDeletingBulk && (
             <div className="px-2.5 py-2 bg-rose-500/15 border border-rose-500/35 rounded-md flex items-center gap-2 text-xs text-rose-200 font-semibold">
@@ -1467,9 +1510,16 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                       type="button"
                       disabled={isLoadingOlder}
                       onClick={onLoadMoreFromServer}
-                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 text-[11px] font-semibold transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-60 text-slate-200 border border-slate-700 text-[11px] font-semibold transition-colors"
                     >
-                      {isLoadingOlder ? 'Baixando...' : 'Carregar +150 antigas'}
+                      {isLoadingOlder && loadingOlderProgress?.mode === 'batch' && (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      )}
+                      <span>
+                        {isLoadingOlder && loadingOlderProgress?.mode === 'batch'
+                          ? 'Baixando mensagens...'
+                          : 'Carregar +150 antigas'}
+                      </span>
                     </button>
                   )}
                   {onLoadAllFromServer && (
@@ -1477,11 +1527,16 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                       type="button"
                       disabled={isLoadingOlder}
                       onClick={onLoadAllFromServer}
-                      className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-[11px] font-semibold transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-60 text-white text-[11px] font-semibold transition-colors"
                     >
-                      {isLoadingOlder
-                        ? 'Sincronizando...'
-                        : `Baixar todas (+${serverTotalCount - emails.length})`}
+                      {isLoadingOlder && loadingOlderProgress?.mode === 'all' && (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      )}
+                      <span>
+                        {isLoadingOlder && loadingOlderProgress?.mode === 'all'
+                          ? `Baixando todas${loadingOlderProgress?.downloaded ? ` (+${loadingOlderProgress.downloaded})` : '...'}`
+                          : `Baixar todas (+${serverTotalCount - emails.length})`}
+                      </span>
                     </button>
                   )}
                 </div>
