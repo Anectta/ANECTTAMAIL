@@ -17,6 +17,14 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
+!.env.signing.example
+
+# Certificados Digitais e Chaves Privadas (NUNCA versionar!)
+*.pfx
+*.p12
+*.key
+*.pem
+certs/
 
 # Sistema Operacional e Editor
 .DS_Store

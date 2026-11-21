@@ -1,6 +1,6 @@
 {
   "name": "anectta-mail",
-  "version": "1.0.210",
+  "version": "1.0.211",
   "description": "Anectta MAIL - High Performance Corporate Desktop Email Client",
   "main": "dist-electron/main/main.js",
   "author": "Anectta Enterprise",
@@ -12,6 +12,7 @@
     "start": "electron .",
     "rebuild": "node scripts/rebuild.cjs",
     "dist": "npm run build && electron-builder --win",
+    "verify:sign": "node scripts/verify-signature.cjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -80,7 +81,12 @@
       "target": [
         "nsis"
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
+      "rfc3161TimeStampServer": "http://timestamp.digicert.com",
+      "sign": "./scripts/sign-windows.cjs"
     },
     "nsis": {
       "oneClick": true,
