@@ -1189,6 +1189,78 @@ export const App: React.FC = () => {
     } catch {}
   }, [scheduledEmails]);
 
+  // ==========================================
+  // Fila Offline Inteligente (Outbox Persistente)
+  // ==========================================
+  type OfflineOutboxItem = {
+    id: string;
+    queuedAt: number;
+    retries: number;
+    lastError?: string;
+    payload: OutgoingEmailPayload;
+  };
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [isFlushingOutbox, setIsFlushingOutbox] = useState(false);
+  const [offlineOutboxQueue, setOfflineOutboxQueue] = useState<OfflineOutboxItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('anectta_offline_outbox_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const offlineOutboxRef = useRef<OfflineOutboxItem[]>(offlineOutboxQueue);
+  offlineOutboxRef.current = offlineOutboxQueue;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('anectta_offline_outbox_v1', JSON.stringify(offlineOutboxQueue));
+    } catch {}
+  }, [offlineOutboxQueue]);
+
+  // Restaura visualmente itens pendentes da Fila Offline na pasta Caixa de Saída ao iniciar o app
+  useEffect(() => {
+    if (offlineOutboxQueue.length === 0) return;
+    setEmails((prev) => {
+      const existingIds = new Set(prev.map((e) => e.id));
+      const missing: EmailItem[] = [];
+      for (const item of offlineOutboxQueue) {
+        if (existingIds.has(item.id)) continue;
+        const acc =
+          (item.payload.fromAccountId && settings.accounts?.find((a) => a.id === item.payload.fromAccountId)) ||
+          settings.accounts?.[0] ||
+          settings.account;
+        missing.push({
+          id: item.id,
+          accountId: acc?.id,
+          sender: acc?.displayName || acc?.email || 'Você',
+          senderEmail: acc?.email || '',
+          avatar: acc?.avatar || '',
+          recipient: item.payload.recipient,
+          cc: item.payload.cc || undefined,
+          bcc: item.payload.bcc || undefined,
+          subject: `[Fila Offline] ${item.payload.subject}`,
+          snippet: item.payload.body.slice(0, 90),
+          body: item.payload.body,
+          bodyHtml: item.payload.html,
+          timestamp: new Date(item.queuedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          dateStr: new Date(item.queuedAt).toISOString(),
+          period: 'today',
+          folder: 'outbox',
+          priority: item.payload.priority,
+          isRead: true,
+          tags: ['Fila Offline', 'Aguardando conexão'],
+        });
+      }
+      return missing.length > 0 ? [...missing, ...prev] : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const emailListRef = useRef<EmailListRef>(null);
 
   // Resolução da conta corporativa ativa a partir de accounts
@@ -3214,7 +3286,63 @@ export const App: React.FC = () => {
     setIsComposeOpen(true);
   };
 
-  const dispatchEmailNow = async (emailData: OutgoingEmailPayload) => {
+  const isLikelyNetworkError = (msg?: string): boolean => {
+    if (!msg) return false;
+    return /(enotfound|econnrefused|etimedout|econnreset|eai_again|enetunreach|ehostunreach|socket|network|offline|timed?\s*out|getaddrinfo|connection\s+closed)/i.test(
+      msg
+    );
+  };
+
+  const enqueueOfflineOutbox = useCallback(
+    (emailData: OutgoingEmailPayload, reason?: string) => {
+      const queueId = `offline-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const sendingAccount =
+        (emailData.fromAccountId && settings.accounts?.find((a) => a.id === emailData.fromAccountId)) ||
+        currentAccount;
+
+      const queuedItem: OfflineOutboxItem = {
+        id: queueId,
+        queuedAt: Date.now(),
+        retries: 0,
+        lastError: reason,
+        payload: emailData,
+      };
+
+      setOfflineOutboxQueue((prev) => [...prev, queuedItem]);
+      setEmails((prev) => [
+        {
+          id: queueId,
+          accountId: sendingAccount.id,
+          sender: sendingAccount.displayName || sendingAccount.email,
+          senderEmail: sendingAccount.email,
+          avatar: sendingAccount.avatar || '',
+          recipient: emailData.recipient,
+          cc: emailData.cc || undefined,
+          bcc: emailData.bcc || undefined,
+          subject: `[Fila Offline] ${emailData.subject}`,
+          snippet: emailData.body.slice(0, 90),
+          body: emailData.body,
+          bodyHtml: emailData.html,
+          timestamp: 'Aguardando rede',
+          dateStr: new Date().toISOString(),
+          period: 'today',
+          folder: 'outbox',
+          priority: emailData.priority,
+          isRead: true,
+          tags: ['Fila Offline', 'Aguardando conexão'],
+        },
+        ...prev,
+      ]);
+      soundService.play('pop');
+      showToast('📡 Sem internet — e-mail salvo na Caixa de Saída (envio automático ao reconectar).');
+    },
+    [settings.accounts, currentAccount]
+  );
+
+  const dispatchEmailNow = async (
+    emailData: OutgoingEmailPayload,
+    options?: { skipOfflineQueue?: boolean }
+  ) => {
     const sendingAccount =
       (emailData.fromAccountId && settings.accounts?.find((a) => a.id === emailData.fromAccountId)) ||
       currentAccount;
@@ -3253,6 +3381,18 @@ export const App: React.FC = () => {
         ? incoming.host.replace(/^(pop3?|imap4?)\./i, 'smtp.')
         : outgoing?.host || '';
 
+    // Se estiver offline e houver SMTP configurado, guarda na Fila Offline Persistente
+    if (
+      !options?.skipOfflineQueue &&
+      typeof navigator !== 'undefined' &&
+      !navigator.onLine &&
+      window.electronAPI?.sendRealEmail &&
+      smtpHost
+    ) {
+      enqueueOfflineOutbox(emailData, 'Dispositivo offline');
+      return;
+    }
+
     const smtpAccessToken = await ensureFreshAccessToken(sendingAccount);
 
     let sentMessageIdHeader: string | undefined = undefined;
@@ -3289,6 +3429,10 @@ export const App: React.FC = () => {
         );
 
         if (!result.success) {
+          if (!options?.skipOfflineQueue && isLikelyNetworkError(result.error)) {
+            enqueueOfflineOutbox(emailData, result.error);
+            return;
+          }
           showToast(`❌ Falha no envio SMTP: ${result.error}`);
           soundService.play('error');
           throw new Error(result.error || 'Falha ao despachar e-mail via SMTP');
@@ -3297,6 +3441,10 @@ export const App: React.FC = () => {
         soundService.play('send');
         showToast('✓ E-mail enviado com sucesso pelo servidor corporativo!');
       } catch (err: any) {
+        if (!options?.skipOfflineQueue && isLikelyNetworkError(err?.message)) {
+          enqueueOfflineOutbox(emailData, err?.message);
+          return;
+        }
         soundService.play('error');
         showToast(`❌ Erro no envio SMTP: ${err.message || 'Verifique as credenciais da conta'}`);
         throw err;
@@ -3563,6 +3711,71 @@ export const App: React.FC = () => {
 
   const dispatchEmailNowRef = useRef(dispatchEmailNow);
   dispatchEmailNowRef.current = dispatchEmailNow;
+
+  const flushOfflineOutbox = useCallback(async () => {
+    const queue = offlineOutboxRef.current;
+    if (queue.length === 0) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+
+    setIsFlushingOutbox(true);
+    let sentCount = 0;
+    try {
+      for (const item of queue) {
+        try {
+          await dispatchEmailNowRef.current(item.payload, { skipOfflineQueue: true });
+          sentCount++;
+          setOfflineOutboxQueue((prev) => prev.filter((q) => q.id !== item.id));
+          setEmails((prev) => prev.filter((e) => e.id !== item.id));
+        } catch (err: any) {
+          setOfflineOutboxQueue((prev) =>
+            prev.map((q) =>
+              q.id === item.id
+                ? { ...q, retries: q.retries + 1, lastError: err?.message || 'Erro de rede' }
+                : q
+            )
+          );
+        }
+      }
+      if (sentCount > 0) {
+        showToast(`✓ Fila Offline: ${sentCount} e-mail(s) enviado(s) automaticamente!`);
+      }
+    } finally {
+      setIsFlushingOutbox(false);
+    }
+  }, []);
+
+  // Monitora conectividade (online/offline) e reenvia Fila Offline automaticamente ao reconectar
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (offlineOutboxRef.current.length > 0) {
+        showToast('🌐 Conexão restabelecida — enviando fila da Caixa de Saída...');
+        void flushOfflineOutbox();
+      }
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      showToast('📡 Modo Offline detectado — novos envios serão guardados na Caixa de Saída.');
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    const retryTimer = window.setInterval(() => {
+      if (
+        typeof navigator !== 'undefined' &&
+        navigator.onLine &&
+        offlineOutboxRef.current.some((q) => q.retries < 10)
+      ) {
+        void flushOfflineOutbox();
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.clearInterval(retryTimer);
+    };
+  }, [flushOfflineOutbox]);
   const pendingUndoSendRef = useRef(pendingUndoSend);
   pendingUndoSendRef.current = pendingUndoSend;
   const scheduledEmailsRef = useRef(scheduledEmails);
@@ -4052,6 +4265,52 @@ export const App: React.FC = () => {
             </div>
           )}
         </header>
+
+        {/* Barra de Status: Modo Offline / Fila Offline Persistente (Outbox) */}
+        {(!isOnline || offlineOutboxQueue.length > 0) && (
+          <div
+            className={`px-4 py-1.5 text-xs flex items-center justify-between gap-3 shrink-0 border-b ${
+              !isOnline
+                ? 'bg-amber-500/15 border-amber-500/30 text-amber-900 dark:text-amber-200'
+                : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-900 dark:text-indigo-200'
+            }`}
+          >
+            <div className="flex items-center gap-2 font-medium truncate">
+              <span>{!isOnline ? '📡 Modo Offline' : '📤 Fila Offline (Caixa de Saída)'}</span>
+              <span className="opacity-80">
+                {!isOnline
+                  ? offlineOutboxQueue.length > 0
+                    ? `— ${offlineOutboxQueue.length} mensagem(ns) aguardando conexão para envio automático.`
+                    : '— Novos envios serão guardados automaticamente na Caixa de Saída.'
+                  : `— ${offlineOutboxQueue.length} mensagem(ns) pendente(s) de envio.`}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {offlineOutboxQueue.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveModule('mail');
+                    setCurrentFolder('outbox');
+                  }}
+                  className="px-2.5 py-0.5 rounded-md bg-white/80 hover:bg-white text-slate-800 text-[11px] font-semibold border border-slate-300 transition-colors"
+                >
+                  Ver Caixa de Saída
+                </button>
+              )}
+              {isOnline && offlineOutboxQueue.length > 0 && (
+                <button
+                  type="button"
+                  disabled={isFlushingOutbox}
+                  onClick={() => void flushOfflineOutbox()}
+                  className="px-2.5 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-[11px] font-semibold transition-colors"
+                >
+                  {isFlushingOutbox ? 'Enviando...' : 'Enviar agora'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Main Workspace (Clean White or Dark Mode) */}
         <div
