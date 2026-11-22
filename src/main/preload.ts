@@ -213,6 +213,7 @@ const electronAPI = {
     batchSize?: number;
     imapPath?: string;
     knownUids?: number[];
+    missingOnly?: boolean;
   }) => ipcRenderer.invoke('mail:fetch-older-folder', payload),
   startImapIdle: (config: any) => ipcRenderer.invoke('mail:start-idle', { config }),
   onNewMail: (callback: (accountKey: string) => void) => {

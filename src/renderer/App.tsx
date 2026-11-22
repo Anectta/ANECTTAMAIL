@@ -1882,7 +1882,8 @@ export const App: React.FC = () => {
               )
           );
 
-          while (keepGoing && loops < 30 && !cancelLoadOlderRef.current) {
+          // "Baixar todas" continua até o fim (ou Cancelar); o limite alto é só uma trava de segurança
+          while (keepGoing && loops < (loadAll ? 1000 : 30) && !cancelLoadOlderRef.current) {
             loops++;
             const res = await window.electronAPI.fetchRealInbox({
               protocol: 'pop3',
@@ -1937,15 +1938,14 @@ export const App: React.FC = () => {
             }
           }
 
-          let currentOffset = emailsRef.current.filter(
-            (e) => e.accountId === targetAcc.id && e.folder === currentFolder
-          ).length;
-          let keepGoing = true;
-          let loops = 0;
+          // Baixa apenas o que FALTA localmente (UIDs do servidor − UIDs já baixados), em lotes,
+          // até não faltar nada ou o usuário cancelar. Não depende de posição/offset na pasta,
+          // então lacunas no meio também são preenchidas — sem precisar clicar de novo.
+          const MAX_CONSECUTIVE_ERRORS = 3;
+          let consecutiveErrors = 0;
 
-          while (keepGoing && loops < 40 && !cancelLoadOlderRef.current) {
-            loops++;
-            const batchSize = loadAll ? 200 : 150;
+          while (!cancelLoadOlderRef.current) {
+            const batchSize = loadAll ? 100 : 150;
             const res = await window.electronAPI.fetchOlderFolderMessages({
               config: {
                 protocol: 'imap',
@@ -1957,10 +1957,10 @@ export const App: React.FC = () => {
                 accessToken,
               },
               folder: targetFolderKey,
-              offset: currentOffset,
               batchSize,
               imapPath: customTarget ? customTarget.imapPath || customTarget.name : undefined,
               knownUids: Array.from(knownUidsSet),
+              missingOnly: true,
             });
 
             if (typeof res.serverTotal === 'number') {
@@ -1972,9 +1972,21 @@ export const App: React.FC = () => {
             }
 
             if (!res.success) {
-              if (res.error) showToast(`⚠️ ${res.error}`);
-              break;
+              // Falha transitória (rede/servidor): tenta de novo antes de desistir
+              consecutiveErrors++;
+              if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS || cancelLoadOlderRef.current) {
+                if (res.error) showToast(`⚠️ ${res.error}`);
+                break;
+              }
+              showToast(`⚠️ Conexão instável, tentando novamente (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS - 1})...`);
+              await new Promise((r) => setTimeout(r, 2000 * consecutiveErrors));
+              continue;
             }
+            consecutiveErrors = 0;
+
+            // Marca como tentados todos os UIDs do lote (inclusive os que falharam ao formatar),
+            // para o próximo lote sempre avançar
+            for (const uid of res.attemptedUids || []) knownUidsSet.add(uid);
 
             const batchEmails = res.emails || [];
             if (batchEmails.length > 0) {
@@ -2001,11 +2013,17 @@ export const App: React.FC = () => {
                 merged.sort((a, b) => getEmailTimestampMs(b) - getEmailTimestampMs(a));
                 return merged;
               });
-              showToast(`📥 Baixadas +${totalFetchedNow} mensagens antigas do servidor...`);
+              showToast(
+                typeof res.remaining === 'number' && res.remaining > 0
+                  ? `📥 Baixadas +${totalFetchedNow} mensagens... faltam ${res.remaining}.`
+                  : `📥 Baixadas +${totalFetchedNow} mensagens antigas do servidor...`
+              );
             }
 
-            currentOffset += batchSize;
-            keepGoing = Boolean(loadAll && res.hasMore && !cancelLoadOlderRef.current);
+            // "Carregar +150": um lote só. "Baixar todas": continua até não faltar nada.
+            if (!loadAll || !res.hasMore) break;
+            // Segurança: lote sem nenhum UID novo para tentar significa que não há progresso possível
+            if ((res.attemptedUids?.length ?? 0) === 0) break;
           }
         }
 

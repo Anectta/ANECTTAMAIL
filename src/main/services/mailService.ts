@@ -41,6 +41,9 @@ export interface FetchResult {
   serverTotal?: number;
   serverTotals?: Record<string, number>;
   hasMore?: boolean;
+  /** Modo "somente faltantes": UIDs tentados neste lote (com ou sem sucesso) e quantos ainda faltam. */
+  attemptedUids?: number[];
+  remaining?: number;
   folderStats?: Record<string, number>;
   customFolders?: DiscoveredCustomFolder[];
   quota?: QuotaInfo;
@@ -1028,6 +1031,12 @@ export class MailService {
       batchSize?: number;
       imapPath?: string;
       knownUids?: number[];
+      /**
+       * true = ignora o offset e baixa apenas as mensagens que faltam localmente
+       * (lista real de UIDs do servidor menos knownUids), das mais novas para as mais antigas.
+       * Não depende da posição na pasta, então lacunas no meio também são preenchidas.
+       */
+      missingOnly?: boolean;
     }
   ): Promise<FetchResult> {
     if (config.protocol === 'pop3') {
@@ -1086,6 +1095,57 @@ export class MailService {
       let startIdx = 1;
       let fetchedMessages: any[] = [];
       const flagUpdates: Array<{ id: string; isRead: boolean; isStarred: boolean }> = [];
+
+      if (options?.missingOnly) {
+        let attemptedUids: number[] = [];
+        let remaining = 0;
+        try {
+          serverTotal = client.mailbox ? client.mailbox.exists : 0;
+          if (serverTotal > 0) {
+            const found = await client.search({ all: true }, { uid: true });
+            const allUids = Array.isArray(found) ? found.map(Number).filter(Number.isFinite) : [];
+            const missing = allUids.filter((uid) => !knownUids.has(uid)).sort((a, b) => b - a);
+            attemptedUids = missing.slice(0, batchSize);
+            remaining = missing.length - attemptedUids.length;
+
+            if (attemptedUids.length > 0) {
+              for await (const message of client.fetch(
+                attemptedUids.join(','),
+                { envelope: true, flags: true, bodyStructure: true, uid: true, source: true },
+                { uid: true }
+              )) {
+                try {
+                  fetchedMessages.push(await this.formatImapMessage(message, targetFolder, config));
+                } catch (formatErr: any) {
+                  console.warn(
+                    `[IMAP] Erro ao formatar mensagem UID ${message?.uid} em ${targetFolder}:`,
+                    formatErr?.message
+                  );
+                }
+              }
+            }
+          }
+        } finally {
+          lock.release();
+        }
+        await client.logout();
+
+        fetchedMessages.sort((a, b) => {
+          const timeA = a.dateStr ? new Date(a.dateStr).getTime() : 0;
+          const timeB = b.dateStr ? new Date(b.dateStr).getTime() : 0;
+          return timeB - timeA;
+        });
+
+        return {
+          success: true,
+          emails: fetchedMessages,
+          count: fetchedMessages.length,
+          serverTotal,
+          hasMore: remaining > 0,
+          attemptedUids,
+          remaining,
+        };
+      }
 
       try {
         serverTotal = client.mailbox ? client.mailbox.exists : 0;

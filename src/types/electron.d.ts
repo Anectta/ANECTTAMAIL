@@ -122,12 +122,15 @@ export interface ElectronAPI {
     batchSize?: number;
     imapPath?: string;
     knownUids?: number[];
+    missingOnly?: boolean;
   }) => Promise<{
     success: boolean;
     emails?: EmailItem[];
     count?: number;
     serverTotal?: number;
     hasMore?: boolean;
+    attemptedUids?: number[];
+    remaining?: number;
     error?: string;
   }>;
   createImapFolder?: (config: any, folderName: string, parentFolderOrPath?: string) => Promise<{ success: boolean; imapPath?: string; error?: string }>;

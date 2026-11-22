@@ -1782,6 +1782,7 @@ ipcMain.handle('mail:fetch-older-folder', async (_event, payload: any) => {
     batchSize: payload?.batchSize,
     imapPath: payload?.imapPath,
     knownUids: payload?.knownUids,
+    missingOnly: payload?.missingOnly === true,
   });
 });
 
