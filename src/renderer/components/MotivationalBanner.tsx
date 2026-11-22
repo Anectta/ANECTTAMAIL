@@ -64,7 +64,7 @@ export const MotivationalBanner: React.FC = () => {
         onClick={handleShow}
         title="Exibir mensagens motivadoras"
         aria-label="Exibir mensagens motivadoras"
-        className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-amber-200/80 hover:text-amber-100 border border-white/15 transition-colors"
+        className="motivational-pill motivational-btn p-1.5 rounded-full border transition-colors"
       >
         <Sparkles className="w-3.5 h-3.5" />
       </button>
@@ -73,7 +73,7 @@ export const MotivationalBanner: React.FC = () => {
 
   return (
     <div
-      className="flex items-center space-x-2 px-3 py-1 rounded-full bg-[#0B4EA2]/55 border border-white/20 shadow-sm max-w-xl min-w-0"
+      className="motivational-pill flex items-center space-x-2 px-3 py-1 rounded-full border shadow-sm max-w-xl min-w-0"
       title={MOTIVATIONAL_QUOTES[quoteIndex]}
     >
       <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
@@ -89,7 +89,7 @@ export const MotivationalBanner: React.FC = () => {
         onClick={handleHide}
         title="Ocultar mensagem motivadora"
         aria-label="Ocultar mensagem motivadora"
-        className="p-0.5 rounded-full text-white/60 hover:text-white hover:bg-white/15 transition-colors shrink-0"
+        className="motivational-btn motivational-close p-0.5 rounded-full transition-colors shrink-0"
       >
         <X className="w-3 h-3" />
       </button>

@@ -4463,8 +4463,8 @@ export const App: React.FC = () => {
 
       {/* Right Column: Blue Header + Clean White Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden bg-white">
-        {/* Vibrant Blue Header (Mockup Style) */}
-        <header className="mockup-header bg-gradient-to-r from-[#1473E6] to-[#0D62CC] text-white px-5 pt-2.5 pb-3 shrink-0 app-drag-region shadow-sm">
+        {/* Barra superior: cor de destaque do tema ativo (estilos em index.css → .mockup-header) */}
+        <header className="mockup-header px-5 pt-2.5 pb-3 shrink-0 app-drag-region shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <h1 className="text-xl font-bold tracking-tight truncate">
               {activeFolderTitle}
@@ -4472,7 +4472,7 @@ export const App: React.FC = () => {
 
             <div className="flex items-center space-x-2 app-no-drag shrink-0">
               {activeModule !== 'mail' && toastMessage && (
-                <div className="px-3 py-1 bg-white/15 border border-white/25 rounded-full text-[11px] font-medium text-white truncate max-w-md">
+                <div className="header-ghost px-3 py-1 border rounded-full text-[11px] font-medium truncate max-w-md">
                   {toastMessage}
                 </div>
               )}
@@ -4482,7 +4482,7 @@ export const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => window.electronAPI?.minimizeWindow?.()}
-                  className="p-1.5 rounded hover:bg-white/15 text-white/90 hover:text-white transition-colors"
+                  className="header-icon-btn p-1.5 rounded transition-colors"
                   title="Minimizar"
                 >
                   <Minus className="w-3.5 h-3.5" />
@@ -4490,7 +4490,7 @@ export const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => window.electronAPI?.maximizeWindow?.()}
-                  className="p-1.5 rounded hover:bg-white/15 text-white/90 hover:text-white transition-colors"
+                  className="header-icon-btn p-1.5 rounded transition-colors"
                   title="Maximizar"
                 >
                   <Square className="w-3 h-3" />
@@ -4498,7 +4498,7 @@ export const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => window.electronAPI?.closeWindow?.()}
-                  className="p-1.5 rounded hover:bg-rose-500 text-white/90 hover:text-white transition-colors"
+                  className="header-icon-btn header-close-btn p-1.5 rounded transition-colors"
                   title="Fechar"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -4514,10 +4514,10 @@ export const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleSyncAll()}
-                  className="flex items-center space-x-1.5 px-3 py-1 bg-white hover:bg-slate-100 text-slate-800 rounded-md text-xs font-semibold shadow-sm transition-colors shrink-0"
+                  className="header-solid flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-semibold shadow-sm transition-colors shrink-0"
                 >
                   <RotateCw
-                    className={`w-3.5 h-3.5 shrink-0 text-[#1473E6] ${isSyncing ? 'animate-spin' : ''}`}
+                    className={`header-accent-icon w-3.5 h-3.5 shrink-0 ${isSyncing ? 'animate-spin' : ''}`}
                     style={{ width: '14px', height: '14px', transformOrigin: 'center' }}
                   />
                   <span>Sincronizar / Enviar e Receber</span>
@@ -4529,7 +4529,7 @@ export const App: React.FC = () => {
                     setComposeDefaults({ recipient: '', subject: '' });
                     setIsComposeOpen(true);
                   }}
-                  className="flex items-center space-x-1.5 px-3 py-1 bg-white/15 hover:bg-white/25 text-white border border-white/25 rounded-md text-xs font-semibold transition-colors shrink-0"
+                  className="header-ghost flex items-center space-x-1.5 px-3 py-1 border rounded-md text-xs font-semibold transition-colors shrink-0"
                 >
                   <MailPlus className="w-3.5 h-3.5" />
                   <span>Novo E-mail</span>
@@ -4537,19 +4537,19 @@ export const App: React.FC = () => {
 
                 {/* White Search Input (ao lado de Novo E-mail) */}
                 <div className="relative w-64 shrink-0">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="header-search-icon w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Pesquisar..."
-                    className="w-full bg-white text-slate-800 placeholder-slate-400 rounded-md pl-8 pr-7 py-1 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                    className="header-search w-full rounded-md pl-8 pr-7 py-1 text-xs shadow-sm focus:outline-none"
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                      className="header-search-clear absolute right-2 top-1/2 -translate-y-1/2"
                       title="Limpar pesquisa"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -4562,7 +4562,7 @@ export const App: React.FC = () => {
               </div>
 
               {(toastMessage || isSyncing) && (
-                <div className="px-3 py-1 bg-white/15 border border-white/25 rounded-full text-[11px] font-medium text-white truncate max-w-md">
+                <div className="header-ghost px-3 py-1 border rounded-full text-[11px] font-medium truncate max-w-md">
                   {isSyncing ? 'Sincronizando contas de e-mails...' : toastMessage}
                 </div>
               )}

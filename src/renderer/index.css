@@ -1381,3 +1381,117 @@ body.clean-white,
   animation: anecttaLogoSpinY 5.4s ease-in-out infinite;
   transform-style: preserve-3d;
 }
+
+/* ==========================================================================
+   Barra superior (header.mockup-header) — acompanha a cor de destaque do tema.
+   Usa --accent-primary (fundo) e --accent-contrast (texto) definidos por skin.
+   Seletores com "html header.mockup-header" para prevalecer sobre os overrides
+   genéricos de ".clean-white header ..." e ".dark ...".
+   ========================================================================== */
+html header.mockup-header {
+  background-color: var(--accent-primary, #1473e6) !important;
+  background-image: linear-gradient(
+    to right,
+    var(--accent-primary, #1473e6),
+    color-mix(in srgb, var(--accent-primary, #1473e6) 82%, #000)
+  ) !important;
+  color: var(--accent-contrast, #ffffff) !important;
+  border-bottom: 0 !important;
+}
+
+/* Tema padrão: mantém o azul original da marca */
+html:not([data-theme]) header.mockup-header,
+html[data-theme="executive-midnight"] header.mockup-header {
+  background-image: linear-gradient(to right, #1473e6, #0d62cc) !important;
+}
+
+html header.mockup-header h1 {
+  color: var(--accent-contrast, #ffffff) !important;
+}
+
+/* Elementos translúcidos (Novo E-mail, avisos) */
+html header.mockup-header .header-ghost {
+  background-color: color-mix(in srgb, var(--accent-contrast, #ffffff) 15%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent-contrast, #ffffff) 28%, transparent) !important;
+  color: var(--accent-contrast, #ffffff) !important;
+}
+html header.mockup-header button.header-ghost:hover {
+  background-color: color-mix(in srgb, var(--accent-contrast, #ffffff) 25%, transparent) !important;
+}
+
+/* Controles de janela */
+html header.mockup-header .header-icon-btn {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  color: var(--accent-contrast, #ffffff) !important;
+  opacity: 0.9;
+}
+html header.mockup-header .header-icon-btn:hover {
+  background-color: color-mix(in srgb, var(--accent-contrast, #ffffff) 15%, transparent) !important;
+  opacity: 1;
+}
+html header.mockup-header .header-close-btn:hover {
+  background-color: #f43f5e !important;
+  color: #ffffff !important;
+}
+
+/* Botão Sincronizar e pesquisa: brancos em qualquer tema */
+html header.mockup-header .header-solid {
+  background-color: #ffffff !important;
+  border-color: transparent !important;
+  color: #1e293b !important;
+}
+html header.mockup-header .header-solid:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+html header.mockup-header .header-accent-icon {
+  color: var(--accent-primary, #1473e6) !important;
+}
+html header.mockup-header input.header-search {
+  background-color: #ffffff !important;
+  border: 0 !important;
+  color: #1e293b !important;
+}
+html header.mockup-header input.header-search:focus {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-contrast, #ffffff) 60%, transparent) !important;
+}
+html header.mockup-header input.header-search::placeholder {
+  color: #94a3b8 !important;
+}
+html header.mockup-header .header-search-icon {
+  color: #94a3b8 !important;
+}
+html header.mockup-header .header-search-clear {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  color: #94a3b8 !important;
+}
+html header.mockup-header .header-search-clear:hover {
+  color: #334155 !important;
+}
+
+/* Frase motivacional: pílula num tom mais escuro da cor do tema */
+html header.mockup-header .motivational-pill {
+  background-color: color-mix(in srgb, var(--accent-primary, #1473e6) 62%, #000) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+html:not([data-theme]) header.mockup-header .motivational-pill,
+html[data-theme="executive-midnight"] header.mockup-header .motivational-pill {
+  background-color: rgba(11, 78, 162, 0.55) !important;
+}
+html header.mockup-header .motivational-btn {
+  color: #fde68a !important;
+}
+html header.mockup-header button.motivational-pill:hover {
+  background-color: color-mix(in srgb, var(--accent-primary, #1473e6) 50%, #000) !important;
+}
+html header.mockup-header .motivational-close {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+html header.mockup-header .motivational-close:hover {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+}
