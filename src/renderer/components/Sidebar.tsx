@@ -1108,7 +1108,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                   {accUnread[cf.id]}
                                 </span>
                               ) : (accTotal[cf.id] ?? 0) > 0 ? (
-                                <span className="text-slate-500 text-[10px] font-mono">
+                                <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                                   {accTotal[cf.id]}
                                 </span>
                               ) : null}
@@ -1259,7 +1259,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               {accUnread['inbox']}
                             </span>
                           ) : accTotal['inbox'] > 0 ? (
-                            <span className="text-slate-500 text-[10px] font-mono">
+                            <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                               {accTotal['inbox']}
                             </span>
                           ) : null}
@@ -1296,7 +1296,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Favoritos</span>
                       </div>
                       {accTotal['favorites'] > 0 && (
-                        <span className="text-slate-400 text-[10px] font-mono bg-slate-800/80 px-1.5 rounded">
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                           {accTotal['favorites']}
                         </span>
                       )}
@@ -1316,7 +1316,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Tarefas</span>
                       </div>
                       {accTotal['tasks'] > 0 && (
-                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded">
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                           {accTotal['tasks']}
                         </span>
                       )}
@@ -1336,7 +1336,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Lista de leitura</span>
                       </div>
                       {accTotal['reading_list'] > 0 && (
-                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded">
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                           {accTotal['reading_list']}
                         </span>
                       )}
@@ -1356,7 +1356,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Importante</span>
                       </div>
                       {accTotal['important'] > 0 && (
-                        <span className="text-slate-400 text-[10px] font-mono bg-slate-800/80 px-1.5 rounded">
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                           {accTotal['important']}
                         </span>
                       )}
@@ -1384,7 +1384,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Itens Enviados</span>
                       </div>
                       {accTotal['sent'] > 0 && (
-                        <span className="text-slate-500 text-[10px] font-mono">
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                           {accTotal['sent']}
                         </span>
                       )}
@@ -1414,11 +1414,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Lixo eletrônico</span>
                       </div>
                       {accUnread['junk'] > 0 ? (
-                        <span className="font-bold text-amber-400 text-[10px] bg-amber-500/20 px-1.5 rounded-full">
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                           {accUnread['junk']}
                         </span>
                       ) : accTotal['junk'] > 0 ? (
-                        <span className="text-slate-500 text-[10px] font-mono">
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                           {accTotal['junk']}
                         </span>
                       ) : null}
@@ -1448,7 +1448,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Caixa de Saída</span>
                       </div>
                       {accTotal['outbox'] > 0 && (
-                        <span className="text-slate-500 text-[10px] font-mono">
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                           {accTotal['outbox']}
                         </span>
                       )}
@@ -1478,7 +1478,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Itens Excluídos</span>
                       </div>
                       {accTotal['trash'] > 0 && (
-                        <span className="text-slate-500 text-[10px] font-mono">
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                           {accTotal['trash']}
                         </span>
                       )}
@@ -1508,7 +1508,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Rascunhos</span>
                       </div>
                       {accTotal['drafts'] > 0 && (
-                        <span className="text-slate-500 text-[10px] font-mono">
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                           {accTotal['drafts']}
                         </span>
                       )}
@@ -1538,7 +1538,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Arquivados</span>
                       </div>
                       {accTotal['archive'] > 0 && (
-                        <span className="text-slate-500 text-[10px] font-mono">
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                           {accTotal['archive']}
                         </span>
                       )}
@@ -1568,7 +1568,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Snoozed (Adiados)</span>
                       </div>
                       {accTotal['snooze'] > 0 && (
-                        <span className="text-slate-500 text-[10px] font-mono">
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
                           {accTotal['snooze']}
                         </span>
                       )}
