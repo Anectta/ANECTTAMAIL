@@ -530,7 +530,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             <button
               type="button"
               onClick={onComposeNewEmail}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+              className="accent-solid-btn inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Escrever novo e-mail</span>

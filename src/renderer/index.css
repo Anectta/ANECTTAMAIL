@@ -1495,3 +1495,21 @@ html header.mockup-header .motivational-close:hover {
   background-color: rgba(255, 255, 255, 0.15) !important;
   color: #ffffff !important;
 }
+
+/* ==========================================================================
+   Botão sólido na cor de destaque do tema — mesmo gradiente do avatar de
+   iniciais (SenderAvatar). Texto em --accent-contrast para manter a leitura
+   em temas de destaque claro (Neon, Âmbar, Verde-azulado).
+   ========================================================================== */
+html body .accent-solid-btn {
+  background-color: var(--accent-primary, #2563eb) !important;
+  background-image: var(--accent-gradient, linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)) !important;
+  border-color: transparent !important;
+  color: var(--accent-contrast, #ffffff) !important;
+}
+html body .accent-solid-btn * {
+  color: inherit !important;
+}
+html body .accent-solid-btn:hover {
+  filter: brightness(1.08);
+}
