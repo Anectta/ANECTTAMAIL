@@ -72,6 +72,8 @@ export interface FetchResult {
   remaining?: number;
   /** Sincronização: pastas com mensagens novas ainda por recuperar (pasta -> quantidade). */
   catchUpPending?: Record<string, number>;
+  /** Sincronização: UIDs que o app conhecia e não existem mais no servidor (pasta -> UIDs). */
+  vanished?: Record<string, number[]>;
   folderStats?: Record<string, number>;
   customFolders?: DiscoveredCustomFolder[];
   quota?: QuotaInfo;
@@ -1367,6 +1369,7 @@ export class MailService {
       const discoveredCustomFolders: DiscoveredCustomFolder[] = [];
       const knownUidsByFolder = config.knownUidsByFolder || {};
       const catchUpPending: Record<string, number> = {};
+      const vanishedByFolder: Record<string, number[]> = {};
       let fallbackUsedBytes = 0;
 
       for (const folder of foldersToSync) {
@@ -1412,7 +1415,11 @@ export class MailService {
                 const catchUp = await this.fetchSyncCatchUp(client, folder, config, knownUids, folderMessages);
                 if (catchUp.messages.length > 0) folderMessages.push(...catchUp.messages);
                 if (catchUp.remaining > 0) catchUpPending[folder] = catchUp.remaining;
+                if (catchUp.vanished.length > 0) vanishedByFolder[folder] = catchUp.vanished;
               }
+            } else if (total === 0 && (knownUidsByFolder[folder] || []).length > 0) {
+              // Pasta esvaziada no servidor: tudo o que o app tinha nela saiu do servidor
+              vanishedByFolder[folder] = [...(knownUidsByFolder[folder] || [])];
             }
           } finally {
             lock.release();
@@ -1495,7 +1502,10 @@ export class MailService {
                 const catchUp = await this.fetchSyncCatchUp(client, folderKey, config, knownUids, customMessages);
                 if (catchUp.messages.length > 0) customMessages.push(...catchUp.messages);
                 if (catchUp.remaining > 0) catchUpPending[folderKey] = catchUp.remaining;
+                if (catchUp.vanished.length > 0) vanishedByFolder[folderKey] = catchUp.vanished;
               }
+            } else if (total === 0 && (knownUidsByFolder[`imap:${m.path}`] || []).length > 0) {
+              vanishedByFolder[`imap:${m.path}`] = [...(knownUidsByFolder[`imap:${m.path}`] || [])];
             }
           } finally {
             lock.release();
@@ -1533,6 +1543,7 @@ export class MailService {
         quota: quotaInfo,
         flagUpdates: flagUpdates.length > 0 ? flagUpdates : undefined,
         catchUpPending: Object.keys(catchUpPending).length > 0 ? catchUpPending : undefined,
+        vanished: Object.keys(vanishedByFolder).length > 0 ? vanishedByFolder : undefined,
       };
     } catch (err: any) {
       return {
@@ -1557,12 +1568,13 @@ export class MailService {
     config: MailServerConfig,
     knownUids: Set<number>,
     alreadyFetched: any[]
-  ): Promise<{ messages: any[]; remaining: number }> {
+  ): Promise<{ messages: any[]; remaining: number; vanished: number[] }> {
     const messages: any[] = [];
+    let vanished: number[] = [];
     try {
       let minKnown = Number.POSITIVE_INFINITY;
       for (const uid of knownUids) if (uid < minKnown) minKnown = uid;
-      if (!Number.isFinite(minKnown)) return { messages, remaining: 0 };
+      if (!Number.isFinite(minKnown)) return { messages, remaining: 0, vanished };
 
       const fetchedNow = new Set<number>();
       for (const m of alreadyFetched) {
@@ -1571,10 +1583,17 @@ export class MailService {
       }
 
       const found = await client.search({ uid: `${minKnown}:*` }, { uid: true });
-      const missing = (Array.isArray(found) ? found.map(Number) : [])
-        .filter((uid) => Number.isFinite(uid) && uid > minKnown && !knownUids.has(uid) && !fetchedNow.has(uid))
+      if (!Array.isArray(found)) return { messages, remaining: 0, vanished };
+      const serverUids = new Set(found.map(Number).filter(Number.isFinite));
+
+      // Servidor → app: mensagens que o app conhece mas não existem mais nesta pasta do servidor
+      // (apagadas ou movidas no webmail/celular/outro cliente)
+      vanished = Array.from(knownUids).filter((uid) => !serverUids.has(uid));
+
+      const missing = Array.from(serverUids)
+        .filter((uid) => uid > minKnown && !knownUids.has(uid) && !fetchedNow.has(uid))
         .sort((a, b) => b - a);
-      if (missing.length === 0) return { messages, remaining: 0 };
+      if (missing.length === 0) return { messages, remaining: 0, vanished };
 
       const batch = missing.slice(0, this.SYNC_CATCHUP_BATCH);
       for await (const message of client.fetch(
@@ -1593,10 +1612,11 @@ export class MailService {
           `[IMAP] Recuperação automática em ${folderKey}: +${messages.length} mensagem(ns), faltam ${missing.length - batch.length}.`
         );
       }
-      return { messages, remaining: missing.length - batch.length };
+      return { messages, remaining: missing.length - batch.length, vanished };
     } catch (err: any) {
+      // Em erro NÃO informa removidas (nunca apagar localmente com base numa consulta que falhou)
       console.warn(`[IMAP] Falha na recuperação automática de ${folderKey}:`, err?.message || err);
-      return { messages, remaining: 0 };
+      return { messages, remaining: 0, vanished: [] };
     }
   }
 

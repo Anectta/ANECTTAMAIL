@@ -1770,7 +1770,17 @@ ipcMain.handle('mail:sync-all-folders', async (_event, payload: any) => {
   const limitPerFolder =
     typeof payload?.limitPerFolder === 'number' ? payload.limitPerFolder : 150;
   console.log('[MAIN] mail:sync-all-folders para', config?.user, 'no servidor', config?.host, 'limit:', limitPerFolder);
-  return await MailService.syncAllFolders(config, limitPerFolder);
+  const res = await MailService.syncAllFolders(config, limitPerFolder);
+  if (res.vanished || res.catchUpPending || !res.success) {
+    const vanished = res.vanished
+      ? Object.entries(res.vanished).map(([f, uids]) => `${f}:${uids.length}`).join(', ')
+      : '-';
+    imapSyncLog(
+      `servidor→app ${config?.user || ''}: ${res.success ? 'ok' : 'ERRO ' + res.error} | removidas no servidor [${vanished}]` +
+        (res.catchUpPending ? ` | recuperação pendente ${JSON.stringify(res.catchUpPending)}` : '')
+    );
+  }
+  return res;
 });
 
 ipcMain.handle('mail:fetch-older-folder', async (_event, payload: any) => {
@@ -1831,12 +1841,36 @@ ipcMain.handle('mail:send-smtp', async (_event, payload: any) => {
   return await MailService.sendSmtp(config, emailData, sentCopyConfig);
 });
 
+/** Log de diagnóstico da sincronização IMAP (só pastas/UIDs/resultados — nunca conteúdo de e-mail). */
+function imapSyncLog(message: string): void {
+  try {
+    const file = path.join(app.getPath('userData'), 'imap-sync.log');
+    try {
+      // Mantém o arquivo pequeno: recomeça ao passar de ~1 MB
+      if (fs.existsSync(file) && fs.statSync(file).size > 1024 * 1024) fs.writeFileSync(file, '');
+    } catch {}
+    fs.appendFileSync(file, `[${new Date().toISOString()}] ${message}\n`);
+  } catch {}
+}
+
 // Reflete no servidor IMAP as ações feitas no app (lido/estrela, mover, excluir)
 ipcMain.handle('mail:imap-server-actions', async (_event, payload: any) => {
-  { const g = await tlsGate(payload?.config || payload); if (g) return g; }
+  const g = await tlsGate(payload?.config || payload);
+  if (g) {
+    imapSyncLog(`app→servidor BLOQUEADO pelo TLS (${payload?.config?.host}): ${JSON.stringify(g).slice(0, 200)}`);
+    return g;
+  }
   const config: MailServerConfig = payload?.config;
   const actions: ImapServerAction[] = Array.isArray(payload?.actions) ? payload.actions : [];
-  return await MailService.applyServerActions(config, actions);
+  const summary = actions.map((a) => `${a.kind}:${a.folderKey}#${a.uid}${a.toFolderKey ? '→' + a.toFolderKey : ''}`).join(', ');
+  imapSyncLog(`app→servidor ${config?.user || ''}: ${actions.length} ação(ões) [${summary}]`);
+  const res = await MailService.applyServerActions(config, actions);
+  const failed = res.results.filter((r) => !r.ok);
+  imapSyncLog(
+    `app→servidor resultado: ${res.results.length - failed.length} ok, ${failed.length} falha(s)` +
+      (failed.length ? ` — ${failed.map((f) => `${f.ref} (${f.retry ? 'nova tentativa' : 'recusada'}: ${f.error})`).join('; ')}` : '')
+  );
+  return res;
 });
 
 // Smart Attachments: 5 arquivos mais recentes de Downloads

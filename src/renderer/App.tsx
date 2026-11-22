@@ -2470,6 +2470,23 @@ export const App: React.FC = () => {
             needsCatchUpFollowUp = true;
           }
 
+          // Servidor → app: e-mails apagados ou movidos no webmail/celular/outro cliente saem do app
+          // (os movidos reaparecem pela sincronização da pasta de destino)
+          if (res.success && res.vanished && Object.keys(res.vanished).length > 0) {
+            const vanishedKeys = new Set<string>();
+            for (const [folderKey, uids] of Object.entries(res.vanished)) {
+              for (const uid of uids) vanishedKeys.add(`${folderKey}#${uid}`);
+            }
+            setEmails((prev) => {
+              const next = prev.filter((e) => {
+                if (e.accountId !== acc.id) return true;
+                const loc = getImapLocation(e);
+                return !(loc && vanishedKeys.has(`${loc.folderKey}#${loc.uid}`));
+              });
+              return next.length === prev.length ? prev : next;
+            });
+          }
+
           if (res.quota) {
             setAccountQuotas((prev) => ({
               ...prev,
