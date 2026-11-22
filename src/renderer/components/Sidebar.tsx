@@ -47,6 +47,19 @@ import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount } from
 import { AccountSettings, AppsSettings } from '@/types/settings';
 import logoImg from '../assets/logo.png';
 
+const QUICK_NAV_COLLAPSED_KEY = 'anectta_sidebar_quicknav_collapsed';
+
+interface QuickNavItem {
+  key: string;
+  label: string;
+  icon: React.ElementType;
+  iconClass: string;
+  active: boolean;
+  onClick: () => void;
+  title?: string;
+  hoverClass?: string;
+}
+
 interface SidebarProps {
   currentFolder: MailFolder;
   onSelectFolder: (folder: MailFolder, accountId?: string) => void;
@@ -132,6 +145,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onReorderAccounts,
 }) => {
   // Todas as contas começam expandidas individualmente uma embaixo da outra
+  // Bloco "Aplicativos" (E-mails, Calendário, Contatos...) recolhível; estado salvo entre sessões
+  const [isQuickNavCollapsed, setIsQuickNavCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(QUICK_NAV_COLLAPSED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const toggleQuickNav = () => {
+    setIsQuickNavCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(QUICK_NAV_COLLAPSED_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  };
   const [expandedAccounts, setExpandedAccounts] = useState<Record<string, boolean>>({});
   const [expandedCustomFolders, setExpandedCustomFolders] = useState<Record<string, boolean>>({});
   const [creatingForAccId, setCreatingForAccId] = useState<string | null>(null);
@@ -1594,125 +1624,151 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Navegação Rápida (Calendário, Contatos, Configurações, Skins) */}
-      <div className="px-2 py-2 border-t border-white/10 space-y-0.5 shrink-0">
-        {onSelectModule && (
-          <>
+      {/* Navegação Rápida (E-mails, Calendário, Contatos, Tarefas...) — recolhível */}
+      {onSelectModule && (() => {
+        const navItems: QuickNavItem[] = [
+          {
+            key: 'mail',
+            label: 'E-mails',
+            icon: Inbox,
+            iconClass: 'text-sky-400',
+            active: activeModule === 'mail',
+            onClick: () => onSelectModule('mail'),
+          },
+          ...((appsSettings?.enableCalendarApp ?? true)
+            ? [{
+                key: 'calendar',
+                label: 'Calendário',
+                icon: Calendar,
+                iconClass: 'text-sky-400',
+                active: activeModule === 'calendar',
+                onClick: () => onSelectModule('calendar'),
+              }]
+            : []),
+          ...((appsSettings?.enableContactsApp ?? true)
+            ? [{
+                key: 'contacts',
+                label: 'Contatos',
+                icon: Users,
+                iconClass: 'text-sky-400',
+                active: activeModule === 'contacts',
+                onClick: () => onSelectModule('contacts'),
+              }]
+            : []),
+          {
+            key: 'tasks',
+            label: 'Tarefas',
+            icon: CheckSquare,
+            iconClass: 'text-emerald-400',
+            active: activeModule === 'tasks',
+            onClick: () => onSelectModule('tasks'),
+          },
+          {
+            key: 'stats',
+            label: 'Estatísticas',
+            icon: BarChart3,
+            iconClass: 'text-violet-400',
+            active: activeModule === 'stats',
+            onClick: () => onSelectModule('stats'),
+          },
+          ...(appsSettings?.enableWhatsAppApp
+            ? [{
+                key: 'whatsapp',
+                label: 'WhatsApp Web',
+                icon: MessageCircle,
+                iconClass: 'text-emerald-400',
+                active: !!isWhatsAppOpen,
+                onClick: () => onToggleWhatsApp?.(),
+              }]
+            : []),
+          ...(appsSettings?.customApps || [])
+            .filter((app) => app.enabled)
+            .map((app) => ({
+              key: `webapp-${app.id}`,
+              label: app.name,
+              icon: Globe,
+              iconClass: 'text-brand-400',
+              active: activeModule === 'webapp' && activeWebAppId === app.id,
+              onClick: () => onSelectWebApp?.({ id: app.id, name: app.name, url: app.url }),
+            })),
+          ...(onOpenPrivacyCenter
+            ? [{
+                key: 'privacy',
+                label: 'Escudo de Privacidade',
+                icon: ShieldCheck,
+                iconClass: 'text-emerald-400',
+                active: false,
+                onClick: onOpenPrivacyCenter,
+                title: 'Abrir Central de Privacidade & Segurança',
+                hoverClass: 'hover:bg-emerald-500/10',
+              }]
+            : []),
+        ];
+
+        return (
+          <div className="px-2 py-2 border-t border-white/10 shrink-0">
             <button
               type="button"
-              onClick={() => onSelectModule('mail')}
-              className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg transition-colors ${
-                activeModule === 'mail'
-                  ? 'bg-white/10 text-white font-semibold'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              }`}
+              onClick={toggleQuickNav}
+              aria-expanded={!isQuickNavCollapsed}
+              title={isQuickNavCollapsed ? 'Expandir aplicativos' : 'Recolher aplicativos'}
+              className="w-full flex items-center justify-between px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors"
             >
-              <Inbox className="w-3.5 h-3.5 text-sky-400" />
-              <span>E-mails</span>
+              <span>Aplicativos</span>
+              {isQuickNavCollapsed ? (
+                <ChevronRight className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
             </button>
-            {(appsSettings?.enableCalendarApp ?? true) && (
-              <button
-                type="button"
-                onClick={() => onSelectModule('calendar')}
-                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg transition-colors ${
-                  activeModule === 'calendar'
-                    ? 'bg-white/10 text-white font-semibold'
-                    : 'text-slate-300 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5 text-sky-400" />
-                <span>Calendário</span>
-              </button>
+
+            {isQuickNavCollapsed ? (
+              /* Recolhido: linha compacta só com ícones (mantém o acesso rápido) */
+              <div className="mt-1 flex flex-wrap items-center gap-0.5 px-1">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={item.onClick}
+                      title={item.title || item.label}
+                      aria-label={item.label}
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        item.active ? 'bg-white/10' : item.hoverClass || 'hover:bg-white/5'
+                      }`}
+                    >
+                      <Icon className={`w-3.5 h-3.5 ${item.iconClass}`} />
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-1 space-y-0.5">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={item.onClick}
+                      title={item.title}
+                      className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg transition-colors ${
+                        item.active
+                          ? 'bg-white/10 text-white font-semibold'
+                          : `text-slate-300 hover:text-white ${item.hoverClass || 'hover:bg-white/5'}`
+                      }`}
+                    >
+                      <Icon className={`w-3.5 h-3.5 shrink-0 ${item.iconClass}`} />
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             )}
-            {(appsSettings?.enableContactsApp ?? true) && (
-              <button
-                type="button"
-                onClick={() => onSelectModule('contacts')}
-                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg transition-colors ${
-                  activeModule === 'contacts'
-                    ? 'bg-white/10 text-white font-semibold'
-                    : 'text-slate-300 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5 text-sky-400" />
-                <span>Contatos</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => onSelectModule('tasks')}
-              className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg transition-colors ${
-                activeModule === 'tasks'
-                  ? 'bg-white/10 text-white font-semibold'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Tarefas</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onSelectModule('stats')}
-              className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg transition-colors ${
-                activeModule === 'stats'
-                  ? 'bg-white/10 text-white font-semibold'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <BarChart3 className="w-3.5 h-3.5 text-violet-400" />
-              <span>Estatísticas</span>
-            </button>
-            {appsSettings?.enableWhatsAppApp && (
-              <button
-                type="button"
-                onClick={() => onToggleWhatsApp?.()}
-                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg transition-colors ${
-                  isWhatsAppOpen
-                    ? 'bg-white/10 text-white font-semibold'
-                    : 'text-slate-300 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-                <span>WhatsApp Web</span>
-              </button>
-            )}
-            {(appsSettings?.customApps || [])
-              .filter((app) => app.enabled)
-              .map((app) => (
-                <button
-                  key={app.id}
-                  type="button"
-                  onClick={() =>
-                    onSelectWebApp?.({
-                      id: app.id,
-                      name: app.name,
-                      url: app.url,
-                    })
-                  }
-                  className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg transition-colors ${
-                    activeModule === 'webapp' && activeWebAppId === app.id
-                      ? 'bg-white/10 text-white font-semibold'
-                      : 'text-slate-300 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Globe className="w-3.5 h-3.5 text-brand-400 shrink-0" />
-                  <span className="truncate">{app.name}</span>
-                </button>
-              ))}
-            {onOpenPrivacyCenter && (
-              <button
-                type="button"
-                onClick={onOpenPrivacyCenter}
-                className="w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-emerald-500/10 transition-colors"
-                title="Abrir Central de Privacidade & Segurança"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Escudo de Privacidade</span>
-              </button>
-            )}
-          </>
-        )}
-      </div>
+          </div>
+        );
+      })()}
 
       {/* Rodapé da Sidebar: Espaço em Disco */}
       {accountProtocol === 'imap' && (() => {
