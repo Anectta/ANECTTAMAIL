@@ -1090,6 +1090,17 @@ export const App: React.FC = () => {
         return;
       }
     }
+    if (isPermanent) {
+      // Esvaziar Lixeira/Spam: exclusão definitiva também no servidor (IMAP) e sem "ressuscitar"
+      // na próxima sincronização
+      const removed = emailsRef.current.filter(
+        (e) => e.folder === folderId && isEmailForAccount(e, targetAcc)
+      );
+      if (removed.length > 0) {
+        rememberDeletedEmailIds(removed.map((e) => e.id));
+        imapServerSyncRef.current?.queueServerDeletes(removed);
+      }
+    }
     setEmails((prev) => {
       if (isPermanent) {
         return prev.filter((e) => !(e.folder === folderId && isEmailForAccount(e, targetAcc)));
