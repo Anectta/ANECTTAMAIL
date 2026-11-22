@@ -83,6 +83,37 @@ import { parseUnsubscribeInfo } from './utils/triageAndTemplates';
 /** localStorage: pastas confirmadas como 100% baixadas do servidor ("contaId:pasta" -> total do servidor). */
 const FULLY_DOWNLOADED_FOLDERS_KEY = 'anectta_fully_downloaded_folders';
 
+/**
+ * localStorage: IDs de e-mails do servidor apagados DEFINITIVAMENTE no app. A exclusão é local,
+ * então a mensagem continua no servidor; estes IDs entram como "já conhecidos" na sincronização
+ * e no "Baixar todas" para o e-mail não ser baixado de novo.
+ */
+const DELETED_EMAIL_IDS_KEY = 'anectta_deleted_email_ids';
+const MAX_DELETED_EMAIL_IDS = 20000;
+
+const loadDeletedEmailIds = (): string[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DELETED_EMAIL_IDS_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const rememberDeletedEmailIds = (ids: string[]): void => {
+  const serverIds = ids.filter((id) => id.includes('-imap-') || id.includes('pop3-'));
+  if (serverIds.length === 0) return;
+  try {
+    const merged = new Set(loadDeletedEmailIds());
+    for (const id of serverIds) merged.add(id);
+    const list = Array.from(merged);
+    localStorage.setItem(
+      DELETED_EMAIL_IDS_KEY,
+      JSON.stringify(list.length > MAX_DELETED_EMAIL_IDS ? list.slice(-MAX_DELETED_EMAIL_IDS) : list)
+    );
+  } catch {}
+};
+
 const INITIAL_EMAILS: EmailItem[] = [
   {
     id: 'msg-coworking-1',
@@ -1896,11 +1927,15 @@ export const App: React.FC = () => {
           let keepGoing = true;
           let loops = 0;
           const localKnown = new Set<string>(
-            emailsRef.current
-              .filter((e) => e.accountId === targetAcc.id && e.id.includes('pop3-'))
-              .map((e) =>
-                e.id.startsWith(`${targetAcc.id}-`) ? e.id.slice(`${targetAcc.id}-`.length) : e.id
-              )
+            [
+              ...emailsRef.current
+                .filter((e) => e.accountId === targetAcc.id && e.id.includes('pop3-'))
+                .map((e) => e.id),
+              // E-mails apagados definitivamente no app não devem ser baixados de novo
+              ...loadDeletedEmailIds().filter(
+                (id) => id.startsWith(`${targetAcc.id}-`) && id.includes('pop3-')
+              ),
+            ].map((id) => (id.startsWith(`${targetAcc.id}-`) ? id.slice(`${targetAcc.id}-`.length) : id))
           );
 
           // "Baixar todas" continua até o fim (ou Cancelar); o limite alto é só uma trava de segurança
@@ -1962,6 +1997,13 @@ export const App: React.FC = () => {
           for (const e of emailsRef.current) {
             if (e.accountId === targetAcc.id && e.id.startsWith(accPrefix)) {
               const uid = Number(e.id.slice(accPrefix.length));
+              if (Number.isFinite(uid)) knownUidsSet.add(uid);
+            }
+          }
+          // E-mails apagados definitivamente no app não devem ser baixados de novo
+          for (const deletedId of loadDeletedEmailIds()) {
+            if (deletedId.startsWith(accPrefix)) {
+              const uid = Number(deletedId.slice(accPrefix.length));
               if (Number.isFinite(uid)) knownUidsSet.add(uid);
             }
           }
@@ -2375,6 +2417,10 @@ export const App: React.FC = () => {
 
     if (!hideFeedback) showToast(`Sincronizando ${allAccounts.length} conta(s) configurada(s)...`);
 
+    // A recuperação automática traz até 300 mensagens novas por pasta em cada sincronização;
+    // se ainda faltar, agenda outra sincronização em segundo plano até completar.
+    let needsCatchUpFollowUp = false;
+
     const run = (async () => {
     try {
       let totalSynced = 0;
@@ -2396,10 +2442,14 @@ export const App: React.FC = () => {
         if (protocol === 'imap' && window.electronAPI?.syncAllRealFolders) {
           const knownUidsByFolder: Record<string, number[]> = {};
           const accPrefix = `${acc.id}-imap-`;
-          for (const cachedEmail of emailsRef.current) {
-            if (cachedEmail.accountId !== acc.id) continue;
-            if (!cachedEmail.id.startsWith(accPrefix)) continue;
-            const rest = cachedEmail.id.slice(accPrefix.length);
+          // E-mails no app + e-mails apagados definitivamente (para não serem baixados de novo)
+          const knownIds = [
+            ...emailsRef.current.filter((e) => e.accountId === acc.id).map((e) => e.id),
+            ...loadDeletedEmailIds(),
+          ];
+          for (const knownId of knownIds) {
+            if (!knownId.startsWith(accPrefix)) continue;
+            const rest = knownId.slice(accPrefix.length);
             const lastDash = rest.lastIndexOf('-');
             if (lastDash <= 0) continue;
             const folderKey = rest.slice(0, lastDash);
@@ -2420,6 +2470,10 @@ export const App: React.FC = () => {
             inboxOnly: silent,
             knownUidsByFolder,
           } as any);
+
+          if (res.catchUpPending && Object.keys(res.catchUpPending).length > 0) {
+            needsCatchUpFollowUp = true;
+          }
 
           if (res.quota) {
             setAccountQuotas((prev) => ({
@@ -2650,6 +2704,11 @@ export const App: React.FC = () => {
       syncPromiseRef.current = null;
       if (!hideFeedback && !syncManualRequestedRef.current) {
         setIsSyncing(false);
+      }
+      if (needsCatchUpFollowUp) {
+        setTimeout(() => {
+          void handleSyncAllRef.current({ background: true });
+        }, 3000);
       }
     }
     })();
@@ -2913,24 +2972,13 @@ export const App: React.FC = () => {
 
   const isUnifiedView = settings.activeAccountId === '__unified__';
 
-  // Pasta baixada por completo: true quando o último "Baixar todas"/"Carregar +150" confirmou que
-  // não falta nada no servidor e o total do servidor não cresceu desde então.
+  // Pasta com histórico baixado por completo ("Baixar todas"/"Carregar +150" confirmou que não falta
+  // nada no servidor). Fica assim de vez: e-mails novos chegam pela sincronização automática (que
+  // recupera tudo o que chegou, mesmo acima da janela), então os botões não precisam reativar.
   const isCurrentFolderFullyDownloaded = useMemo(() => {
     if (isUnifiedView) return false;
-    const mark = fullyDownloadedFolders[`${currentAccount.id}:${currentFolder}`];
-    if (typeof mark !== 'number') return false;
-    const total =
-      serverFolderTotals[`${currentAccount.id}:${currentFolder}`] ??
-      (() => {
-        const customTarget = customFolders.find(
-          (f) => f.id === currentFolder && f.accountId === currentAccount.id
-        );
-        return customTarget
-          ? serverFolderTotals[`${currentAccount.id}:imap:${customTarget.imapPath || customTarget.name}`]
-          : undefined;
-      })();
-    return typeof total !== 'number' || total <= mark;
-  }, [isUnifiedView, fullyDownloadedFolders, currentAccount.id, currentFolder, serverFolderTotals, customFolders]);
+    return typeof fullyDownloadedFolders[`${currentAccount.id}:${currentFolder}`] === 'number';
+  }, [isUnifiedView, fullyDownloadedFolders, currentAccount.id, currentFolder]);
 
   const currentFolderServerTotal = useMemo(() => {
     if (isUnifiedView) return undefined;
@@ -3324,6 +3372,7 @@ export const App: React.FC = () => {
 
       const idSet = new Set(ids);
       if (currentFolder === 'trash') {
+        rememberDeletedEmailIds(ids);
         setEmails((prev) => prev.filter((e) => !idSet.has(e.id)));
         showToast(
           `✓ ${ids.length} ${ids.length === 1 ? 'e-mail excluído' : 'e-mails excluídos'} permanentemente.`
@@ -3542,6 +3591,7 @@ export const App: React.FC = () => {
   };
 
   const handleDiscardDraft = (id: string) => {
+    rememberDeletedEmailIds([id]);
     setEmails((prev) => prev.filter((e) => e.id !== id));
   };
 

@@ -44,6 +44,8 @@ export interface FetchResult {
   /** Modo "somente faltantes": UIDs tentados neste lote (com ou sem sucesso) e quantos ainda faltam. */
   attemptedUids?: number[];
   remaining?: number;
+  /** Sincronização: pastas com mensagens novas ainda por recuperar (pasta -> quantidade). */
+  catchUpPending?: Record<string, number>;
   folderStats?: Record<string, number>;
   customFolders?: DiscoveredCustomFolder[];
   quota?: QuotaInfo;
@@ -1338,6 +1340,7 @@ export class MailService {
       const systemPathToFolder = new Map<string, SupportedFolder>();
       const discoveredCustomFolders: DiscoveredCustomFolder[] = [];
       const knownUidsByFolder = config.knownUidsByFolder || {};
+      const catchUpPending: Record<string, number> = {};
       let fallbackUsedBytes = 0;
 
       for (const folder of foldersToSync) {
@@ -1375,6 +1378,15 @@ export class MailService {
               );
               folderMessages = res.messages;
               fallbackUsedBytes += res.bytesCount;
+
+              // Recuperação automática: mensagens novas (ou lacunas) mais recentes que a mais antiga
+              // já baixada, mas que ficaram fora da janela acima (ex.: app fechado por dias com
+              // centenas de e-mails novos). O histórico mais antigo continua sendo dos botões.
+              if (limitPerFolder > 0 && knownUids.size > 0) {
+                const catchUp = await this.fetchSyncCatchUp(client, folder, config, knownUids, folderMessages);
+                if (catchUp.messages.length > 0) folderMessages.push(...catchUp.messages);
+                if (catchUp.remaining > 0) catchUpPending[folder] = catchUp.remaining;
+              }
             }
           } finally {
             lock.release();
@@ -1451,6 +1463,13 @@ export class MailService {
                 flagUpdates
               );
               customMessages = res.messages;
+
+              // Recuperação automática também nas pastas personalizadas
+              if (limitPerFolder > 0 && knownUids.size > 0) {
+                const catchUp = await this.fetchSyncCatchUp(client, folderKey, config, knownUids, customMessages);
+                if (catchUp.messages.length > 0) customMessages.push(...catchUp.messages);
+                if (catchUp.remaining > 0) catchUpPending[folderKey] = catchUp.remaining;
+              }
             }
           } finally {
             lock.release();
@@ -1487,12 +1506,71 @@ export class MailService {
         customFolders: discoveredCustomFolders,
         quota: quotaInfo,
         flagUpdates: flagUpdates.length > 0 ? flagUpdates : undefined,
+        catchUpPending: Object.keys(catchUpPending).length > 0 ? catchUpPending : undefined,
       };
     } catch (err: any) {
       return {
         success: false,
         error: `Erro ao sincronizar pastas IMAP: ${err.message}`,
       };
+    }
+  }
+
+  /** Máximo de mensagens recuperadas por pasta em cada sincronização (o restante vem nas seguintes). */
+  private static readonly SYNC_CATCHUP_BATCH = 300;
+
+  /**
+   * Recuperação automática da sincronização: busca as mensagens do servidor mais recentes que a
+   * mais antiga já baixada (UID >= menor UID conhecido) que ainda não existem no app e que não
+   * vieram na janela normal — e-mails novos acima do limite da janela e lacunas. Mais novas primeiro.
+   * Deve ser chamada com a pasta já selecionada (dentro do mailbox lock).
+   */
+  private static async fetchSyncCatchUp(
+    client: ImapFlow,
+    folderKey: string,
+    config: MailServerConfig,
+    knownUids: Set<number>,
+    alreadyFetched: any[]
+  ): Promise<{ messages: any[]; remaining: number }> {
+    const messages: any[] = [];
+    try {
+      let minKnown = Number.POSITIVE_INFINITY;
+      for (const uid of knownUids) if (uid < minKnown) minKnown = uid;
+      if (!Number.isFinite(minKnown)) return { messages, remaining: 0 };
+
+      const fetchedNow = new Set<number>();
+      for (const m of alreadyFetched) {
+        const uid = Number(String(m?.id ?? '').split('-').pop());
+        if (Number.isFinite(uid)) fetchedNow.add(uid);
+      }
+
+      const found = await client.search({ uid: `${minKnown}:*` }, { uid: true });
+      const missing = (Array.isArray(found) ? found.map(Number) : [])
+        .filter((uid) => Number.isFinite(uid) && uid > minKnown && !knownUids.has(uid) && !fetchedNow.has(uid))
+        .sort((a, b) => b - a);
+      if (missing.length === 0) return { messages, remaining: 0 };
+
+      const batch = missing.slice(0, this.SYNC_CATCHUP_BATCH);
+      for await (const message of client.fetch(
+        batch.join(','),
+        { envelope: true, flags: true, bodyStructure: true, uid: true, source: true },
+        { uid: true }
+      )) {
+        try {
+          messages.push(await this.formatImapMessage(message, folderKey, config));
+        } catch (formatErr: any) {
+          console.warn(`[IMAP] Erro ao formatar mensagem UID ${message?.uid} em ${folderKey}:`, formatErr?.message);
+        }
+      }
+      if (batch.length > 0) {
+        console.log(
+          `[IMAP] Recuperação automática em ${folderKey}: +${messages.length} mensagem(ns), faltam ${missing.length - batch.length}.`
+        );
+      }
+      return { messages, remaining: missing.length - batch.length };
+    } catch (err: any) {
+      console.warn(`[IMAP] Falha na recuperação automática de ${folderKey}:`, err?.message || err);
+      return { messages, remaining: 0 };
     }
   }
 
