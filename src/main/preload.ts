@@ -227,8 +227,10 @@ const electronAPI = {
     ipcRenderer.invoke('mail:rename-folder', { config, oldImapPath, newName }),
   deleteImapFolder: (config: any, imapPath: string) =>
     ipcRenderer.invoke('mail:delete-folder', { config, imapPath }),
-  sendRealEmail: (config: any, emailData: any) =>
-    ipcRenderer.invoke('mail:send-smtp', { config, emailData }),
+  sendRealEmail: (config: any, emailData: any, sentCopyConfig?: any) =>
+    ipcRenderer.invoke('mail:send-smtp', { config, emailData, sentCopyConfig }),
+  applyImapServerActions: (config: any, actions: any[]) =>
+    ipcRenderer.invoke('mail:imap-server-actions', { config, actions }),
 
   // Dynamic incoming email simulation for corporate testing
   simulateIncomingEmail: async () => {

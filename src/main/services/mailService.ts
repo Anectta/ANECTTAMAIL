@@ -3,6 +3,8 @@ import path from 'path';
 import { app } from 'electron';
 import { ImapFlow } from 'imapflow';
 import nodemailer from 'nodemailer';
+import MailComposer from 'nodemailer/lib/mail-composer';
+import crypto from 'crypto';
 import { simpleParser } from 'mailparser';
 import { SimplePop3Client } from './pop3Client';
 import { isTlsHostTrusted } from './tlsTrust';
@@ -23,6 +25,30 @@ export interface MailServerConfig {
 export interface QuotaInfo {
   usedBytes: number;
   limitBytes: number;
+}
+
+/**
+ * Ação do app refletida no servidor IMAP. folderKey = pasta ONDE A MENSAGEM ESTÁ no servidor
+ * ('inbox' | 'sent' | 'drafts' | 'trash' | 'junk' | 'archive' | 'imap:<caminho>').
+ */
+export interface ImapServerAction {
+  ref: string;
+  kind: 'move' | 'flags' | 'delete';
+  folderKey: string;
+  uid: number;
+  toFolderKey?: string;
+  seen?: boolean;
+  flagged?: boolean;
+}
+
+export interface ImapServerActionResult {
+  ref: string;
+  ok: boolean;
+  /** true = falha de rede/conexão: o app tenta de novo depois. false = servidor recusou. */
+  retry?: boolean;
+  error?: string;
+  /** Nova localização após mover (quando o servidor informa o novo UID — extensão UIDPLUS). */
+  newLocation?: { folderKey: string; uid: number };
 }
 
 export interface DiscoveredCustomFolder {
@@ -1574,6 +1600,264 @@ export class MailService {
     }
   }
 
+  /** Nomes usados para criar pastas de sistema que não existem no servidor. */
+  private static readonly DEFAULT_SYSTEM_FOLDER_NAMES: Record<string, string> = {
+    sent: 'Sent',
+    drafts: 'Drafts',
+    trash: 'Trash',
+    junk: 'Junk',
+    archive: 'Archive',
+  };
+
+  private static isRetryableImapError(err: any): boolean {
+    const code = String(err?.code || '');
+    const msg = String(err?.message || err || '').toLowerCase();
+    if (err?.responseStatus === 'NO' || err?.responseStatus === 'BAD') return false;
+    return (
+      ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'EPIPE', 'ENETUNREACH', 'EHOSTUNREACH', 'NoConnection'].includes(code) ||
+      msg.includes('timeout') ||
+      msg.includes('timed out') ||
+      msg.includes('connection') ||
+      msg.includes('socket')
+    );
+  }
+
+  /** Resolve o caminho real da pasta no servidor; cria pastas de sistema ausentes quando pedido. */
+  private static async resolveServerMailboxPath(
+    client: ImapFlow,
+    mailboxes: any[],
+    folderKey: string,
+    createIfMissing: boolean
+  ): Promise<string | null> {
+    if (folderKey.startsWith('imap:')) return folderKey.slice(5) || null;
+    const systemFolders: SupportedFolder[] = ['inbox', 'sent', 'drafts', 'trash', 'junk', 'archive'];
+    if (!systemFolders.includes(folderKey as SupportedFolder)) return null;
+    const found = this.findServerMailbox(mailboxes, folderKey as SupportedFolder);
+    if (found) return found;
+    if (!createIfMissing) return null;
+    const name = this.DEFAULT_SYSTEM_FOLDER_NAMES[folderKey];
+    if (!name) return null;
+    try {
+      const created: any = await client.mailboxCreate(name);
+      console.log(`[IMAP] Pasta "${name}" criada no servidor para "${folderKey}".`);
+      return created?.path || name;
+    } catch (err: any) {
+      // Já existe com outro atributo/nome equivalente: usa o nome padrão
+      if (String(err?.serverResponseCode || '').toUpperCase() === 'ALREADYEXISTS') return name;
+      throw err;
+    }
+  }
+
+  /**
+   * Aplica no servidor IMAP as ações feitas no app: marcar lido/não lido e estrela,
+   * mover (inclusive para Lixeira, Arquivo e Spam) e excluir definitivamente.
+   * Ordem por pasta de origem: flags → mover → excluir.
+   */
+  public static async applyServerActions(
+    config: MailServerConfig,
+    actions: ImapServerAction[]
+  ): Promise<{ success: boolean; results: ImapServerActionResult[]; error?: string }> {
+    const results: ImapServerActionResult[] = [];
+    if (!Array.isArray(actions) || actions.length === 0) return { success: true, results };
+    if (config.protocol === 'pop3') {
+      return {
+        success: false,
+        results: actions.map((a) => ({ ref: a.ref, ok: false, retry: false, error: 'Conta POP3: ações não são refletidas no servidor.' })),
+      };
+    }
+
+    const client = new ImapFlow({
+      host: config.host,
+      port: config.port || 993,
+      secure: config.secure !== false,
+      auth: config.accessToken
+        ? { user: config.user, accessToken: config.accessToken }
+        : { user: config.user, pass: config.pass },
+      tls: { rejectUnauthorized: !isTlsHostTrusted(config.host) },
+      logger: false,
+    });
+    client.on('error', (err: any) => {
+      console.warn('[IMAP] Erro assíncrono no socket IMAP (applyServerActions):', err?.message || err);
+    });
+
+    try {
+      await client.connect();
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      return {
+        success: false,
+        error: msg,
+        results: actions.map((a) => ({ ref: a.ref, ok: false, retry: true, error: msg })),
+      };
+    }
+
+    try {
+      const mailboxes = await client.list();
+      const bySource = new Map<string, ImapServerAction[]>();
+      for (const action of actions) {
+        if (!Number.isFinite(action.uid)) {
+          results.push({ ref: action.ref, ok: false, retry: false, error: 'UID inválido.' });
+          continue;
+        }
+        const list = bySource.get(action.folderKey) || [];
+        list.push(action);
+        bySource.set(action.folderKey, list);
+      }
+
+      for (const [sourceKey, group] of bySource) {
+        let sourcePath: string | null = null;
+        try {
+          sourcePath = await this.resolveServerMailboxPath(client, mailboxes, sourceKey, false);
+        } catch {
+          sourcePath = null;
+        }
+        if (!sourcePath) {
+          for (const a of group) {
+            results.push({ ref: a.ref, ok: false, retry: false, error: `Pasta de origem "${sourceKey}" não encontrada no servidor.` });
+          }
+          continue;
+        }
+
+        let lock: any = null;
+        try {
+          lock = await client.getMailboxLock(sourcePath);
+
+          // 1) Lido / não lido e estrela
+          for (const a of group.filter((x) => x.kind === 'flags')) {
+            try {
+              const uidStr = String(a.uid);
+              if (a.seen === true) await client.messageFlagsAdd(uidStr, ['\\Seen'], { uid: true });
+              if (a.seen === false) await client.messageFlagsRemove(uidStr, ['\\Seen'], { uid: true });
+              if (a.flagged === true) await client.messageFlagsAdd(uidStr, ['\\Flagged'], { uid: true });
+              if (a.flagged === false) await client.messageFlagsRemove(uidStr, ['\\Flagged'], { uid: true });
+              results.push({ ref: a.ref, ok: true });
+            } catch (err: any) {
+              results.push({ ref: a.ref, ok: false, retry: this.isRetryableImapError(err), error: err?.message || String(err) });
+            }
+          }
+
+          // 2) Mover (agrupado por destino)
+          const moves = group.filter((x) => x.kind === 'move' && x.toFolderKey && x.toFolderKey !== sourceKey);
+          const byDest = new Map<string, ImapServerAction[]>();
+          for (const m of moves) {
+            const list = byDest.get(m.toFolderKey!) || [];
+            list.push(m);
+            byDest.set(m.toFolderKey!, list);
+          }
+          for (const [destKey, destGroup] of byDest) {
+            try {
+              const destPath = await this.resolveServerMailboxPath(client, mailboxes, destKey, true);
+              if (!destPath) {
+                for (const m of destGroup) {
+                  results.push({ ref: m.ref, ok: false, retry: false, error: `Pasta de destino "${destKey}" não existe no servidor.` });
+                }
+                continue;
+              }
+              const moveRes: any = await client.messageMove(destGroup.map((m) => m.uid).join(','), destPath, { uid: true });
+              const uidMap: Map<number, number> | undefined = moveRes && moveRes.uidMap instanceof Map ? moveRes.uidMap : undefined;
+              for (const m of destGroup) {
+                const newUid = uidMap?.get(m.uid);
+                results.push({
+                  ref: m.ref,
+                  ok: true,
+                  newLocation: typeof newUid === 'number' ? { folderKey: destKey, uid: newUid } : undefined,
+                });
+              }
+            } catch (err: any) {
+              const retry = this.isRetryableImapError(err);
+              for (const m of destGroup) {
+                results.push({ ref: m.ref, ok: false, retry, error: err?.message || String(err) });
+              }
+            }
+          }
+          for (const m of group.filter((x) => x.kind === 'move' && (!x.toFolderKey || x.toFolderKey === sourceKey))) {
+            results.push({ ref: m.ref, ok: true });
+          }
+
+          // 3) Excluir definitivamente
+          const deletes = group.filter((x) => x.kind === 'delete');
+          if (deletes.length > 0) {
+            try {
+              await client.messageDelete(deletes.map((d) => d.uid).join(','), { uid: true });
+              for (const d of deletes) results.push({ ref: d.ref, ok: true });
+            } catch (err: any) {
+              const retry = this.isRetryableImapError(err);
+              for (const d of deletes) results.push({ ref: d.ref, ok: false, retry, error: err?.message || String(err) });
+            }
+          }
+        } catch (err: any) {
+          const retry = this.isRetryableImapError(err);
+          const done = new Set(results.map((r) => r.ref));
+          for (const a of group) {
+            if (!done.has(a.ref)) results.push({ ref: a.ref, ok: false, retry, error: err?.message || String(err) });
+          }
+        } finally {
+          if (lock) lock.release();
+        }
+      }
+
+      await client.logout();
+      return { success: true, results };
+    } catch (err: any) {
+      const retry = this.isRetryableImapError(err);
+      const done = new Set(results.map((r) => r.ref));
+      for (const a of actions) {
+        if (!done.has(a.ref)) results.push({ ref: a.ref, ok: false, retry, error: err?.message || String(err) });
+      }
+      try {
+        await client.logout();
+      } catch {}
+      return { success: false, error: err?.message || String(err), results };
+    }
+  }
+
+  /**
+   * Provedores que já guardam sozinhos a cópia do e-mail enviado por SMTP na pasta Enviados.
+   * Para eles o app NÃO grava a cópia (evita duplicidade).
+   */
+  public static providerAutoSavesSent(...hosts: Array<string | undefined>): boolean {
+    const list = hosts.map((h) => String(h || '').toLowerCase());
+    return list.some((h) =>
+      /(^|\.)(gmail\.com|googlemail\.com|office365\.com|outlook\.com|hotmail\.com|live\.com)$/.test(h)
+    );
+  }
+
+  /** Grava a cópia do e-mail enviado na pasta Enviados do servidor IMAP (marcada como lida). */
+  public static async appendToSentFolder(
+    config: MailServerConfig,
+    raw: Buffer,
+    date: Date
+  ): Promise<{ ok: boolean; uid?: number; error?: string }> {
+    const client = new ImapFlow({
+      host: config.host,
+      port: config.port || 993,
+      secure: config.secure !== false,
+      auth: config.accessToken
+        ? { user: config.user, accessToken: config.accessToken }
+        : { user: config.user, pass: config.pass },
+      tls: { rejectUnauthorized: !isTlsHostTrusted(config.host) },
+      logger: false,
+    });
+    client.on('error', () => {});
+    try {
+      await client.connect();
+      const mailboxes = await client.list();
+      const sentPath = await this.resolveServerMailboxPath(client, mailboxes, 'sent', true);
+      if (!sentPath) {
+        await client.logout();
+        return { ok: false, error: 'Pasta Enviados não encontrada no servidor.' };
+      }
+      const res: any = await client.append(sentPath, raw, ['\\Seen'], date);
+      await client.logout();
+      return { ok: true, uid: typeof res?.uid === 'number' ? res.uid : undefined };
+    } catch (err: any) {
+      try {
+        await client.logout();
+      } catch {}
+      return { ok: false, error: err?.message || String(err) };
+    }
+  }
+
   /**
    * Creates a custom folder (or subfolder) on the IMAP server
    */
@@ -1847,8 +2131,15 @@ export class MailService {
    */
   public static async sendSmtp(
     config: MailServerConfig & { incomingHost?: string },
-    emailData: any
-  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    emailData: any,
+    /** Conta IMAP: grava a cópia do enviado na pasta Enviados do servidor (se o provedor não fizer isso sozinho). */
+    sentCopyConfig?: MailServerConfig
+  ): Promise<{
+    success: boolean;
+    messageId?: string;
+    error?: string;
+    sentCopy?: { saved: boolean; uid?: number; skipped?: 'provider'; error?: string };
+  }> {
     const user = (config.user || '').trim();
     const pass = config.pass || '';
     let primaryHost = (config.host || '').trim();
@@ -2039,11 +2330,37 @@ export class MailService {
           mailOptions.attachments = validatedAttachments;
         }
 
+        // Message-ID e data definidos aqui para a cópia em Enviados ser idêntica à mensagem enviada
+        mailOptions.messageId = `<${crypto.randomUUID()}@${userDomain || 'anecttamail.local'}>`;
+        mailOptions.date = new Date();
+
         const info = await transporter.sendMail(mailOptions);
+
+        let sentCopy: { saved: boolean; uid?: number; skipped?: 'provider'; error?: string } | undefined;
+        if (sentCopyConfig && sentCopyConfig.protocol !== 'pop3' && sentCopyConfig.host) {
+          if (this.providerAutoSavesSent(candidate.host, sentCopyConfig.host)) {
+            sentCopy = { saved: false, skipped: 'provider' };
+          } else {
+            try {
+              const node: any = new MailComposer(mailOptions).compile();
+              node.keepBcc = true; // a cópia em Enviados mantém o Cco, como nos demais clientes
+              const raw: Buffer = await node.build();
+              const appendRes = await this.appendToSentFolder(sentCopyConfig, raw, mailOptions.date);
+              sentCopy = appendRes.ok
+                ? { saved: true, uid: appendRes.uid }
+                : { saved: false, error: appendRes.error };
+              if (!appendRes.ok) console.warn('[IMAP] Não foi possível gravar a cópia em Enviados:', appendRes.error);
+            } catch (copyErr: any) {
+              sentCopy = { saved: false, error: copyErr?.message || String(copyErr) };
+              console.warn('[IMAP] Falha ao montar/gravar a cópia em Enviados:', copyErr?.message || copyErr);
+            }
+          }
+        }
 
         return {
           success: true,
-          messageId: info.messageId,
+          messageId: info.messageId || mailOptions.messageId,
+          sentCopy,
         };
       } catch (err: any) {
         lastError = err?.message || String(err);

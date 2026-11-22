@@ -10,6 +10,8 @@ import { WebAppPanel } from '@/components/WebAppPanel';
 import { WhatsAppPanel } from '@/components/WhatsAppPanel';
 import type { CorporateContact } from '@/components/ContactsView';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useImapServerSync } from '@/hooks/useImapServerSync';
+import { getImapLocation, imapServerKey, parseImapLocationFromId } from './utils/imapLocation';
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount, PriorityLevel, TaskItem } from '@/types/email';
 import {
   AppSettings,
@@ -1275,6 +1277,8 @@ export const App: React.FC = () => {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isCancellingOlder, setIsCancellingOlder] = useState(false);
   const cancelLoadOlderRef = useRef(false);
+  // Sincronização app → servidor (IMAP): preenchida mais abaixo pelo hook useImapServerSync
+  const imapServerSyncRef = useRef<ReturnType<typeof useImapServerSync> | null>(null);
   // Pastas confirmadas como 100% baixadas: chave "contaId:pasta" -> total do servidor no momento
   const [fullyDownloadedFolders, setFullyDownloadedFolders] = useState<Record<string, number>>(() => {
     try {
@@ -1992,20 +1996,16 @@ export const App: React.FC = () => {
             keepGoing = Boolean(loadAll && res.hasMore && !cancelLoadOlderRef.current);
           }
         } else if (window.electronAPI?.fetchOlderFolderMessages) {
-          const accPrefix = `${targetAcc.id}-imap-${targetFolderKey}-`;
           const knownUidsSet = new Set<number>();
           for (const e of emailsRef.current) {
-            if (e.accountId === targetAcc.id && e.id.startsWith(accPrefix)) {
-              const uid = Number(e.id.slice(accPrefix.length));
-              if (Number.isFinite(uid)) knownUidsSet.add(uid);
-            }
+            if (e.accountId !== targetAcc.id) continue;
+            const loc = getImapLocation(e);
+            if (loc && loc.folderKey === targetFolderKey) knownUidsSet.add(loc.uid);
           }
           // E-mails apagados definitivamente no app não devem ser baixados de novo
           for (const deletedId of loadDeletedEmailIds()) {
-            if (deletedId.startsWith(accPrefix)) {
-              const uid = Number(deletedId.slice(accPrefix.length));
-              if (Number.isFinite(uid)) knownUidsSet.add(uid);
-            }
+            const loc = parseImapLocationFromId(deletedId, targetAcc.id);
+            if (loc && loc.folderKey === targetFolderKey) knownUidsSet.add(loc.uid);
           }
 
           // Baixa apenas o que FALTA localmente (UIDs do servidor − UIDs já baixados), em lotes,
@@ -2441,22 +2441,17 @@ export const App: React.FC = () => {
 
         if (protocol === 'imap' && window.electronAPI?.syncAllRealFolders) {
           const knownUidsByFolder: Record<string, number[]> = {};
-          const accPrefix = `${acc.id}-imap-`;
-          // E-mails no app + e-mails apagados definitivamente (para não serem baixados de novo)
-          const knownIds = [
-            ...emailsRef.current.filter((e) => e.accountId === acc.id).map((e) => e.id),
-            ...loadDeletedEmailIds(),
-          ];
-          for (const knownId of knownIds) {
-            if (!knownId.startsWith(accPrefix)) continue;
-            const rest = knownId.slice(accPrefix.length);
-            const lastDash = rest.lastIndexOf('-');
-            if (lastDash <= 0) continue;
-            const folderKey = rest.slice(0, lastDash);
-            const uid = Number(rest.slice(lastDash + 1));
-            if (!Number.isFinite(uid)) continue;
-            if (!knownUidsByFolder[folderKey]) knownUidsByFolder[folderKey] = [];
-            knownUidsByFolder[folderKey].push(uid);
+          const addKnown = (loc: { folderKey: string; uid: number } | null) => {
+            if (!loc) return;
+            if (!knownUidsByFolder[loc.folderKey]) knownUidsByFolder[loc.folderKey] = [];
+            knownUidsByFolder[loc.folderKey].push(loc.uid);
+          };
+          // E-mails no app (pela localização ATUAL no servidor) + apagados definitivamente
+          for (const e of emailsRef.current) {
+            if (e.accountId === acc.id) addKnown(getImapLocation(e));
+          }
+          for (const deletedId of loadDeletedEmailIds()) {
+            addKnown(parseImapLocationFromId(deletedId, acc.id));
           }
 
           const res = await window.electronAPI.syncAllRealFolders({
@@ -2561,25 +2556,66 @@ export const App: React.FC = () => {
             }));
             totalSynced += taggedEmails.length;
 
+            // Mensagens movidas no servidor pelo app têm id antigo + imapLocation: mapeia a chave do
+            // servidor para o id local, para lido/estrela vindos do servidor chegarem nelas também
+            const serverKeyToLocalId = new Map<string, string>();
+            for (const e of emailsRef.current) {
+              if (e.accountId === acc.id && e.imapLocation) {
+                serverKeyToLocalId.set(imapServerKey(acc.id, e.imapLocation), e.id);
+              }
+            }
             const flagMap = new Map<string, { isRead: boolean; isStarred: boolean }>();
             if (flagUpdates) {
               for (const fu of flagUpdates) {
                 const fullId = fu.id.startsWith(`${acc.id}-`) ? fu.id : `${acc.id}-${fu.id}`;
-                flagMap.set(fullId, { isRead: fu.isRead, isStarred: fu.isStarred });
+                flagMap.set(serverKeyToLocalId.get(fullId) || fullId, { isRead: fu.isRead, isStarred: fu.isStarred });
               }
+              // Estado vindo do servidor não deve ser reenviado ao servidor
+              imapServerSyncRef.current?.acknowledgeServerFlags(
+                Array.from(flagMap, ([id, f]) => ({ id, isRead: f.isRead, isStarred: f.isStarred }))
+              );
             }
 
-            setEmails((prev) => {
+            setEmails((prevState) => {
+              let prev = prevState;
+              let incomingEmails = taggedEmails;
+              // Enviados: a cópia baixada do servidor corresponde ao e-mail que o app já guardou
+              // localmente ao enviar (mesmo Message-ID) → vincula em vez de duplicar
+              const localSentByMessageId = new Map<string, string>();
+              for (const p of prev) {
+                if (p.accountId === acc.id && p.folder === 'sent' && p.messageIdHeader && !getImapLocation(p)) {
+                  localSentByMessageId.set(p.messageIdHeader.trim(), p.id);
+                }
+              }
+              const linkedSent = new Map<string, { folderKey: string; uid: number }>();
+              if (localSentByMessageId.size > 0) {
+                incomingEmails = incomingEmails.filter((m) => {
+                  const localId = m.messageIdHeader ? localSentByMessageId.get(m.messageIdHeader.trim()) : undefined;
+                  const loc = localId ? getImapLocation(m) : null;
+                  if (localId && loc) {
+                    linkedSent.set(localId, loc);
+                    return false;
+                  }
+                  return true;
+                });
+              }
+              if (linkedSent.size > 0) {
+                prev = prev.map((p) => {
+                  const loc = linkedSent.get(p.id);
+                  return loc ? { ...p, imapLocation: loc } : p;
+                });
+              }
+
               const existingIds = new Set(prev.map((p) => p.id));
               const newOnlyIds = new Set(
-                taggedEmails
+                incomingEmails
                   .filter((m) => !existingIds.has(m.id) && m.folder === 'inbox')
                   .map((m) => m.id)
               );
               const { emails: ruledIncoming } =
                 newOnlyIds.size > 0
-                  ? applyRulesToEmails(taggedEmails, rules, newOnlyIds)
-                  : { emails: taggedEmails };
+                  ? applyRulesToEmails(incomingEmails, rules, newOnlyIds)
+                  : { emails: incomingEmails };
 
               const incomingMap = new Map(ruledIncoming.map((m) => [m.id, m]));
               const realPrev = prev.filter(
@@ -2601,7 +2637,7 @@ export const App: React.FC = () => {
                 });
 
               if (ruledIncoming.length === 0 && !flagsChanged && realPrev.length === prev.length) {
-                return prev;
+                return linkedSent.size > 0 ? prev : prevState;
               }
 
               const combined = [...ruledIncoming, ...updated];
@@ -3373,6 +3409,8 @@ export const App: React.FC = () => {
       const idSet = new Set(ids);
       if (currentFolder === 'trash') {
         rememberDeletedEmailIds(ids);
+        // IMAP: exclusão definitiva também no servidor
+        imapServerSyncRef.current?.queueServerDeletes(emailsRef.current.filter((e) => idSet.has(e.id)));
         setEmails((prev) => prev.filter((e) => !idSet.has(e.id)));
         showToast(
           `✓ ${ids.length} ${ids.length === 1 ? 'e-mail excluído' : 'e-mails excluídos'} permanentemente.`
@@ -3592,6 +3630,8 @@ export const App: React.FC = () => {
 
   const handleDiscardDraft = (id: string) => {
     rememberDeletedEmailIds([id]);
+    // IMAP: rascunho vindo do servidor também é apagado lá
+    imapServerSyncRef.current?.queueServerDeletes(emailsRef.current.filter((e) => e.id === id));
     setEmails((prev) => prev.filter((e) => e.id !== id));
   };
 
@@ -3827,6 +3867,21 @@ export const App: React.FC = () => {
     const smtpAccessToken = await ensureFreshAccessToken(sendingAccount);
 
     let sentMessageIdHeader: string | undefined = undefined;
+    let sentCopyLocation: { folderKey: string; uid: number } | undefined = undefined;
+
+    // Conta IMAP: a cópia do e-mail enviado vai também para a pasta Enviados do servidor
+    const isImapSendingAccount = (incoming?.protocol || 'imap').toLowerCase() === 'imap' && Boolean(incoming?.host);
+    const sentCopyConfig = isImapSendingAccount
+      ? {
+          protocol: 'imap',
+          host: incoming!.host,
+          port: incoming!.port || 993,
+          secure: incoming!.security !== 'none',
+          user: incoming!.username || sendingAccount.email,
+          pass: incoming!.password || sendingAccount.password || '',
+          accessToken: smtpAccessToken,
+        }
+      : undefined;
 
     // Disparo Real via Servidor SMTP Corporativo se configurado
     if (window.electronAPI?.sendRealEmail && smtpHost && (smtpPassword || smtpAccessToken)) {
@@ -3856,8 +3911,13 @@ export const App: React.FC = () => {
             inReplyTo: emailData.inReplyTo,
             references: emailData.references,
             icalEvent: emailData.icalEvent,
-          }
+          },
+          sentCopyConfig
         );
+
+        if (result.success && typeof result.sentCopy?.uid === 'number') {
+          sentCopyLocation = { folderKey: 'sent', uid: result.sentCopy.uid };
+        }
 
         if (!result.success) {
           if (!options?.skipOfflineQueue && isLikelyNetworkError(result.error)) {
@@ -3911,6 +3971,8 @@ export const App: React.FC = () => {
       id: `${sendingAccount.id}-msg-${Date.now()}`,
       accountId: sendingAccount.id,
       messageIdHeader: sentMessageIdHeader,
+      // Cópia gravada em Enviados no servidor: vincula para a sincronização não duplicar
+      imapLocation: sentCopyLocation,
       inReplyToHeader: emailData.inReplyTo,
       referencesHeader: emailData.references,
       sender: sendingAccount.displayName || sendingAccount.email,
@@ -4213,6 +4275,38 @@ export const App: React.FC = () => {
   scheduledEmailsRef.current = scheduledEmails;
   const handleSyncAllRef = useRef(handleSyncAll);
   handleSyncAllRef.current = handleSyncAll;
+
+  // IMAP: o que o usuário faz no app (mover, excluir, lido, estrela) é refletido no servidor
+  const imapServerSync = useImapServerSync({
+    emails,
+    setEmails,
+    accounts: settings.accounts && settings.accounts.length > 0 ? settings.accounts : [currentAccount],
+    customFolders,
+    getImapConfig: async (acc) => {
+      const incoming = acc.incomingServer;
+      if ((incoming?.protocol || 'imap').toLowerCase() !== 'imap' || !incoming?.host) return null;
+      const user = incoming.username || acc.email;
+      const pass = incoming.password || acc.password || '';
+      const accessToken = await ensureFreshAccessToken(acc);
+      if (!user || (!pass && !accessToken)) return null;
+      return {
+        protocol: 'imap',
+        host: incoming.host,
+        port: incoming.port || 993,
+        secure: incoming.security !== 'none',
+        user,
+        pass,
+        accessToken,
+      };
+    },
+    showToast,
+    requestBackgroundSync: () => {
+      setTimeout(() => {
+        void handleSyncAllRef.current({ background: true });
+      }, 1500);
+    },
+  });
+  imapServerSyncRef.current = imapServerSync;
 
   // Ao fechar o aplicativo: executa envio e recebimento antes de encerrar totalmente (inclusive da bandeja)
   useEffect(() => {

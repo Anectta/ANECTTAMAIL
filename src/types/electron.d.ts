@@ -34,6 +34,7 @@ export interface EmailItem {
   date?: string;
   period: TimePeriod;
   folder: MailFolder;
+  imapLocation?: { folderKey: string; uid: number };
   priority: PriorityLevel;
   isRead: boolean;
   isStarred?: boolean;
@@ -136,7 +137,38 @@ export interface ElectronAPI {
   createImapFolder?: (config: any, folderName: string, parentFolderOrPath?: string) => Promise<{ success: boolean; imapPath?: string; error?: string }>;
   renameImapFolder?: (config: any, oldImapPath: string, newName: string) => Promise<{ success: boolean; imapPath?: string; error?: string }>;
   deleteImapFolder?: (config: any, imapPath: string) => Promise<{ success: boolean; error?: string }>;
-  sendRealEmail: (config: any, emailData: any) => Promise<{ success: boolean; messageId?: string; error?: string }>;
+  sendRealEmail: (
+    config: any,
+    emailData: any,
+    sentCopyConfig?: any
+  ) => Promise<{
+    success: boolean;
+    messageId?: string;
+    error?: string;
+    sentCopy?: { saved: boolean; uid?: number; skipped?: 'provider'; error?: string };
+  }>;
+  applyImapServerActions?: (
+    config: any,
+    actions: Array<{
+      ref: string;
+      kind: 'move' | 'flags' | 'delete';
+      folderKey: string;
+      uid: number;
+      toFolderKey?: string;
+      seen?: boolean;
+      flagged?: boolean;
+    }>
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+    results: Array<{
+      ref: string;
+      ok: boolean;
+      retry?: boolean;
+      error?: string;
+      newLocation?: { folderKey: string; uid: number };
+    }>;
+  }>;
   simulateIncomingEmail: () => Promise<EmailItem>;
   getAppVersion: () => Promise<string>;
   getLocalStorageInfo: (accountEmail: string) => Promise<LocalStorageInfo>;

@@ -13,7 +13,7 @@ import fs from 'fs';
 import zlib from 'zlib';
 import readline from 'readline';
 import { PSTFile, PSTFolder, PSTMessage } from 'pst-extractor';
-import { MailService, MailServerConfig } from './services/mailService';
+import { MailService, MailServerConfig, ImapServerAction } from './services/mailService';
 import { ImapIdleService } from './services/imapIdleService';
 import { SearchIndexService } from './services/searchIndexService';
 import { AIAssistantService } from './services/aiAssistantService';
@@ -1827,7 +1827,16 @@ ipcMain.handle('mail:send-smtp', async (_event, payload: any) => {
   const config: MailServerConfig = payload?.config || payload;
   const emailData = payload?.emailData;
   console.log('[MAIN] mail:send-smtp para', emailData?.recipient);
-  return await MailService.sendSmtp(config, emailData);
+  const sentCopyConfig: MailServerConfig | undefined = payload?.sentCopyConfig || undefined;
+  return await MailService.sendSmtp(config, emailData, sentCopyConfig);
+});
+
+// Reflete no servidor IMAP as ações feitas no app (lido/estrela, mover, excluir)
+ipcMain.handle('mail:imap-server-actions', async (_event, payload: any) => {
+  { const g = await tlsGate(payload?.config || payload); if (g) return g; }
+  const config: MailServerConfig = payload?.config;
+  const actions: ImapServerAction[] = Array.isArray(payload?.actions) ? payload.actions : [];
+  return await MailService.applyServerActions(config, actions);
 });
 
 // Smart Attachments: 5 arquivos mais recentes de Downloads

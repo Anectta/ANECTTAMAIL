@@ -81,6 +81,11 @@ export interface EmailItem {
   dateStr?: string;
   period: TimePeriod;
   folder: MailFolder;
+  /**
+   * IMAP: onde a mensagem está AGORA no servidor, quando difere do que o id indica
+   * (após mover no servidor ou cópia gravada em Enviados). Ver utils/imapLocation.
+   */
+  imapLocation?: { folderKey: string; uid: number };
   priority: PriorityLevel;
   isRead: boolean;
   isStarred?: boolean;
