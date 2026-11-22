@@ -11,6 +11,7 @@ import { WhatsAppPanel } from '@/components/WhatsAppPanel';
 import type { CorporateContact } from '@/components/ContactsView';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useImapServerSync } from '@/hooks/useImapServerSync';
+import { useMailBackfill } from '@/hooks/useMailBackfill';
 import { getImapLocation, imapServerKey, parseImapLocationFromId } from './utils/imapLocation';
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount, PriorityLevel, TaskItem } from '@/types/email';
 import {
@@ -81,9 +82,6 @@ import {
   syncInviteToLocalCalendar,
 } from './utils/icsRsvpUtils';
 import { parseUnsubscribeInfo } from './utils/triageAndTemplates';
-
-/** localStorage: pastas confirmadas como 100% baixadas do servidor ("contaId:pasta" -> total do servidor). */
-const FULLY_DOWNLOADED_FOLDERS_KEY = 'anectta_fully_downloaded_folders';
 
 /**
  * localStorage: IDs de e-mails do servidor apagados DEFINITIVAMENTE no app. A exclusão é local,
@@ -1285,34 +1283,10 @@ export const App: React.FC = () => {
   );
   const [isFlushingOutbox, setIsFlushingOutbox] = useState(false);
   const [serverFolderTotals, setServerFolderTotals] = useState<Record<string, number>>({});
-  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const [isCancellingOlder, setIsCancellingOlder] = useState(false);
-  const cancelLoadOlderRef = useRef(false);
   // Sincronização app → servidor (IMAP): preenchida mais abaixo pelo hook useImapServerSync
   const imapServerSyncRef = useRef<ReturnType<typeof useImapServerSync> | null>(null);
-  // Pastas confirmadas como 100% baixadas: chave "contaId:pasta" -> total do servidor no momento
-  const [fullyDownloadedFolders, setFullyDownloadedFolders] = useState<Record<string, number>>(() => {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(FULLY_DOWNLOADED_FOLDERS_KEY) || '{}');
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-      return {};
-    }
-  });
-  const markFolderFullyDownloaded = useCallback((folderKey: string, serverTotal: number) => {
-    setFullyDownloadedFolders((prev) => {
-      const next = { ...prev, [folderKey]: serverTotal };
-      try {
-        localStorage.setItem(FULLY_DOWNLOADED_FOLDERS_KEY, JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-  }, []);
-  const [loadingOlderProgress, setLoadingOlderProgress] = useState<{
-    mode: 'batch' | 'all';
-    downloaded: number;
-    total?: number;
-  } | null>(null);
+  // Download completo automático: iniciado ao fim de cada sincronização (hook useMailBackfill, mais abaixo)
+  const startBackfillRef = useRef<() => void>(() => {});
   const [offlineOutboxQueue, setOfflineOutboxQueue] = useState<OfflineOutboxItem[]>(() => {
     try {
       const saved = localStorage.getItem('anectta_offline_outbox_v1');
@@ -1892,257 +1866,6 @@ export const App: React.FC = () => {
     }
   });
 
-  const handleCancelLoadOlder = useCallback(() => {
-    if (!isLoadingOlder) return;
-    cancelLoadOlderRef.current = true;
-    setIsCancellingOlder(true);
-    showToast('⏹️ Cancelando download... Os e-mails já baixados serão mantidos.');
-  }, [isLoadingOlder]);
-
-  const handleLoadOlderFromServer = useCallback(
-    async (loadAll: boolean = false) => {
-      if (isLoadingOlder) return;
-      const targetAcc = currentAccount;
-      if (!targetAcc) return;
-      const incoming = targetAcc.incomingServer;
-      const host = incoming?.host?.trim();
-      const user = incoming?.username || targetAcc.email;
-      const password = incoming?.password || targetAcc.password || '';
-      const protocol = incoming?.protocol || 'imap';
-      if (!host || !user || (!password && !targetAcc.oauthAccessToken)) return;
-
-      const customTarget = customFolders.find(
-        (f) => f.id === currentFolder && f.accountId === targetAcc.id
-      );
-      const targetFolderKey = customTarget
-        ? `imap:${customTarget.imapPath || customTarget.name}`
-        : currentFolder;
-
-      cancelLoadOlderRef.current = false;
-      setIsCancellingOlder(false);
-      setIsLoadingOlder(true);
-      const initialKnownTotal =
-        serverFolderTotals[`${targetAcc.id}:${currentFolder}`] ??
-        serverFolderTotals[`${targetAcc.id}:${targetFolderKey}`];
-      setLoadingOlderProgress({
-        mode: loadAll ? 'all' : 'batch',
-        downloaded: 0,
-        total: initialKnownTotal,
-      });
-      showToast(
-        loadAll
-          ? '📥 Baixando todas as mensagens do servidor... Aguarde.'
-          : '📥 Baixando mais mensagens antigas do servidor... Aguarde.'
-      );
-      try {
-        const accessToken = await ensureFreshAccessToken(targetAcc);
-        let totalFetchedNow = 0;
-
-        if (protocol === 'pop3' && window.electronAPI?.fetchRealInbox) {
-          let keepGoing = true;
-          let loops = 0;
-          const localKnown = new Set<string>(
-            [
-              ...emailsRef.current
-                .filter((e) => e.accountId === targetAcc.id && e.id.includes('pop3-'))
-                .map((e) => e.id),
-              // E-mails apagados definitivamente no app não devem ser baixados de novo
-              ...loadDeletedEmailIds().filter(
-                (id) => id.startsWith(`${targetAcc.id}-`) && id.includes('pop3-')
-              ),
-            ].map((id) => (id.startsWith(`${targetAcc.id}-`) ? id.slice(`${targetAcc.id}-`.length) : id))
-          );
-
-          // "Baixar todas" continua até o fim (ou Cancelar); o limite alto é só uma trava de segurança
-          while (keepGoing && loops < (loadAll ? 1000 : 30) && !cancelLoadOlderRef.current) {
-            loops++;
-            const res = await window.electronAPI.fetchRealInbox({
-              protocol: 'pop3',
-              host,
-              port: incoming.port || 995,
-              secure: incoming.security !== 'none',
-              user,
-              pass: password,
-              accessToken,
-              leaveOnServer: incoming.leaveOnServer ?? true,
-              knownPop3Ids: Array.from(localKnown),
-              pop3BatchLimit: 200,
-            });
-            if (typeof res.serverTotal === 'number') {
-              setServerFolderTotals((prev) => ({
-                ...prev,
-                [`${targetAcc.id}:inbox`]: res.serverTotal!,
-              }));
-            }
-            if (!res.success || !res.emails || res.emails.length === 0) {
-              // Sucesso sem mensagens novas = não falta nada no servidor
-              if (res.success && typeof res.serverTotal === 'number') {
-                markFolderFullyDownloaded(`${targetAcc.id}:inbox`, res.serverTotal);
-              }
-              break;
-            }
-            if (!res.hasMore && typeof res.serverTotal === 'number') {
-              markFolderFullyDownloaded(`${targetAcc.id}:inbox`, res.serverTotal);
-            }
-            for (const m of res.emails) localKnown.add(m.id);
-            const tagged: EmailItem[] = res.emails.map((m) => ({
-              ...m,
-              id: m.id.startsWith(`${targetAcc.id}-`) ? m.id : `${targetAcc.id}-${m.id}`,
-              accountId: targetAcc.id,
-            }));
-            totalFetchedNow += tagged.length;
-            setLoadingOlderProgress({
-              mode: loadAll ? 'all' : 'batch',
-              downloaded: totalFetchedNow,
-              total: typeof res.serverTotal === 'number' ? res.serverTotal : initialKnownTotal,
-            });
-            setEmails((prev) => {
-              const map = new Map(prev.map((e) => [e.id, e]));
-              for (const item of tagged) map.set(item.id, item);
-              const merged = Array.from(map.values());
-              merged.sort((a, b) => getEmailTimestampMs(b) - getEmailTimestampMs(a));
-              return merged;
-            });
-            showToast(`📥 Baixadas +${totalFetchedNow} mensagens antigas via POP3...`);
-            keepGoing = Boolean(loadAll && res.hasMore && !cancelLoadOlderRef.current);
-          }
-        } else if (window.electronAPI?.fetchOlderFolderMessages) {
-          const knownUidsSet = new Set<number>();
-          for (const e of emailsRef.current) {
-            if (e.accountId !== targetAcc.id) continue;
-            const loc = getImapLocation(e);
-            if (loc && loc.folderKey === targetFolderKey) knownUidsSet.add(loc.uid);
-          }
-          // E-mails apagados definitivamente no app não devem ser baixados de novo
-          for (const deletedId of loadDeletedEmailIds()) {
-            const loc = parseImapLocationFromId(deletedId, targetAcc.id);
-            if (loc && loc.folderKey === targetFolderKey) knownUidsSet.add(loc.uid);
-          }
-
-          // Baixa apenas o que FALTA localmente (UIDs do servidor − UIDs já baixados), em lotes,
-          // até não faltar nada ou o usuário cancelar. Não depende de posição/offset na pasta,
-          // então lacunas no meio também são preenchidas — sem precisar clicar de novo.
-          const MAX_CONSECUTIVE_ERRORS = 3;
-          let consecutiveErrors = 0;
-
-          while (!cancelLoadOlderRef.current) {
-            const batchSize = loadAll ? 100 : 150;
-            const res = await window.electronAPI.fetchOlderFolderMessages({
-              config: {
-                protocol: 'imap',
-                host,
-                port: incoming.port || 993,
-                secure: incoming.security !== 'none',
-                user,
-                pass: password,
-                accessToken,
-              },
-              folder: targetFolderKey,
-              batchSize,
-              imapPath: customTarget ? customTarget.imapPath || customTarget.name : undefined,
-              knownUids: Array.from(knownUidsSet),
-              missingOnly: true,
-            });
-
-            if (typeof res.serverTotal === 'number') {
-              setServerFolderTotals((prev) => ({
-                ...prev,
-                [`${targetAcc.id}:${currentFolder}`]: res.serverTotal!,
-                [`${targetAcc.id}:${targetFolderKey}`]: res.serverTotal!,
-              }));
-            }
-
-            if (!res.success) {
-              // Falha transitória (rede/servidor): tenta de novo antes de desistir
-              consecutiveErrors++;
-              if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS || cancelLoadOlderRef.current) {
-                if (res.error) showToast(`⚠️ ${res.error}`);
-                break;
-              }
-              showToast(`⚠️ Conexão instável, tentando novamente (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS - 1})...`);
-              await new Promise((r) => setTimeout(r, 2000 * consecutiveErrors));
-              continue;
-            }
-            consecutiveErrors = 0;
-
-            // Marca como tentados todos os UIDs do lote (inclusive os que falharam ao formatar),
-            // para o próximo lote sempre avançar
-            for (const uid of res.attemptedUids || []) knownUidsSet.add(uid);
-
-            // Servidor confirmou que não falta mais nada nesta pasta
-            if (res.remaining === 0 && typeof res.serverTotal === 'number') {
-              markFolderFullyDownloaded(`${targetAcc.id}:${currentFolder}`, res.serverTotal);
-            }
-
-            const batchEmails = res.emails || [];
-            if (batchEmails.length > 0) {
-              const tagged: EmailItem[] = batchEmails.map((m) => {
-                const rawUid = Number(String(m.id).split('-').pop());
-                if (Number.isFinite(rawUid)) knownUidsSet.add(rawUid);
-                return {
-                  ...m,
-                  id: m.id.startsWith(`${targetAcc.id}-`) ? m.id : `${targetAcc.id}-${m.id}`,
-                  accountId: targetAcc.id,
-                  folder: currentFolder,
-                };
-              });
-              totalFetchedNow += tagged.length;
-              setLoadingOlderProgress({
-                mode: loadAll ? 'all' : 'batch',
-                downloaded: totalFetchedNow,
-                total: typeof res.serverTotal === 'number' ? res.serverTotal : initialKnownTotal,
-              });
-              setEmails((prev) => {
-                const map = new Map(prev.map((e) => [e.id, e]));
-                for (const item of tagged) map.set(item.id, item);
-                const merged = Array.from(map.values());
-                merged.sort((a, b) => getEmailTimestampMs(b) - getEmailTimestampMs(a));
-                return merged;
-              });
-              showToast(
-                typeof res.remaining === 'number' && res.remaining > 0
-                  ? `📥 Baixadas +${totalFetchedNow} mensagens... faltam ${res.remaining}.`
-                  : `📥 Baixadas +${totalFetchedNow} mensagens antigas do servidor...`
-              );
-            }
-
-            // "Carregar +150": um lote só. "Baixar todas": continua até não faltar nada.
-            if (!loadAll || !res.hasMore) break;
-            // Segurança: lote sem nenhum UID novo para tentar significa que não há progresso possível
-            if ((res.attemptedUids?.length ?? 0) === 0) break;
-          }
-        }
-
-        if (cancelLoadOlderRef.current) {
-          showToast(
-            totalFetchedNow > 0
-              ? `⏹️ Download interrompido. +${totalFetchedNow} e-mail(s) já baixado(s) foram mantidos.`
-              : '⏹️ Download cancelado.'
-          );
-        } else if (totalFetchedNow > 0) {
-          soundService.play('pop');
-          showToast(`✓ Histórico atualizado: +${totalFetchedNow} mensagem(ns) baixada(s) do servidor!`);
-        } else {
-          showToast('✓ Todas as mensagens disponíveis desta pasta já estão baixadas.');
-        }
-      } finally {
-        cancelLoadOlderRef.current = false;
-        setIsCancellingOlder(false);
-        setIsLoadingOlder(false);
-        setLoadingOlderProgress(null);
-      }
-    },
-    [
-      isLoadingOlder,
-      currentAccount,
-      customFolders,
-      currentFolder,
-      ensureFreshAccessToken,
-      serverFolderTotals,
-      markFolderFullyDownloaded,
-    ]
-  );
-
   const handleToggleContactContext = useCallback(() => {
     setIsContactContextOpen((prev) => {
       const next = !prev;
@@ -2675,9 +2398,13 @@ export const App: React.FC = () => {
           }
         } else if (window.electronAPI?.fetchRealInbox) {
           const accPop3Prefix = `${acc.id}-`;
-          const knownPop3Ids = emailsRef.current
-            .filter((e) => e.accountId === acc.id && e.id.includes('pop3-'))
-            .map((e) => (e.id.startsWith(accPop3Prefix) ? e.id.slice(accPop3Prefix.length) : e.id));
+          const knownPop3Ids = [
+            ...emailsRef.current
+              .filter((e) => e.accountId === acc.id && e.id.includes('pop3-'))
+              .map((e) => e.id),
+            // Excluídos definitivamente no app não voltam
+            ...loadDeletedEmailIds().filter((id) => id.startsWith(accPop3Prefix) && id.includes('pop3-')),
+          ].map((id) => (id.startsWith(accPop3Prefix) ? id.slice(accPop3Prefix.length) : id));
 
           const res = await window.electronAPI.fetchRealInbox({
             protocol: protocol as any,
@@ -2737,9 +2464,8 @@ export const App: React.FC = () => {
                   !p.id.startsWith('msg-marco-') &&
                   !p.id.startsWith('msg-anectta-')
               );
-              const keepOthers = realPrev.filter(
-                (p) => !(p.accountId === acc.id && p.folder === 'inbox') && !incomingIds.has(p.id)
-              );
+              // O POP3 só devolve as mensagens NOVAS: as que o app já tem continuam (inclusive na Entrada)
+              const keepOthers = realPrev.filter((p) => !incomingIds.has(p.id));
               const combined = [...ruledIncoming, ...keepOthers];
               combined.sort((a, b) => getEmailTimestampMs(b) - getEmailTimestampMs(a));
               return combined;
@@ -2774,6 +2500,9 @@ export const App: React.FC = () => {
           void handleSyncAllRef.current({ background: true });
         }, 3000);
       }
+      // Baixa tudo o que ainda falta (todas as pastas). Retoma também após um Cancelar.
+      // Pequena espera para as pastas descobertas nesta sincronização já estarem no estado.
+      setTimeout(() => startBackfillRef.current(), 1500);
     }
     })();
 
@@ -3036,28 +2765,6 @@ export const App: React.FC = () => {
 
   const isUnifiedView = settings.activeAccountId === '__unified__';
 
-  // Pasta com histórico baixado por completo ("Baixar todas"/"Carregar +150" confirmou que não falta
-  // nada no servidor). Fica assim de vez: e-mails novos chegam pela sincronização automática (que
-  // recupera tudo o que chegou, mesmo acima da janela), então os botões não precisam reativar.
-  const isCurrentFolderFullyDownloaded = useMemo(() => {
-    if (isUnifiedView) return false;
-    return typeof fullyDownloadedFolders[`${currentAccount.id}:${currentFolder}`] === 'number';
-  }, [isUnifiedView, fullyDownloadedFolders, currentAccount.id, currentFolder]);
-
-  const currentFolderServerTotal = useMemo(() => {
-    if (isUnifiedView) return undefined;
-    const customTarget = customFolders.find(
-      (f) => f.id === currentFolder && f.accountId === currentAccount.id
-    );
-    const direct = serverFolderTotals[`${currentAccount.id}:${currentFolder}`];
-    if (typeof direct === 'number') return direct;
-    if (customTarget) {
-      const byImap =
-        serverFolderTotals[`${currentAccount.id}:imap:${customTarget.imapPath || customTarget.name}`];
-      if (typeof byImap === 'number') return byImap;
-    }
-    return undefined;
-  }, [isUnifiedView, customFolders, currentFolder, currentAccount.id, serverFolderTotals]);
 
   // Emails na pasta selecionada ou na busca estritamente restrita à conta marcada (ou unificada)
   const currentFolderEmails = useMemo(() => {
@@ -4304,6 +4011,19 @@ export const App: React.FC = () => {
   const handleSyncAllRef = useRef(handleSyncAll);
   handleSyncAllRef.current = handleSyncAll;
 
+  // Download completo automático de todas as pastas (substitui "Carregar +150" / "Baixar todas")
+  const mailBackfill = useMailBackfill({
+    accounts: settings.accounts && settings.accounts.length > 0 ? settings.accounts : [currentAccount],
+    customFolders,
+    emailsRef,
+    setEmails,
+    serverFolderTotals,
+    setServerFolderTotals,
+    ensureFreshAccessToken,
+    loadDeletedEmailIds,
+  });
+  startBackfillRef.current = () => void mailBackfill.start();
+
   // IMAP: o que o usuário faz no app (mover, excluir, lido, estrela) é refletido no servidor
   const imapServerSync = useImapServerSync({
     emails,
@@ -4932,14 +4652,9 @@ export const App: React.FC = () => {
                   onToggleMinimalLayout={handleToggleMinimalLayout}
                   groupByThread={groupByThread}
                   onToggleGroupByThread={handleToggleGroupByThread}
-                  serverTotalCount={currentFolderServerTotal}
-                  isFolderFullyDownloaded={isCurrentFolderFullyDownloaded}
-                  isLoadingOlder={isLoadingOlder}
-                  isCancellingOlder={isCancellingOlder}
-                  loadingOlderProgress={loadingOlderProgress}
-                  onLoadMoreFromServer={() => void handleLoadOlderFromServer(false)}
-                  onLoadAllFromServer={() => void handleLoadOlderFromServer(true)}
-                  onCancelLoadOlder={handleCancelLoadOlder}
+                  backfillProgress={mailBackfill.isRunning ? mailBackfill.progress : null}
+                  isCancellingBackfill={mailBackfill.isCancelling}
+                  onCancelBackfill={mailBackfill.cancel}
                 />
               )}
 

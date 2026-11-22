@@ -53,6 +53,7 @@ import {
   loadSortField,
 } from '../utils/emailSort';
 import { EmailThread, groupEmailsIntoThreads } from '../utils/threadUtils';
+import type { BackfillProgress } from '../hooks/useMailBackfill';
 import { classifyEmailTriage } from '../utils/triageAndTemplates';
 
 export type EmailLayoutMode = 'compact' | 'horizontal' | 'fullscreen';
@@ -98,15 +99,10 @@ interface EmailListProps {
   onToggleMinimalLayout?: () => void;
   groupByThread?: boolean;
   onToggleGroupByThread?: () => void;
-  serverTotalCount?: number;
-  /** Servidor confirmou que todas as mensagens desta pasta já foram baixadas. */
-  isFolderFullyDownloaded?: boolean;
-  isLoadingOlder?: boolean;
-  isCancellingOlder?: boolean;
-  loadingOlderProgress?: { mode: 'batch' | 'all'; downloaded: number; total?: number } | null;
-  onLoadMoreFromServer?: () => void;
-  onLoadAllFromServer?: () => void;
-  onCancelLoadOlder?: () => void;
+  /** Download completo automático em andamento (null = nada sendo baixado). */
+  backfillProgress?: BackfillProgress | null;
+  isCancellingBackfill?: boolean;
+  onCancelBackfill?: () => void;
 }
 
 const AUTOMATED_SENDER_REGEX =
@@ -155,14 +151,9 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       onToggleMinimalLayout,
       groupByThread = true,
       onToggleGroupByThread,
-      serverTotalCount,
-      isFolderFullyDownloaded = false,
-      isLoadingOlder = false,
-      isCancellingOlder = false,
-      loadingOlderProgress = null,
-      onLoadMoreFromServer,
-      onLoadAllFromServer,
-      onCancelLoadOlder,
+      backfillProgress = null,
+      isCancellingBackfill = false,
+      onCancelBackfill,
     },
     ref
   ) => {
@@ -1058,59 +1049,58 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
             </div>
           </div>
 
-          {/* Aviso persistente no topo enquanto baixa mais mensagens do servidor */}
-          {isLoadingOlder && (
-            <div className="px-2.5 py-2 bg-brand-500/15 border border-brand-500/35 rounded-md space-y-1.5 text-xs text-brand-200">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 font-semibold min-w-0">
-                  <Loader2 className="w-3.5 h-3.5 text-brand-400 animate-spin shrink-0" />
-                  <span className="truncate">
-                    {loadingOlderProgress?.mode === 'all'
-                      ? 'Baixando todas as mensagens do servidor...'
-                      : 'Baixando mais mensagens do servidor...'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {loadingOlderProgress && loadingOlderProgress.downloaded > 0 && (
-                    <span className="text-[10px] font-mono text-brand-300">
-                      +{loadingOlderProgress.downloaded}
+          {/* Download completo automático em segundo plano (todas as pastas e contas) */}
+          {backfillProgress && (() => {
+            const total = backfillProgress.total;
+            const remaining = backfillProgress.remaining;
+            const done =
+              typeof total === 'number' && total > 0 && typeof remaining === 'number'
+                ? Math.max(0, total - remaining)
+                : undefined;
+            const pct = done !== undefined && total ? Math.min(100, Math.round((done / total) * 100)) : undefined;
+            return (
+              <div className="px-2.5 py-2 bg-brand-500/15 border border-brand-500/35 rounded-md space-y-1.5 text-xs text-brand-200">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 font-semibold min-w-0">
+                    <Loader2 className="w-3.5 h-3.5 text-brand-400 animate-spin shrink-0" />
+                    <span className="truncate" title={backfillProgress.label}>
+                      Baixando e-mails do servidor — {backfillProgress.label}
                     </span>
-                  )}
-                  {onCancelLoadOlder && (
-                    <button
-                      type="button"
-                      disabled={isCancellingOlder}
-                      onClick={onCancelLoadOlder}
-                      className="px-2 py-0.5 rounded bg-rose-600/90 hover:bg-rose-500 disabled:opacity-50 text-white text-[10px] font-semibold transition-colors"
-                      title="Interromper download mantendo os e-mails já baixados"
-                    >
-                      {isCancellingOlder ? 'Cancelando...' : 'Cancelar'}
-                    </button>
-                  )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] font-mono text-brand-300">+{backfillProgress.downloaded}</span>
+                    {onCancelBackfill && (
+                      <button
+                        type="button"
+                        disabled={isCancellingBackfill}
+                        onClick={onCancelBackfill}
+                        className="px-2 py-0.5 rounded bg-rose-600/90 hover:bg-rose-500 disabled:opacity-50 text-white text-[10px] font-semibold transition-colors"
+                        title="Pausa o download mantendo os e-mails já baixados. Ele continua na próxima sincronização."
+                      >
+                        {isCancellingBackfill ? 'Cancelando...' : 'Cancelar'}
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {pct !== undefined && (
+                  <div className="space-y-1">
+                    <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full bg-brand-500 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.max(4, pct)}%` }}
+                      />
+                    </div>
+                    <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                      <span>
+                        {done} de {total} nesta pasta · faltam {remaining}
+                      </span>
+                      <span>{pct}%</span>
+                    </div>
+                  </div>
+                )}
               </div>
-              {typeof serverTotalCount === 'number' && serverTotalCount > 0 && (
-                <div className="space-y-1">
-                  <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                    <div
-                      className="h-full bg-brand-500 rounded-full transition-all duration-300"
-                      style={{
-                        width: `${Math.min(100, Math.max(8, Math.round((emails.length / serverTotalCount) * 100)))}%`,
-                      }}
-                    />
-                  </div>
-                  <div className="text-[10px] text-slate-400 flex items-center justify-between">
-                    <span>
-                      {emails.length} de {serverTotalCount} baixadas
-                    </span>
-                    <span>
-                      {Math.min(100, Math.round((emails.length / serverTotalCount) * 100))}%
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+            );
+          })()}
 
           {/* Aviso de andamento enquanto exclui e-mails em lote */}
           {isDeletingBulk && (
@@ -1614,86 +1604,6 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
             })
           )}
 
-          {/* Rodapé de Paginação / Download Completo do Servidor.
-              Pasta completa (confirmada pelo servidor ou sem diferença de contagem):
-              os dois botões ficam visíveis, inativos e sem contador. */}
-          {(() => {
-            if (typeof serverTotalCount !== 'number' || serverTotalCount <= 0) return null;
-            if (!onLoadMoreFromServer && !onLoadAllFromServer) return null;
-            const isComplete = !isLoadingOlder && (isFolderFullyDownloaded || serverTotalCount <= emails.length);
-            return (
-              <div className="p-3 m-2 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2 text-center">
-                <div className="text-[11px] text-slate-400">
-                  {isComplete ? (
-                    <span className="inline-flex items-center gap-1">
-                      <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      Todas as mensagens desta pasta já foram baixadas do servidor
-                    </span>
-                  ) : (
-                    <>
-                      Exibindo <strong className="text-slate-200">{emails.length}</strong> de{' '}
-                      <strong className="text-brand-400">{serverTotalCount}</strong> mensagens no servidor
-                    </>
-                  )}
-                </div>
-                <div className="flex items-center justify-center gap-2">
-                  {onLoadMoreFromServer && (
-                    <button
-                      type="button"
-                      disabled={isLoadingOlder || isComplete}
-                      title={isComplete ? 'Todas as mensagens já foram baixadas' : undefined}
-                      onClick={onLoadMoreFromServer}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:hover:bg-slate-800 text-slate-200 border border-slate-700 text-[11px] font-semibold transition-colors ${
-                        isComplete ? 'opacity-40 cursor-not-allowed' : 'disabled:opacity-60'
-                      }`}
-                    >
-                      {isLoadingOlder && loadingOlderProgress?.mode === 'batch' && (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      )}
-                      <span>
-                        {isLoadingOlder && loadingOlderProgress?.mode === 'batch'
-                          ? 'Baixando mensagens...'
-                          : 'Carregar +150 antigas'}
-                      </span>
-                    </button>
-                  )}
-                  {onLoadAllFromServer && (
-                    <button
-                      type="button"
-                      disabled={isLoadingOlder || isComplete}
-                      onClick={onLoadAllFromServer}
-                      title={isComplete ? 'Todas as mensagens já foram baixadas' : undefined}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:hover:bg-brand-600 text-white text-[11px] font-semibold transition-colors ${
-                        isComplete ? 'opacity-40 cursor-not-allowed' : 'disabled:opacity-60'
-                      }`}
-                    >
-                      {isLoadingOlder && loadingOlderProgress?.mode === 'all' && (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      )}
-                      <span>
-                        {isLoadingOlder && loadingOlderProgress?.mode === 'all'
-                          ? `Baixando todas${loadingOlderProgress?.downloaded ? ` (+${loadingOlderProgress.downloaded})` : '...'}`
-                          : isComplete
-                          ? 'Baixar todas'
-                          : `Baixar todas (+${Math.max(0, serverTotalCount - emails.length)})`}
-                      </span>
-                    </button>
-                  )}
-                  {isLoadingOlder && onCancelLoadOlder && (
-                    <button
-                      type="button"
-                      disabled={isCancellingOlder}
-                      onClick={onCancelLoadOlder}
-                      className="px-3 py-1.5 rounded-lg bg-rose-600/90 hover:bg-rose-500 disabled:opacity-50 text-white text-[11px] font-semibold transition-colors"
-                      title="Interromper download mantendo os e-mails já baixados"
-                    >
-                      {isCancellingOlder ? 'Cancelando...' : 'Cancelar'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
         </div>
       </section>
     );
