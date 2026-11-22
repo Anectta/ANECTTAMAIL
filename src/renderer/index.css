@@ -1537,3 +1537,11 @@ html body .action-tile.is-active {
   background-color: color-mix(in srgb, var(--tile-color) 26%, var(--bg-surface, #0f172a)) !important;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--tile-color) 40%, transparent) !important;
 }
+
+/* Temas claros: no item de pasta SELECIONADO, o número de não lidos (bolinha
+   colorida) fica branco. A regra da pasta ativa pinta todos os spans com a cor
+   de destaque; esta tem especificidade maior e vale só para a bolinha. */
+.clean-white aside button[class] span[class*="bg-brand-600/60"] {
+  background-color: var(--accent-primary) !important;
+  color: #ffffff !important;
+}
