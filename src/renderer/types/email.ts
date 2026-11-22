@@ -79,6 +79,10 @@ export interface EmailItem {
   draftAttachments?: Array<{ name: string; path: string; size: number }>;
   timestamp: string;
   dateStr?: string;
+  /** Data em que o servidor recebeu a mensagem (IMAP INTERNALDATE). Ausente em e-mails antigos. */
+  receivedDateStr?: string;
+  /** Tamanho total da mensagem em bytes. Ausente em e-mails baixados antes da v1.0.242. */
+  sizeBytes?: number;
   period: TimePeriod;
   folder: MailFolder;
   /**

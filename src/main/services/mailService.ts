@@ -894,6 +894,17 @@ export class MailService {
       attachments: attachmentsList.length > 0 ? attachmentsList : undefined,
       timestamp: timeStr,
       dateStr: date.toISOString(),
+      // Data em que o servidor recebeu a mensagem (INTERNALDATE) e tamanho — usados na ordenação
+      receivedDateStr: (() => {
+        const d = message.internalDate ? new Date(message.internalDate) : null;
+        return d && !isNaN(d.getTime()) ? d.toISOString() : undefined;
+      })(),
+      sizeBytes:
+        typeof message.size === 'number' && message.size > 0
+          ? message.size
+          : message.source
+          ? message.source.length
+          : undefined,
       period: period,
       folder: folder,
       priority: 'medium',
@@ -1013,6 +1024,7 @@ export class MailService {
               bodyStructure: true,
               uid: true,
               size: true,
+              internalDate: true,
               source: true,
             })) {
               try {
@@ -1141,7 +1153,7 @@ export class MailService {
             if (attemptedUids.length > 0) {
               for await (const message of client.fetch(
                 attemptedUids.join(','),
-                { envelope: true, flags: true, bodyStructure: true, uid: true, source: true },
+                { envelope: true, flags: true, bodyStructure: true, uid: true, size: true, internalDate: true, source: true },
                 { uid: true }
               )) {
                 try {
@@ -1265,6 +1277,8 @@ export class MailService {
           flags: true,
           bodyStructure: true,
           uid: true,
+          size: true,
+          internalDate: true,
           source: true,
         },
         { uid: true }
@@ -1285,6 +1299,7 @@ export class MailService {
       bodyStructure: true,
       uid: true,
       size: true,
+      internalDate: true,
       source: true,
     })) {
       if (typeof (message as any).size === 'number') {
@@ -1598,7 +1613,7 @@ export class MailService {
       const batch = missing.slice(0, this.SYNC_CATCHUP_BATCH);
       for await (const message of client.fetch(
         batch.join(','),
-        { envelope: true, flags: true, bodyStructure: true, uid: true, source: true },
+        { envelope: true, flags: true, bodyStructure: true, uid: true, size: true, internalDate: true, source: true },
         { uid: true }
       )) {
         try {
@@ -2103,6 +2118,7 @@ export class MailService {
             attachments: popAttachments.length > 0 ? popAttachments : undefined,
             timestamp: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             dateStr: date.toISOString(),
+            sizeBytes: rawMessage ? (rawMessage as any).length : undefined,
             period: 'today',
             folder: 'inbox',
             priority: 'medium',

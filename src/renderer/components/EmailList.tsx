@@ -6,6 +6,8 @@ import {
   ChevronRight,
   ArrowDown,
   ArrowUp,
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
   Mail,
   Paperclip,
   Zap,
@@ -36,6 +38,20 @@ import { SenderAvatar } from './SenderAvatar';
 import { soundService } from '../services/soundService';
 import { filterRealAttachments } from '../utils/attachmentUtils';
 import { getEmailTimestampMs, formatReceivedLabel } from '../utils/dateSortUtils';
+import {
+  EMAIL_SORT_FIELDS,
+  EmailSortField,
+  SORT_FIELD_STORAGE_KEY,
+  SortGroupKey,
+  compareGroupKeys,
+  compareWithinGroup,
+  getReceivedMs,
+  getSentMs,
+  getSortFieldInfo,
+  getSortGroup,
+  isDateSortField,
+  loadSortField,
+} from '../utils/emailSort';
 import { EmailThread, groupEmailsIntoThreads } from '../utils/threadUtils';
 import { classifyEmailTriage } from '../utils/triageAndTemplates';
 
@@ -191,6 +207,8 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
         return 'desc';
       }
     });
+    const [sortField, setSortField] = useState<EmailSortField>(loadSortField);
+    const sortFieldInfo = getSortFieldInfo(sortField);
     const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
     const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
     const [collapsedPeriods, setCollapsedPeriods] = useState<Record<string, boolean>>({});
@@ -210,6 +228,22 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       setSortOrder(order);
       try {
         localStorage.setItem('anectta_email_sort_order', order);
+      } catch {
+        // ignore storage errors
+      }
+      setIsSortMenuOpen(false);
+    };
+
+    /** Troca o critério e aplica a direção natural dele (datas: recentes; textos: A → Z). */
+    const handleSelectSortField = (field: EmailSortField) => {
+      soundService.play('pop');
+      const info = getSortFieldInfo(field);
+      setSortField(field);
+      setSortOrder(info.defaultDirection);
+      setCollapsedPeriods({});
+      try {
+        localStorage.setItem(SORT_FIELD_STORAGE_KEY, field);
+        localStorage.setItem('anectta_email_sort_order', info.defaultDirection);
       } catch {
         // ignore storage errors
       }
@@ -424,8 +458,45 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       advUnreadOnly,
     ]);
 
-    // Grouping by Period (Hoje, Ontem, Semana Passada, Mais Antigos) - memoizado
-    const groupedEmails = useMemo(() => {
+    // Agrupamento: por período (critérios de data) ou pelo critério escolhido - memoizado
+    const groupedEmails = useMemo((): Array<{ id: string; label: string; items: Array<{ email: EmailItem; thread: EmailThread | null; ts: number }> }> => {
+      if (!isDateSortField(sortField)) {
+        type Entry = { email: EmailItem; thread: EmailThread | null; ts: number };
+        const groups = new Map<string, { key: SortGroupKey; items: Entry[] }>();
+        const add = (entry: Entry, hasAtt: boolean, unread: boolean, starred: boolean) => {
+          const key = getSortGroup(entry.email, sortField, hasAtt, unread, starred);
+          const g = groups.get(key.id);
+          if (g) g.items.push(entry);
+          else groups.set(key.id, { key, items: [entry] });
+        };
+        if (groupByThread) {
+          for (const thread of groupEmailsIntoThreads(filteredEmails, 'desc')) {
+            add(
+              { email: thread.latestEmail, thread, ts: Math.max(...thread.messages.map(getReceivedMs)) },
+              thread.hasAttachment,
+              thread.hasUnread,
+              thread.isStarred
+            );
+          }
+        } else {
+          for (const e of filteredEmails) {
+            const hasAtt =
+              e.attachments && e.attachments.length > 0
+                ? filterRealAttachments(e.attachments, e.bodyHtml).length > 0
+                : Boolean(e.hasAttachment);
+            add({ email: e, thread: null, ts: getReceivedMs(e) }, hasAtt, !e.isRead, Boolean(e.isStarred));
+          }
+        }
+        return Array.from(groups.values())
+          .sort((a, b) => compareGroupKeys(a.key.sortKey, b.key.sortKey, sortOrder))
+          .map((g) => ({
+            id: g.key.id,
+            label: g.key.label,
+            items: g.items.sort((a, b) => compareWithinGroup(a, b, sortField, sortOrder)),
+          }));
+      }
+
+      const dateOf = sortField === 'sent' ? getSentMs : getReceivedMs;
       const periodsOrder: { id: TimePeriod; label: string }[] =
         sortOrder === 'desc'
           ? [
@@ -446,8 +517,8 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       const DAY = 24 * 60 * 60 * 1000;
 
       const resolvePeriod = (e: (typeof filteredEmails)[number]): TimePeriod => {
-        if (!e.dateStr) return e.period;
-        const ms = new Date(e.dateStr).getTime();
+        if (!e.dateStr && !e.receivedDateStr) return e.period;
+        const ms = dateOf(e);
         if (isNaN(ms)) return e.period;
         if (ms >= todayStart) return 'today';
         if (ms >= todayStart - DAY) return 'yesterday';
@@ -469,7 +540,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
           buckets[resolvePeriod(thread.latestEmail)].push({
             email: thread.latestEmail,
             thread,
-            ts: thread.latestTimestampMs,
+            ts: sortField === 'sent' ? thread.latestTimestampMs : Math.max(...thread.messages.map(getReceivedMs)),
           });
         }
       } else {
@@ -477,7 +548,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
           buckets[resolvePeriod(e)].push({
             email: e,
             thread: null,
-            ts: getEmailTimestampMs(e),
+            ts: dateOf(e),
           });
         }
       }
@@ -492,7 +563,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
           };
         })
         .filter((group) => group.items.length > 0);
-    }, [filteredEmails, sortOrder, groupByThread]);
+    }, [filteredEmails, sortOrder, sortField, groupByThread]);
 
     return (
       <section
@@ -748,59 +819,87 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   soundService.play('pop');
                   setIsSortMenuOpen((prev) => !prev);
                 }}
-                className="flex items-center space-x-1 text-[11px] text-slate-400 hover:text-slate-200 transition-colors px-1.5 py-0.5 rounded hover:bg-brand-500/15 cursor-pointer"
-                title={
-                  sortOrder === 'desc'
-                    ? 'Classificar: Mais Recentes na Parte Superior'
-                    : 'Classificar: Mais Antigas na Parte Superior'
-                }
+                className={`flex items-center gap-0.5 px-1.5 py-1 rounded-md border transition-colors cursor-pointer ${
+                  isSortMenuOpen
+                    ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
+                    : 'text-slate-400 border-slate-700/60 hover:text-slate-200 hover:bg-brand-500/15'
+                }`}
+                title={`Ordenar — ${sortFieldInfo.label}: ${
+                  sortOrder === 'desc' ? sortFieldInfo.directions[0] : sortFieldInfo.directions[1]
+                }`}
+                aria-label="Ordenar"
               >
-                <span>Por Data</span>
                 {sortOrder === 'desc' ? (
-                  <ArrowDown className="w-3 h-3 text-brand-400" />
+                  <ArrowDownWideNarrow className="w-4 h-4" />
                 ) : (
-                  <ArrowUp className="w-3 h-3 text-brand-400" />
+                  <ArrowUpNarrowWide className="w-4 h-4" />
                 )}
-                <ChevronDown className="w-3 h-3 text-slate-500" />
+                <ChevronDown className="w-3 h-3 opacity-70" />
               </button>
 
               {isSortMenuOpen && (
                 <div
                   role="menu"
-                  aria-label="Classificar"
-                  className="absolute right-0 top-full mt-1 w-60 bg-slate-900 border border-slate-700/90 rounded-lg shadow-2xl py-1.5 z-50 text-xs text-slate-200"
+                  aria-label="Ordenar"
+                  className="absolute right-0 top-full mt-1 w-64 max-h-[70vh] overflow-y-auto bg-slate-900 border border-slate-700/90 rounded-lg shadow-2xl py-1.5 z-50 text-xs text-slate-200"
                 >
-                  <div className="px-3 py-1 text-[11px] font-bold text-slate-100">
-                    Classificar
+                  <div className="px-3 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    Ordenar por
                   </div>
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={sortOrder === 'desc'}
-                    onClick={() => handleSelectSortOrder('desc')}
-                    className="w-full flex items-center space-x-2 px-3 py-1.5 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
-                  >
-                    <span className="w-4 flex items-center justify-center shrink-0">
-                      {sortOrder === 'desc' && <Check className="w-3.5 h-3.5 text-brand-400" />}
-                    </span>
-                    <span className={sortOrder === 'desc' ? 'font-medium text-slate-100' : 'text-slate-300'}>
-                      Mais <span className="underline">R</span>ecentes na Parte Superior
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={sortOrder === 'asc'}
-                    onClick={() => handleSelectSortOrder('asc')}
-                    className="w-full flex items-center space-x-2 px-3 py-1.5 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
-                  >
-                    <span className="w-4 flex items-center justify-center shrink-0">
-                      {sortOrder === 'asc' && <Check className="w-3.5 h-3.5 text-brand-400" />}
-                    </span>
-                    <span className={sortOrder === 'asc' ? 'font-medium text-slate-100' : 'text-slate-300'}>
-                      <span className="underline">M</span>ais Antigas na Parte Superior
-                    </span>
-                  </button>
+                  {EMAIL_SORT_FIELDS.map((f) => {
+                    const active = sortField === f.id;
+                    return (
+                      <React.Fragment key={f.id}>
+                        {f.separatorBefore && <div className="my-1 border-t border-slate-800" />}
+                        <button
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={active}
+                          onClick={() => handleSelectSortField(f.id)}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
+                        >
+                          <span
+                            className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                              active ? 'border-brand-400' : 'border-slate-600'
+                            }`}
+                          >
+                            {active && <span className="w-1.5 h-1.5 rounded-full bg-brand-400" />}
+                          </span>
+                          <span className={active ? 'font-semibold text-slate-100' : 'text-slate-300'}>{f.label}</span>
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+
+                  <div className="my-1 border-t border-slate-800" />
+                  <div className="px-3 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    Ordem
+                  </div>
+                  {(['desc', 'asc'] as const).map((dir, i) => {
+                    const active = sortOrder === dir;
+                    return (
+                      <button
+                        key={dir}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={active}
+                        onClick={() => handleSelectSortOrder(dir)}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
+                      >
+                        <span className="w-3.5 flex items-center justify-center shrink-0">
+                          {active && <Check className="w-3.5 h-3.5 text-brand-400" />}
+                        </span>
+                        {dir === 'desc' ? (
+                          <ArrowDown className="w-3 h-3 text-slate-500 shrink-0" />
+                        ) : (
+                          <ArrowUp className="w-3 h-3 text-slate-500 shrink-0" />
+                        )}
+                        <span className={active ? 'font-semibold text-slate-100' : 'text-slate-300'}>
+                          {sortFieldInfo.directions[i]}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
