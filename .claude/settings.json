@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "PowerShell(npx.cmd tsc -b --noEmit 2>&1)",
-      "PowerShell(npx.cmd tsc -p tsconfig.electron.json --noEmit 2>&1)"
-    ]
-  }
-}
