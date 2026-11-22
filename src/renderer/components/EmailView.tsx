@@ -68,67 +68,32 @@ import {
 import { detectSmimeBlock, findOwnSmimeCertByEmail } from '../utils/smimeStore';
 
 /**
- * Barra de ações do e-mail: botões quadrados só com ícone, cada ação com sua cor
- * (fundo translúcido + borda na mesma cor). Classes completas e literais para o
- * Tailwind detectar. O ícone herda a cor do botão (currentColor).
+ * Barra de ações do e-mail: botões quadrados só com ícone, cada ação com sua cor.
+ * O ÍCONE e a BORDA usam cores FIXAS (iguais em todos os temas); apenas o FUNDO
+ * acompanha o tema (mistura da cor da ação com --bg-surface). Estilos em
+ * index.css → .action-tile (a cor vai na variável --tile-color, definida inline).
  */
 const ACTION_TONES = {
-  slate: {
-    base: 'text-slate-300 bg-slate-800/60 border-slate-600/50 hover:bg-slate-700/70 hover:border-slate-500/70 hover:text-white',
-    active: 'bg-slate-700 border-slate-400/70 text-white',
-  },
-  blue: {
-    base: 'text-blue-400 bg-blue-500/10 border-blue-500/35 hover:bg-blue-500/20 hover:border-blue-400/70',
-    active: 'bg-blue-500/25 border-blue-400/80 ring-1 ring-blue-400/40',
-  },
-  sky: {
-    base: 'text-sky-400 bg-sky-500/10 border-sky-500/35 hover:bg-sky-500/20 hover:border-sky-400/70',
-    active: 'bg-sky-500/25 border-sky-400/80 ring-1 ring-sky-400/40',
-  },
-  indigo: {
-    base: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/35 hover:bg-indigo-500/20 hover:border-indigo-400/70',
-    active: 'bg-indigo-500/25 border-indigo-400/80 ring-1 ring-indigo-400/40',
-  },
-  teal: {
-    base: 'text-teal-400 bg-teal-500/10 border-teal-500/35 hover:bg-teal-500/20 hover:border-teal-400/70',
-    active: 'bg-teal-500/25 border-teal-400/80 ring-1 ring-teal-400/40',
-  },
-  rose: {
-    base: 'text-rose-400 bg-rose-500/10 border-rose-500/35 hover:bg-rose-500/20 hover:border-rose-400/70',
-    active: 'bg-rose-500/25 border-rose-400/80 ring-1 ring-rose-400/40',
-  },
-  cyan: {
-    base: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/35 hover:bg-cyan-500/20 hover:border-cyan-400/70',
-    active: 'bg-cyan-500/25 border-cyan-400/80 ring-1 ring-cyan-400/40',
-  },
-  amber: {
-    base: 'text-amber-400 bg-amber-500/10 border-amber-500/35 hover:bg-amber-500/20 hover:border-amber-400/70',
-    active: 'bg-amber-500/25 border-amber-400/80 ring-1 ring-amber-400/40',
-  },
-  orange: {
-    base: 'text-orange-400 bg-orange-500/10 border-orange-500/35 hover:bg-orange-500/20 hover:border-orange-400/70',
-    active: 'bg-orange-500/25 border-orange-400/80 ring-1 ring-orange-400/40',
-  },
-  emerald: {
-    base: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/35 hover:bg-emerald-500/20 hover:border-emerald-400/70',
-    active: 'bg-emerald-500/25 border-emerald-400/80 ring-1 ring-emerald-400/40',
-  },
-  violet: {
-    base: 'text-violet-400 bg-violet-500/10 border-violet-500/35 hover:bg-violet-500/20 hover:border-violet-400/70',
-    active: 'bg-violet-500/25 border-violet-400/80 ring-1 ring-violet-400/40',
-  },
-  yellow: {
-    base: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/35 hover:bg-yellow-500/20 hover:border-yellow-400/70',
-    active: 'bg-yellow-500/25 border-yellow-400/80 ring-1 ring-yellow-400/40',
-  },
+  slate: '#94a3b8',
+  blue: '#60a5fa',
+  sky: '#38bdf8',
+  indigo: '#818cf8',
+  teal: '#2dd4bf',
+  rose: '#fb7185',
+  cyan: '#22d3ee',
+  amber: '#fbbf24',
+  orange: '#fb923c',
+  emerald: '#34d399',
+  violet: '#a78bfa',
+  yellow: '#facc15',
 } as const;
 
 type ActionTone = keyof typeof ACTION_TONES;
 
-const actionTileClass = (tone: ActionTone, active = false): string =>
-  `w-10 h-10 shrink-0 flex items-center justify-center rounded-xl border transition-all duration-150 disabled:opacity-60 disabled:cursor-wait ${
-    ACTION_TONES[tone].base
-  } ${active ? ACTION_TONES[tone].active : ''}`;
+const actionTile = (tone: ActionTone, active = false) => ({
+  className: `action-tile${active ? ' is-active' : ''} w-10 h-10 shrink-0 flex items-center justify-center rounded-xl border transition-all duration-150 disabled:opacity-60 disabled:cursor-wait`,
+  style: { ['--tile-color' as string]: ACTION_TONES[tone] } as React.CSSProperties,
+});
 
 const ACTION_ICON = 'w-[18px] h-[18px] shrink-0';
 
@@ -627,7 +592,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             <button
               type="button"
               onClick={onBackToList}
-              className={actionTileClass('slate')}
+              {...actionTile('slate')}
               title="Voltar para a lista de e-mails"
               aria-label="Voltar para a lista de e-mails"
             >
@@ -638,7 +603,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
           <button
             type="button"
             onClick={() => onReply(email)}
-            className={actionTileClass('teal')}
+            {...actionTile('teal')}
             title={email.folder === 'drafts' ? 'Continuar editando' : 'Responder'}
             aria-label={email.folder === 'drafts' ? 'Continuar editando' : 'Responder'}
           >
@@ -649,7 +614,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             <button
               type="button"
               onClick={() => onReplyAll(email)}
-              className={actionTileClass('blue')}
+              {...actionTile('blue')}
               title="Responder a Todos"
               aria-label="Responder a Todos"
             >
@@ -661,7 +626,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             <button
               type="button"
               onClick={() => onForward(email)}
-              className={actionTileClass('violet')}
+              {...actionTile('violet')}
               title="Encaminhar"
               aria-label="Encaminhar"
             >
@@ -675,7 +640,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
           <button
             type="button"
             onClick={() => onArchive(email.id)}
-            className={actionTileClass('teal')}
+            {...actionTile('teal')}
             title="Arquivar"
             aria-label="Arquivar"
           >
@@ -685,7 +650,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
           <button
             type="button"
             onClick={() => onDelete(email.id)}
-            className={actionTileClass('rose')}
+            {...actionTile('rose')}
             title="Excluir"
             aria-label="Excluir"
           >
@@ -696,7 +661,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             type="button"
             onClick={handlePrintEmail}
             disabled={isPrinting}
-            className={actionTileClass('blue')}
+            {...actionTile('blue')}
             title="Imprimir e-mail ou salvar em PDF"
             aria-label="Imprimir"
           >
@@ -707,7 +672,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             <button
               type="button"
               onClick={() => onMarkSpam(email.id)}
-              className={actionTileClass('orange')}
+              {...actionTile('orange')}
               title="Marcar como Spam e mover futuros e-mails deste remetente para o Lixo Eletrônico"
               aria-label="Marcar como Spam"
             >
@@ -719,7 +684,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             <button
               type="button"
               onClick={() => onUnmarkSpam(email.id)}
-              className={actionTileClass('emerald')}
+              {...actionTile('emerald')}
               title="Desmarcar como Spam e retornar para Caixa de Entrada"
               aria-label="Não é Spam"
             >
@@ -738,7 +703,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                   onSnooze(email.id);
                 }
               }}
-              className={actionTileClass('amber', isSnoozeMenuOpen)}
+              {...actionTile('amber', isSnoozeMenuOpen)}
               title="Adiar e-mail para voltar à Caixa de Entrada depois"
               aria-label="Adiar"
             >
@@ -834,7 +799,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                   setIsSnoozeMenuOpen(false);
                   setIsFollowUpMenuOpen((prev) => !prev);
                 }}
-                className={actionTileClass('violet', !!email.followUpAt || isFollowUpMenuOpen)}
+                {...actionTile('violet', !!email.followUpAt || isFollowUpMenuOpen)}
                 title={email.followUpAt ? 'Follow-up definido — alterar lembrete' : 'Definir lembrete se não houver resposta (Follow-up)'}
                 aria-label="Follow-up"
               >
@@ -875,7 +840,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             <button
               type="button"
               onClick={() => onCreateTaskFromEmail(email)}
-              className={actionTileClass('emerald')}
+              {...actionTile('emerald')}
               title="Transformar este e-mail em tarefa no módulo Tarefas"
               aria-label="Criar tarefa"
             >
@@ -887,7 +852,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             type="button"
             disabled={isTranslating}
             onClick={() => void handleTranslateEmail()}
-            className={actionTileClass('sky', translationResult?.emailId === email.id && !translationResult.error)}
+            {...actionTile('sky', translationResult?.emailId === email.id && !translationResult.error)}
             title="Traduzir e-mail instantaneamente"
             aria-label="Traduzir"
           >
@@ -902,7 +867,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             <button
               type="button"
               onClick={onToggleContactContext}
-              className={actionTileClass('yellow', !!isContactContextOpen)}
+              {...actionTile('yellow', !!isContactContextOpen)}
               title="Abrir/Fechar Painel Lateral Mini-CRM, Histórico, Anexos e Notas Privadas"
               aria-label="CRM e Notas"
             >
@@ -921,7 +886,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
               setIsPrivacyPopoverOpen(false);
               setIsMoreMenuOpen((prev) => !prev);
             }}
-            className={actionTileClass('slate', isMoreMenuOpen)}
+            {...actionTile('slate', isMoreMenuOpen)}
             title="Mais ações"
             aria-label="Mais ações"
           >

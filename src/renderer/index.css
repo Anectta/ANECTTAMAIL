@@ -1514,7 +1514,26 @@ html body .accent-solid-btn:hover {
   filter: brightness(1.08);
 }
 
-/* Barra de ações do e-mail: amarelo (CRM/Notas) legível nos temas claros */
-.clean-white .text-yellow-400 {
-  color: #a16207 !important;
+/* ==========================================================================
+   Barra de ações do e-mail (.action-tile)
+   - Ícone e borda: cor FIXA da ação (--tile-color), igual em todos os temas.
+   - Fundo: acompanha o tema (mistura da cor da ação com --bg-surface).
+   ========================================================================== */
+html body .action-tile {
+  color: var(--tile-color) !important;
+  border-color: color-mix(in srgb, var(--tile-color) 45%, transparent) !important;
+  background-color: color-mix(in srgb, var(--tile-color) 10%, var(--bg-surface, #0f172a)) !important;
+  background-image: none !important;
+}
+html body .action-tile svg {
+  color: var(--tile-color) !important;
+}
+html body .action-tile:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--tile-color) 75%, transparent) !important;
+  background-color: color-mix(in srgb, var(--tile-color) 20%, var(--bg-surface, #0f172a)) !important;
+}
+html body .action-tile.is-active {
+  border-color: var(--tile-color) !important;
+  background-color: color-mix(in srgb, var(--tile-color) 26%, var(--bg-surface, #0f172a)) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tile-color) 40%, transparent) !important;
 }
