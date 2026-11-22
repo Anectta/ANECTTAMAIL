@@ -4410,7 +4410,8 @@ export const App: React.FC = () => {
         isWhatsAppOpen={isWhatsAppOpen}
         onToggleWhatsApp={() => setIsWhatsAppOpen((prev) => !prev)}
         onOpenSettings={() => {
-          setSettingsInitialTab('account');
+          // Configurações gerais sempre abrem no 1º item da ordem alfabética das abas
+          setSettingsInitialTab('appearance');
           setIsSettingsOpen(true);
         }}
         onOpenPrivacyCenter={() => {

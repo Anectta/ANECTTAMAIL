@@ -100,7 +100,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<
     'account' | 'appearance' | 'spellcheck' | 'backup' | 'storage' | 'signature' | 'quickReplies' | 'notifications' | 'calendar' | 'apps' | 'security' | 'importExport' | 'support' | 'version' | 'proxy'
-  >(initialTab || 'account');
+  >(initialTab || 'appearance'); // padrão: 1º item da ordem alfabética ("Aparência & Sons")
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [quickSnippetsList, setQuickSnippetsList] = useState<QuickSnippetItem[]>(() =>
     QuickRepliesService.getSnippets()
