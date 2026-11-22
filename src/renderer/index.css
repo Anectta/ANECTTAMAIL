@@ -1513,3 +1513,8 @@ html body .accent-solid-btn * {
 html body .accent-solid-btn:hover {
   filter: brightness(1.08);
 }
+
+/* Barra de ações do e-mail: amarelo (CRM/Notas) legível nos temas claros */
+.clean-white .text-yellow-400 {
+  color: #a16207 !important;
+}

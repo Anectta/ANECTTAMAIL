@@ -32,7 +32,6 @@ import {
   UserX,
   ImageOff,
   Printer,
-  MoreHorizontal,
   Plus,
   MessagesSquare,
   ChevronDown,
@@ -67,6 +66,83 @@ import {
   findOwnKeyByEmail,
 } from '../utils/pgpKeyring';
 import { detectSmimeBlock, findOwnSmimeCertByEmail } from '../utils/smimeStore';
+
+/**
+ * Barra de ações do e-mail: botões quadrados só com ícone, cada ação com sua cor
+ * (fundo translúcido + borda na mesma cor). Classes completas e literais para o
+ * Tailwind detectar. O ícone herda a cor do botão (currentColor).
+ */
+const ACTION_TONES = {
+  slate: {
+    base: 'text-slate-300 bg-slate-800/60 border-slate-600/50 hover:bg-slate-700/70 hover:border-slate-500/70 hover:text-white',
+    active: 'bg-slate-700 border-slate-400/70 text-white',
+  },
+  blue: {
+    base: 'text-blue-400 bg-blue-500/10 border-blue-500/35 hover:bg-blue-500/20 hover:border-blue-400/70',
+    active: 'bg-blue-500/25 border-blue-400/80 ring-1 ring-blue-400/40',
+  },
+  sky: {
+    base: 'text-sky-400 bg-sky-500/10 border-sky-500/35 hover:bg-sky-500/20 hover:border-sky-400/70',
+    active: 'bg-sky-500/25 border-sky-400/80 ring-1 ring-sky-400/40',
+  },
+  indigo: {
+    base: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/35 hover:bg-indigo-500/20 hover:border-indigo-400/70',
+    active: 'bg-indigo-500/25 border-indigo-400/80 ring-1 ring-indigo-400/40',
+  },
+  teal: {
+    base: 'text-teal-400 bg-teal-500/10 border-teal-500/35 hover:bg-teal-500/20 hover:border-teal-400/70',
+    active: 'bg-teal-500/25 border-teal-400/80 ring-1 ring-teal-400/40',
+  },
+  rose: {
+    base: 'text-rose-400 bg-rose-500/10 border-rose-500/35 hover:bg-rose-500/20 hover:border-rose-400/70',
+    active: 'bg-rose-500/25 border-rose-400/80 ring-1 ring-rose-400/40',
+  },
+  cyan: {
+    base: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/35 hover:bg-cyan-500/20 hover:border-cyan-400/70',
+    active: 'bg-cyan-500/25 border-cyan-400/80 ring-1 ring-cyan-400/40',
+  },
+  amber: {
+    base: 'text-amber-400 bg-amber-500/10 border-amber-500/35 hover:bg-amber-500/20 hover:border-amber-400/70',
+    active: 'bg-amber-500/25 border-amber-400/80 ring-1 ring-amber-400/40',
+  },
+  orange: {
+    base: 'text-orange-400 bg-orange-500/10 border-orange-500/35 hover:bg-orange-500/20 hover:border-orange-400/70',
+    active: 'bg-orange-500/25 border-orange-400/80 ring-1 ring-orange-400/40',
+  },
+  emerald: {
+    base: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/35 hover:bg-emerald-500/20 hover:border-emerald-400/70',
+    active: 'bg-emerald-500/25 border-emerald-400/80 ring-1 ring-emerald-400/40',
+  },
+  violet: {
+    base: 'text-violet-400 bg-violet-500/10 border-violet-500/35 hover:bg-violet-500/20 hover:border-violet-400/70',
+    active: 'bg-violet-500/25 border-violet-400/80 ring-1 ring-violet-400/40',
+  },
+  yellow: {
+    base: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/35 hover:bg-yellow-500/20 hover:border-yellow-400/70',
+    active: 'bg-yellow-500/25 border-yellow-400/80 ring-1 ring-yellow-400/40',
+  },
+} as const;
+
+type ActionTone = keyof typeof ACTION_TONES;
+
+const actionTileClass = (tone: ActionTone, active = false): string =>
+  `w-10 h-10 shrink-0 flex items-center justify-center rounded-xl border transition-all duration-150 disabled:opacity-60 disabled:cursor-wait ${
+    ACTION_TONES[tone].base
+  } ${active ? ACTION_TONES[tone].active : ''}`;
+
+const ACTION_ICON = 'w-[18px] h-[18px] shrink-0';
+
+/** Ícone do botão "Mais ações": grade 3x3 de pontos coloridos. */
+const MoreActionsDotsIcon: React.FC = () => {
+  const colors = ['#f87171', '#fbbf24', '#34d399', '#38bdf8', '#a78bfa', '#f472b6', '#fb923c', '#22d3ee', '#a3e635'];
+  return (
+    <svg viewBox="0 0 18 18" className={ACTION_ICON} aria-hidden="true">
+      {colors.map((fill, i) => (
+        <circle key={fill} cx={3 + (i % 3) * 6} cy={3 + Math.floor(i / 3) * 6} r={1.9} fill={fill} />
+      ))}
+    </svg>
+  );
+};
 
 /**
  * Sanitiza marcação HTML de e-mails para prevenir injeções de script ou eventos maliciosos
@@ -543,98 +619,111 @@ export const EmailView: React.FC<EmailViewProps> = ({
 
   return (
     <main className="flex-1 bg-slate-950 flex flex-col h-full overflow-hidden select-text">
-      {/* Top Action Toolbar (Layout unificado em linha com cores originais preservadas) */}
-      <div className="border-b border-slate-800/80 px-5 py-2 flex items-center justify-between gap-3 flex-wrap shrink-0 bg-slate-950/60">
-        {/* Grupo Esquerdo: Responder, Responder a Todos, Encaminhar */}
+      {/* Barra de ações: botões quadrados só com ícone, cada ação com sua cor (nome no tooltip) */}
+      <div className="border-b border-slate-800/80 px-5 py-2.5 flex items-center gap-3 flex-wrap shrink-0 bg-slate-950/60">
+        {/* Grupo Esquerdo: Voltar, Responder, Responder a Todos, Encaminhar */}
         <div className="flex items-center flex-wrap gap-2">
           {onBackToList && (
             <button
               type="button"
               onClick={onBackToList}
-              className="flex items-center space-x-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
+              className={actionTileClass('slate')}
               title="Voltar para a lista de e-mails"
+              aria-label="Voltar para a lista de e-mails"
             >
-              <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
-              <span>Voltar</span>
+              <ArrowLeft className={ACTION_ICON} />
             </button>
           )}
 
           <button
+            type="button"
             onClick={() => onReply(email)}
-            className="flex items-center space-x-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
+            className={actionTileClass('teal')}
+            title={email.folder === 'drafts' ? 'Continuar editando' : 'Responder'}
+            aria-label={email.folder === 'drafts' ? 'Continuar editando' : 'Responder'}
           >
-            <Reply className="w-3.5 h-3.5 shrink-0 text-brand-400" />
-            <span>{email.folder === 'drafts' ? 'Continuar editando' : 'Responder'}</span>
+            <Reply className={ACTION_ICON} />
           </button>
 
           {onReplyAll && (
             <button
+              type="button"
               onClick={() => onReplyAll(email)}
-              className="flex items-center space-x-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
+              className={actionTileClass('blue')}
+              title="Responder a Todos"
+              aria-label="Responder a Todos"
             >
-              <ReplyAll className="w-3.5 h-3.5 shrink-0 text-sky-400" />
-              <span>Responder a Todos</span>
+              <ReplyAll className={ACTION_ICON} />
             </button>
           )}
 
           {onForward && (
             <button
+              type="button"
               onClick={() => onForward(email)}
-              className="flex items-center space-x-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
+              className={actionTileClass('violet')}
+              title="Encaminhar"
+              aria-label="Encaminhar"
             >
-              <Forward className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
-              <span>Encaminhar</span>
+              <Forward className={ACTION_ICON} />
             </button>
           )}
         </div>
 
-        {/* Grupo Central: Arquivar, Excluir, Imprimir, Spam, Adiar (Ícone acima + texto abaixo, mantendo as cores) */}
-        <div className="flex items-center flex-wrap gap-1.5">
+        {/* Grupo Direito: Arquivar, Excluir, Imprimir, Spam, Adiar, Follow-up, Tarefa, Traduzir, CRM e Mais */}
+        <div className="ml-auto flex items-center flex-wrap gap-2">
           <button
+            type="button"
             onClick={() => onArchive(email.id)}
-            className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
+            className={actionTileClass('teal')}
+            title="Arquivar"
+            aria-label="Arquivar"
           >
-            <Archive className="w-4 h-4 shrink-0 text-teal-400" />
-            <span>Arquivar</span>
+            <Archive className={ACTION_ICON} />
           </button>
 
           <button
+            type="button"
             onClick={() => onDelete(email.id)}
-            className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl transition-colors"
+            className={actionTileClass('rose')}
+            title="Excluir"
+            aria-label="Excluir"
           >
-            <Trash2 className="w-4 h-4 shrink-0 text-rose-400" />
-            <span>Excluir</span>
+            <Trash2 className={ACTION_ICON} />
           </button>
 
           <button
+            type="button"
             onClick={handlePrintEmail}
             disabled={isPrinting}
+            className={actionTileClass('blue')}
             title="Imprimir e-mail ou salvar em PDF"
-            className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors disabled:opacity-60"
+            aria-label="Imprimir"
           >
-            <Printer className="w-4 h-4 shrink-0 text-cyan-400" />
-            <span>{isPrinting ? '...' : 'Imprimir'}</span>
+            {isPrinting ? <Loader2 className={`${ACTION_ICON} animate-spin`} /> : <Printer className={ACTION_ICON} />}
           </button>
 
           {email.folder !== 'junk' && onMarkSpam && (
             <button
+              type="button"
               onClick={() => onMarkSpam(email.id)}
+              className={actionTileClass('orange')}
               title="Marcar como Spam e mover futuros e-mails deste remetente para o Lixo Eletrônico"
-              className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-xl transition-colors"
+              aria-label="Marcar como Spam"
             >
-              <AlertOctagon className="w-4 h-4 shrink-0 text-amber-400" />
-              <span>Spam</span>
+              <AlertOctagon className={ACTION_ICON} />
             </button>
           )}
 
           {email.folder === 'junk' && onUnmarkSpam && (
             <button
+              type="button"
               onClick={() => onUnmarkSpam(email.id)}
+              className={actionTileClass('emerald')}
               title="Desmarcar como Spam e retornar para Caixa de Entrada"
-              className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl transition-colors"
+              aria-label="Não é Spam"
             >
-              <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />
-              <span>Não é Spam</span>
+              <CheckCircle className={ACTION_ICON} />
             </button>
           )}
 
@@ -649,11 +738,11 @@ export const EmailView: React.FC<EmailViewProps> = ({
                   onSnooze(email.id);
                 }
               }}
-              className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
+              className={actionTileClass('amber', isSnoozeMenuOpen)}
               title="Adiar e-mail para voltar à Caixa de Entrada depois"
+              aria-label="Adiar"
             >
-              <Clock className="w-4 h-4 shrink-0 text-amber-400" />
-              <span>Adiar</span>
+              <Clock className={ACTION_ICON} />
             </button>
             {isSnoozeMenuOpen && onSnoozeWithTime && (
               <>
@@ -745,15 +834,11 @@ export const EmailView: React.FC<EmailViewProps> = ({
                   setIsSnoozeMenuOpen(false);
                   setIsFollowUpMenuOpen((prev) => !prev);
                 }}
-                className={`flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap border rounded-xl transition-colors ${
-                  email.followUpAt
-                    ? 'text-violet-300 bg-violet-500/15 border-violet-500/40'
-                    : 'text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border-slate-800'
-                }`}
-                title="Definir lembrete se não houver resposta"
+                className={actionTileClass('violet', !!email.followUpAt || isFollowUpMenuOpen)}
+                title={email.followUpAt ? 'Follow-up definido — alterar lembrete' : 'Definir lembrete se não houver resposta (Follow-up)'}
+                aria-label="Follow-up"
               >
-                <BellRing className="w-4 h-4 shrink-0 text-violet-400" />
-                <span>Follow-up</span>
+                <BellRing className={ACTION_ICON} />
               </button>
               {isFollowUpMenuOpen && (
                 <>
@@ -790,11 +875,11 @@ export const EmailView: React.FC<EmailViewProps> = ({
             <button
               type="button"
               onClick={() => onCreateTaskFromEmail(email)}
-              className="flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
+              className={actionTileClass('emerald')}
               title="Transformar este e-mail em tarefa no módulo Tarefas"
+              aria-label="Criar tarefa"
             >
-              <CheckSquare className="w-4 h-4 shrink-0 text-emerald-400" />
-              <span>+ Tarefa</span>
+              <CheckSquare className={ACTION_ICON} />
             </button>
           )}
 
@@ -802,40 +887,32 @@ export const EmailView: React.FC<EmailViewProps> = ({
             type="button"
             disabled={isTranslating}
             onClick={() => void handleTranslateEmail()}
-            className={`flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap border rounded-xl transition-colors disabled:opacity-60 ${
-              translationResult?.emailId === email.id && !translationResult.error
-                ? 'text-sky-300 bg-sky-500/15 border-sky-500/40'
-                : 'text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border-slate-800'
-            }`}
+            className={actionTileClass('sky', translationResult?.emailId === email.id && !translationResult.error)}
             title="Traduzir e-mail instantaneamente"
+            aria-label="Traduzir"
           >
             {isTranslating ? (
-              <Loader2 className="w-4 h-4 shrink-0 text-sky-400 animate-spin" />
+              <Loader2 className={`${ACTION_ICON} animate-spin`} />
             ) : (
-              <Languages className="w-4 h-4 shrink-0 text-sky-400" />
+              <Languages className={ACTION_ICON} />
             )}
-            <span>{isTranslating ? '...' : 'Traduzir'}</span>
           </button>
 
           {onToggleContactContext && !isModalMode && (
             <button
               type="button"
               onClick={onToggleContactContext}
-              className={`flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 min-w-[54px] text-[11px] font-medium whitespace-nowrap border rounded-xl transition-colors ${
-                isContactContextOpen
-                  ? 'text-amber-300 bg-amber-500/15 border-amber-500/40'
-                  : 'text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border-slate-800'
-              }`}
+              className={actionTileClass('yellow', !!isContactContextOpen)}
               title="Abrir/Fechar Painel Lateral Mini-CRM, Histórico, Anexos e Notas Privadas"
+              aria-label="CRM e Notas"
             >
-              <PanelRight className="w-4 h-4 shrink-0 text-amber-400" />
-              <span>CRM/Notas</span>
+              <PanelRight className={ACTION_ICON} />
             </button>
           )}
         </div>
 
-        {/* Grupo Direito: Botão "... Mais" com menu suspenso em duas colunas */}
-        <div className="relative flex items-center gap-1.5">
+        {/* Botão "Mais ações" com menu suspenso em duas colunas */}
+        <div className="relative flex items-center">
           <button
             ref={moreBtnRef}
             type="button"
@@ -844,15 +921,11 @@ export const EmailView: React.FC<EmailViewProps> = ({
               setIsPrivacyPopoverOpen(false);
               setIsMoreMenuOpen((prev) => !prev);
             }}
-            className={`flex items-center space-x-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap border rounded-xl transition-colors ${
-              isMoreMenuOpen
-                ? 'text-white bg-slate-800 border-slate-700'
-                : 'text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border-slate-800'
-            }`}
+            className={actionTileClass('slate', isMoreMenuOpen)}
             title="Mais ações"
+            aria-label="Mais ações"
           >
-            <MoreHorizontal className="w-4 h-4 shrink-0 text-violet-400" />
-            <span>Mais</span>
+            <MoreActionsDotsIcon />
           </button>
 
           {isMoreMenuOpen && (
