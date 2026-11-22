@@ -83,6 +83,8 @@ interface EmailListProps {
   groupByThread?: boolean;
   onToggleGroupByThread?: () => void;
   serverTotalCount?: number;
+  /** Servidor confirmou que todas as mensagens desta pasta já foram baixadas. */
+  isFolderFullyDownloaded?: boolean;
   isLoadingOlder?: boolean;
   isCancellingOlder?: boolean;
   loadingOlderProgress?: { mode: 'batch' | 'all'; downloaded: number; total?: number } | null;
@@ -138,6 +140,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       groupByThread = true,
       onToggleGroupByThread,
       serverTotalCount,
+      isFolderFullyDownloaded = false,
       isLoadingOlder = false,
       isCancellingOlder = false,
       loadingOlderProgress = null,
@@ -1512,22 +1515,38 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
             })
           )}
 
-          {/* Rodapé de Paginação / Download Completo do Servidor */}
-          {typeof serverTotalCount === 'number' &&
-            serverTotalCount > emails.length &&
-            (onLoadMoreFromServer || onLoadAllFromServer) && (
+          {/* Rodapé de Paginação / Download Completo do Servidor.
+              Pasta completa (confirmada pelo servidor ou sem diferença de contagem):
+              os dois botões ficam visíveis, inativos e sem contador. */}
+          {(() => {
+            if (typeof serverTotalCount !== 'number' || serverTotalCount <= 0) return null;
+            if (!onLoadMoreFromServer && !onLoadAllFromServer) return null;
+            const isComplete = !isLoadingOlder && (isFolderFullyDownloaded || serverTotalCount <= emails.length);
+            return (
               <div className="p-3 m-2 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2 text-center">
                 <div className="text-[11px] text-slate-400">
-                  Exibindo <strong className="text-slate-200">{emails.length}</strong> de{' '}
-                  <strong className="text-brand-400">{serverTotalCount}</strong> mensagens no servidor
+                  {isComplete ? (
+                    <span className="inline-flex items-center gap-1">
+                      <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      Todas as mensagens desta pasta já foram baixadas do servidor
+                    </span>
+                  ) : (
+                    <>
+                      Exibindo <strong className="text-slate-200">{emails.length}</strong> de{' '}
+                      <strong className="text-brand-400">{serverTotalCount}</strong> mensagens no servidor
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center justify-center gap-2">
                   {onLoadMoreFromServer && (
                     <button
                       type="button"
-                      disabled={isLoadingOlder}
+                      disabled={isLoadingOlder || isComplete}
+                      title={isComplete ? 'Todas as mensagens já foram baixadas' : undefined}
                       onClick={onLoadMoreFromServer}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-60 text-slate-200 border border-slate-700 text-[11px] font-semibold transition-colors"
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:hover:bg-slate-800 text-slate-200 border border-slate-700 text-[11px] font-semibold transition-colors ${
+                        isComplete ? 'opacity-40 cursor-not-allowed' : 'disabled:opacity-60'
+                      }`}
                     >
                       {isLoadingOlder && loadingOlderProgress?.mode === 'batch' && (
                         <Loader2 className="w-3 h-3 animate-spin" />
@@ -1542,9 +1561,12 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   {onLoadAllFromServer && (
                     <button
                       type="button"
-                      disabled={isLoadingOlder}
+                      disabled={isLoadingOlder || isComplete}
                       onClick={onLoadAllFromServer}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-60 text-white text-[11px] font-semibold transition-colors"
+                      title={isComplete ? 'Todas as mensagens já foram baixadas' : undefined}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:hover:bg-brand-600 text-white text-[11px] font-semibold transition-colors ${
+                        isComplete ? 'opacity-40 cursor-not-allowed' : 'disabled:opacity-60'
+                      }`}
                     >
                       {isLoadingOlder && loadingOlderProgress?.mode === 'all' && (
                         <Loader2 className="w-3 h-3 animate-spin" />
@@ -1552,7 +1574,9 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                       <span>
                         {isLoadingOlder && loadingOlderProgress?.mode === 'all'
                           ? `Baixando todas${loadingOlderProgress?.downloaded ? ` (+${loadingOlderProgress.downloaded})` : '...'}`
-                          : `Baixar todas (+${serverTotalCount - emails.length})`}
+                          : isComplete
+                          ? 'Baixar todas'
+                          : `Baixar todas (+${Math.max(0, serverTotalCount - emails.length)})`}
                       </span>
                     </button>
                   )}
@@ -1569,7 +1593,8 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   )}
                 </div>
               </div>
-            )}
+            );
+          })()}
         </div>
       </section>
     );

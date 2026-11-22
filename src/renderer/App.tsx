@@ -80,6 +80,9 @@ import {
 } from './utils/icsRsvpUtils';
 import { parseUnsubscribeInfo } from './utils/triageAndTemplates';
 
+/** localStorage: pastas confirmadas como 100% baixadas do servidor ("contaId:pasta" -> total do servidor). */
+const FULLY_DOWNLOADED_FOLDERS_KEY = 'anectta_fully_downloaded_folders';
+
 const INITIAL_EMAILS: EmailItem[] = [
   {
     id: 'msg-coworking-1',
@@ -1241,6 +1244,24 @@ export const App: React.FC = () => {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isCancellingOlder, setIsCancellingOlder] = useState(false);
   const cancelLoadOlderRef = useRef(false);
+  // Pastas confirmadas como 100% baixadas: chave "contaId:pasta" -> total do servidor no momento
+  const [fullyDownloadedFolders, setFullyDownloadedFolders] = useState<Record<string, number>>(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(FULLY_DOWNLOADED_FOLDERS_KEY) || '{}');
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
+  const markFolderFullyDownloaded = useCallback((folderKey: string, serverTotal: number) => {
+    setFullyDownloadedFolders((prev) => {
+      const next = { ...prev, [folderKey]: serverTotal };
+      try {
+        localStorage.setItem(FULLY_DOWNLOADED_FOLDERS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
   const [loadingOlderProgress, setLoadingOlderProgress] = useState<{
     mode: 'batch' | 'all';
     downloaded: number;
@@ -1904,7 +1925,14 @@ export const App: React.FC = () => {
               }));
             }
             if (!res.success || !res.emails || res.emails.length === 0) {
+              // Sucesso sem mensagens novas = não falta nada no servidor
+              if (res.success && typeof res.serverTotal === 'number') {
+                markFolderFullyDownloaded(`${targetAcc.id}:inbox`, res.serverTotal);
+              }
               break;
+            }
+            if (!res.hasMore && typeof res.serverTotal === 'number') {
+              markFolderFullyDownloaded(`${targetAcc.id}:inbox`, res.serverTotal);
             }
             for (const m of res.emails) localKnown.add(m.id);
             const tagged: EmailItem[] = res.emails.map((m) => ({
@@ -1988,6 +2016,11 @@ export const App: React.FC = () => {
             // para o próximo lote sempre avançar
             for (const uid of res.attemptedUids || []) knownUidsSet.add(uid);
 
+            // Servidor confirmou que não falta mais nada nesta pasta
+            if (res.remaining === 0 && typeof res.serverTotal === 'number') {
+              markFolderFullyDownloaded(`${targetAcc.id}:${currentFolder}`, res.serverTotal);
+            }
+
             const batchEmails = res.emails || [];
             if (batchEmails.length > 0) {
               const tagged: EmailItem[] = batchEmails.map((m) => {
@@ -2046,7 +2079,15 @@ export const App: React.FC = () => {
         setLoadingOlderProgress(null);
       }
     },
-    [isLoadingOlder, currentAccount, customFolders, currentFolder, ensureFreshAccessToken, serverFolderTotals]
+    [
+      isLoadingOlder,
+      currentAccount,
+      customFolders,
+      currentFolder,
+      ensureFreshAccessToken,
+      serverFolderTotals,
+      markFolderFullyDownloaded,
+    ]
   );
 
   const handleToggleContactContext = useCallback(() => {
@@ -2871,6 +2912,25 @@ export const App: React.FC = () => {
   }, [emails, currentAccount, isEmailForAccount]);
 
   const isUnifiedView = settings.activeAccountId === '__unified__';
+
+  // Pasta baixada por completo: true quando o último "Baixar todas"/"Carregar +150" confirmou que
+  // não falta nada no servidor e o total do servidor não cresceu desde então.
+  const isCurrentFolderFullyDownloaded = useMemo(() => {
+    if (isUnifiedView) return false;
+    const mark = fullyDownloadedFolders[`${currentAccount.id}:${currentFolder}`];
+    if (typeof mark !== 'number') return false;
+    const total =
+      serverFolderTotals[`${currentAccount.id}:${currentFolder}`] ??
+      (() => {
+        const customTarget = customFolders.find(
+          (f) => f.id === currentFolder && f.accountId === currentAccount.id
+        );
+        return customTarget
+          ? serverFolderTotals[`${currentAccount.id}:imap:${customTarget.imapPath || customTarget.name}`]
+          : undefined;
+      })();
+    return typeof total !== 'number' || total <= mark;
+  }, [isUnifiedView, fullyDownloadedFolders, currentAccount.id, currentFolder, serverFolderTotals, customFolders]);
 
   const currentFolderServerTotal = useMemo(() => {
     if (isUnifiedView) return undefined;
@@ -4701,6 +4761,7 @@ export const App: React.FC = () => {
                   groupByThread={groupByThread}
                   onToggleGroupByThread={handleToggleGroupByThread}
                   serverTotalCount={currentFolderServerTotal}
+                  isFolderFullyDownloaded={isCurrentFolderFullyDownloaded}
                   isLoadingOlder={isLoadingOlder}
                   isCancellingOlder={isCancellingOlder}
                   loadingOlderProgress={loadingOlderProgress}
