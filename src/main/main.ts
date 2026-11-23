@@ -1274,24 +1274,35 @@ function initStorageLayer(): void {
   }
 }
 
+// ATENÇÃO (chamadas síncronas): no Electron, a PRIMEIRA atribuição a event.returnValue já envia
+// a resposta. Calcule o valor e atribua UMA única vez, no final.
 ipcMain.on('store:status-sync', (event) => {
-  event.returnValue = { available: false, count: 0 };
-  if (!isTrustedRendererSender(event)) return;
-  initStorageLayer(); // caso alguma janela peça antes da inicialização normal
-  event.returnValue = MailStore.get().getStatus();
+  let reply: any = { available: false, count: 0 };
+  if (isTrustedRendererSender(event)) {
+    try {
+      initStorageLayer(); // caso alguma janela peça antes da inicialização normal
+      reply = { ...MailStore.get().getStatus() };
+    } catch (err: any) {
+      mailStoreLog(`[store] erro no status: ${err?.message}`);
+    }
+  }
+  event.returnValue = reply;
 });
 
 ipcMain.on('store:load-sync', (event) => {
-  event.returnValue = null;
-  if (!isTrustedRendererSender(event)) return;
-  try {
-    if (!MailStore.get().isAvailable()) return;
-    const t0 = Date.now();
-    event.returnValue = MailStore.get().loadAllMetaJson();
-    mailStoreLog(`[store] carregamento dos resumos em ${Date.now() - t0} ms`);
-  } catch (err: any) {
-    mailStoreLog(`[store] erro ao carregar resumos: ${err?.message}`);
+  let reply: string | null = null;
+  if (isTrustedRendererSender(event)) {
+    try {
+      if (MailStore.get().isAvailable()) {
+        const t0 = Date.now();
+        reply = MailStore.get().loadAllMetaJson();
+        mailStoreLog(`[store] carregamento dos resumos em ${Date.now() - t0} ms (${(reply.length / 1048576).toFixed(1)} MB)`);
+      }
+    } catch (err: any) {
+      mailStoreLog(`[store] erro ao carregar resumos: ${err?.message}`);
+    }
   }
+  event.returnValue = reply;
 });
 
 ipcMain.handle('store:upsert', async (event, records: StoreUpsertRecord[]) => {
@@ -1330,21 +1341,22 @@ ipcMain.handle(
 );
 
 ipcMain.on('cache:load-messages-sync', (event) => {
-  event.returnValue = null;
-  if (!isTrustedRendererSender(event)) return;
+  let reply: any[] | null = null;
   try {
-    const p = resolveLegacyCachePath();
-    if (!fs.existsSync(p)) return;
-    const buf = fs.readFileSync(p);
-    const text =
-      buf.subarray(0, 4).toString('utf-8') === 'ENC1'
-        ? safeStorage.decryptString(buf.subarray(4))
-        : buf.toString('utf-8');
-    const parsed = JSON.parse(text);
-    event.returnValue = Array.isArray(parsed) ? parsed : null;
+    const p = isTrustedRendererSender(event) ? resolveLegacyCachePath() : '';
+    if (p && fs.existsSync(p)) {
+      const buf = fs.readFileSync(p);
+      const text =
+        buf.subarray(0, 4).toString('utf-8') === 'ENC1'
+          ? safeStorage.decryptString(buf.subarray(4))
+          : buf.toString('utf-8');
+      const parsed = JSON.parse(text);
+      reply = Array.isArray(parsed) ? parsed : null;
+    }
   } catch (e) {
     console.warn('[MAIN] Falha ao ler cache de mensagens:', (e as any)?.message);
   }
+  event.returnValue = reply;
 });
 
 ipcMain.handle('cache:load-messages', async (event) => {
@@ -1758,6 +1770,10 @@ ipcMain.handle('backup:run-now', async (_event, payload?: { destinationDir?: str
       const parsed = JSON.parse(jsonStr);
       emailsData = Array.isArray(parsed) ? parsed : (parsed?.emails || []);
     }
+    // Com o banco local, os e-mails (com conteúdo) vêm dele
+    if (MailStore.get().isAvailable()) {
+      emailsData = MailStore.get().getFullEmails(MailStore.get().getAllIds());
+    }
 
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -1829,12 +1845,17 @@ ipcMain.handle('backup:restore', async () => {
     }
 
     const emails = Array.isArray(bundle.emails) ? bundle.emails : [];
-    const cachePath = getMessageCachePath();
-    const cacheJson = JSON.stringify(emails);
-    const data = safeStorage.isEncryptionAvailable()
-      ? Buffer.concat([Buffer.from('ENC1'), safeStorage.encryptString(cacheJson)])
-      : Buffer.from(cacheJson, 'utf-8');
-    await fs.promises.writeFile(cachePath, data);
+    if (MailStore.get().isAvailable()) {
+      // Banco local: substitui o conteúdo pelo do backup
+      MailStore.get().replaceAll(emails);
+    } else {
+      const cachePath = getMessageCachePath();
+      const cacheJson = JSON.stringify(emails);
+      const data = safeStorage.isEncryptionAvailable()
+        ? Buffer.concat([Buffer.from('ENC1'), safeStorage.encryptString(cacheJson)])
+        : Buffer.from(cacheJson, 'utf-8');
+      await fs.promises.writeFile(cachePath, data);
+    }
 
     return {
       success: true,

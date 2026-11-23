@@ -353,6 +353,28 @@ export class MailStore {
     return out;
   }
 
+  /** IDs de todos os e-mails do banco. */
+  getAllIds(): string[] {
+    if (!this.isAvailable()) return [];
+    return (this.db!.prepare('SELECT id FROM emails ORDER BY date_ms DESC').all() as any[]).map((r) => String(r.id));
+  }
+
+  /** Substitui todo o conteúdo do banco (restauração de backup). */
+  replaceAll(emails: any[]): number {
+    if (!this.isAvailable()) return 0;
+    let n = 0;
+    this.transaction(() => {
+      this.db!.exec("INSERT INTO email_fts(email_fts) VALUES('delete-all'); DELETE FROM email_bodies; DELETE FROM emails;");
+      for (const email of Array.isArray(emails) ? emails : []) {
+        if (!email || typeof email.id !== 'string') continue;
+        const s = stripEmailBody(email);
+        this.upsertOne({ meta: s.meta, body: s.body, bodyHtml: s.bodyHtml, hasBody: s.hasBody });
+        n++;
+      }
+    });
+    return n;
+  }
+
   /** Pesquisa (FTS5): cada palavra por prefixo, todas obrigatórias, ignorando acentos. */
   search(query: string, opts?: { accountEmail?: string; folder?: string; limit?: number }) {
     const start = Date.now();
@@ -428,9 +450,11 @@ export class MailStore {
       }
     });
 
-    // Guarda o arquivo antigo como cópia de segurança (não é mais lido)
-    const stamp = new Date().toISOString().slice(0, 10);
-    const backup = `${legacyPath}.migrado-${stamp}.bak`;
+    // Guarda o arquivo antigo como cópia de segurança (não é mais lido). Nome único com data e
+    // hora: uma conversão nunca sobrescreve a cópia de outra.
+    const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+    let backup = `${legacyPath}.migrado-${stamp}.bak`;
+    for (let i = 2; fs.existsSync(backup); i++) backup = `${legacyPath}.migrado-${stamp}-${i}.bak`;
     try {
       fs.renameSync(legacyPath, backup);
       this.log(`[store] cache antigo guardado como ${path.basename(backup)}`);

@@ -436,7 +436,16 @@ export const App: React.FC = () => {
         const json = window.electronAPI?.loadMailStoreSync?.();
         if (typeof json === 'string') {
           const fromStore = JSON.parse(json);
-          if (Array.isArray(fromStore) && fromStore.length > 0) return fromStore as EmailItem[];
+          if (Array.isArray(fromStore) && fromStore.length > 0) {
+            // E-mails excluídos definitivamente no app não voltam (e saem do banco)
+            const deleted = new Set(loadDeletedEmailIds());
+            const kept = (fromStore as EmailItem[]).filter((e) => !deleted.has(e.id));
+            if (kept.length < fromStore.length) {
+              const removedIds = (fromStore as EmailItem[]).filter((e) => deleted.has(e.id)).map((e) => e.id);
+              void window.electronAPI?.storeRemoveEmails?.(removedIds);
+            }
+            return kept;
+          }
           return INITIAL_EMAILS;
         }
       }
