@@ -1491,6 +1491,14 @@ html header.mockup-header .motivational-close {
   border-color: transparent !important;
   color: rgba(255, 255, 255, 0.6) !important;
 }
+/* Texto da mensagem (clicável para ver a próxima): sem fundo/borda de botão em nenhum tema */
+html header.mockup-header button.motivational-text,
+html header.mockup-header button.motivational-text:hover {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: #fffbeb !important;
+}
 html header.mockup-header .motivational-close:hover {
   background-color: rgba(255, 255, 255, 0.15) !important;
   color: #ffffff !important;

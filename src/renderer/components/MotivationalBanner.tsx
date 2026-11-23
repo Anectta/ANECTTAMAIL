@@ -82,7 +82,7 @@ export const MotivationalBanner: React.FC = () => {
       <button
         type="button"
         onClick={handleNext}
-        className={`${FONT_CLASS[prefs.fontSize]} font-medium text-amber-50 truncate text-left transition-opacity duration-500 ease-in-out ${
+        className={`motivational-text ${FONT_CLASS[prefs.fontSize]} font-medium text-amber-50 truncate text-left transition-opacity duration-500 ease-in-out ${
           isVisible ? 'opacity-100' : 'opacity-0'
         }`}
       >
