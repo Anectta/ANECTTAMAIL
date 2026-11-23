@@ -854,45 +854,14 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   aria-label="Ordenar"
                   className="absolute right-0 top-full mt-1 w-64 max-h-[70vh] overflow-y-auto bg-slate-900 border border-slate-700/90 rounded-lg shadow-2xl py-1.5 z-50 text-xs text-slate-200"
                 >
-                  <div className="px-3 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                    Ordenar por
-                  </div>
-                  {EMAIL_SORT_FIELDS.map((f) => {
-                    const active = sortField === f.id;
-                    return (
-                      <React.Fragment key={f.id}>
-                        {f.separatorBefore && <div className="my-1 border-t border-slate-800" />}
-                        <button
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked={active}
-                          onClick={() => handleSelectSortField(f.id)}
-                          className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
-                        >
-                          <span
-                            className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
-                              active ? 'border-brand-400' : 'border-slate-600'
-                            }`}
-                          >
-                            {active && <span className="w-1.5 h-1.5 rounded-full bg-brand-400" />}
-                          </span>
-                          <span className={active ? 'font-semibold text-slate-100' : 'text-slate-300'}>{f.label}</span>
-                        </button>
-                      </React.Fragment>
-                    );
-                  })}
-
-                  <div className="my-1 border-t border-slate-800" />
-                  <div className="px-3 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                    Ordem
-                  </div>
                   {(() => {
                     const renderOption = (
                       key: string,
                       active: boolean,
                       dir: 'desc' | 'asc',
                       label: string,
-                      onSelect: () => void
+                      onSelect: () => void,
+                      indent = false
                     ) => (
                       <button
                         key={key}
@@ -900,7 +869,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                         role="menuitemradio"
                         aria-checked={active}
                         onClick={onSelect}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
+                        className={`w-full flex items-center gap-2 ${indent ? 'pl-8 pr-3' : 'px-3'} py-1.5 text-left hover:bg-brand-500/15 transition-colors cursor-pointer`}
                       >
                         <span className="w-3.5 flex items-center justify-center shrink-0">
                           {active && <Check className="w-3.5 h-3.5 text-brand-400" />}
@@ -914,23 +883,62 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                       </button>
                     );
                     const isDate = isDateSortField(sortField);
-                    // Mais recentes / Mais antigos: sempre presentes (nos critérios de data são a própria ordem)
+                    // Mais recentes / Mais antigos: primeira ordem, sempre no topo e válida para todas as pastas.
+                    // Nos critérios de data é a própria ordem; nos demais, a ordem dos e-mails dentro dos grupos.
                     const dateActive = isDate ? sortOrder : dateOrder;
                     return (
                       <>
-                        {!isDate &&
-                          (['desc', 'asc'] as const).map((dir, i) =>
-                            renderOption(`dir-${dir}`, sortOrder === dir, dir, sortFieldInfo.directions[i], () =>
-                              handleSelectSortOrder(dir)
-                            )
-                          )}
-                        {!isDate && <div className="my-1 border-t border-slate-800" />}
+                        <div className="px-3 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                          Ordem
+                        </div>
                         {renderOption('date-desc', dateActive === 'desc', 'desc', 'Mais recentes', () =>
                           handleSelectDateOrder('desc')
                         )}
                         {renderOption('date-asc', dateActive === 'asc', 'asc', 'Mais antigos', () =>
                           handleSelectDateOrder('asc')
                         )}
+
+                        <div className="my-1 border-t border-slate-800" />
+                        <div className="px-3 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                          Ordenar por
+                        </div>
+                        {EMAIL_SORT_FIELDS.map((f) => {
+                          const active = sortField === f.id;
+                          return (
+                            <React.Fragment key={f.id}>
+                              {f.separatorBefore && <div className="my-1 border-t border-slate-800" />}
+                              <button
+                                type="button"
+                                role="menuitemradio"
+                                aria-checked={active}
+                                onClick={() => handleSelectSortField(f.id)}
+                                className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
+                              >
+                                <span
+                                  className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                                    active ? 'border-brand-400' : 'border-slate-600'
+                                  }`}
+                                >
+                                  {active && <span className="w-1.5 h-1.5 rounded-full bg-brand-400" />}
+                                </span>
+                                <span className={active ? 'font-semibold text-slate-100' : 'text-slate-300'}>{f.label}</span>
+                              </button>
+                              {/* Critério que não é data: A → Z / Z → A (ou equivalente) logo abaixo dele */}
+                              {active &&
+                                !isDate &&
+                                (['desc', 'asc'] as const).map((dir, i) =>
+                                  renderOption(
+                                    `dir-${dir}`,
+                                    sortOrder === dir,
+                                    dir,
+                                    sortFieldInfo.directions[i],
+                                    () => handleSelectSortOrder(dir),
+                                    true
+                                  )
+                                )}
+                            </React.Fragment>
+                          );
+                        })}
                       </>
                     );
                   })()}
