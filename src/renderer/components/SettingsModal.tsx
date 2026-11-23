@@ -14,6 +14,7 @@ import {
   Eye,
   EyeOff,
   Sparkles,
+  Quote,
   Plus,
   Trash2,
   RotateCcw,
@@ -46,6 +47,7 @@ import { SignatureEditorPanel } from './SignatureEditorPanel';
 import { PrivacyCenterPanel } from './PrivacyCenterPanel';
 import { SupportHelpPanel } from './SupportHelpPanel';
 import { NotificationsSettingsPanel } from './NotificationsSettingsPanel';
+import { MotivationalSettingsPanel } from './MotivationalSettingsPanel';
 import { CalendarSettingsPanel } from './CalendarSettingsPanel';
 import { AppsSettingsPanel } from './AppsSettingsPanel';
 import { SkinGalleryPanel } from './SkinGalleryPanel';
@@ -99,7 +101,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   initialTab,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'account' | 'appearance' | 'spellcheck' | 'backup' | 'storage' | 'signature' | 'quickReplies' | 'notifications' | 'calendar' | 'apps' | 'security' | 'importExport' | 'support' | 'version' | 'proxy'
+    'account' | 'appearance' | 'spellcheck' | 'backup' | 'storage' | 'signature' | 'quickReplies' | 'notifications' | 'calendar' | 'apps' | 'security' | 'importExport' | 'support' | 'version' | 'proxy' | 'motivational'
   >(initialTab || 'appearance'); // padrão: 1º item da ordem alfabética ("Aparência & Sons")
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [quickSnippetsList, setQuickSnippetsList] = useState<QuickSnippetItem[]>(() =>
@@ -421,6 +423,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   setActiveTab('importExport');
                   setImportExportStatus(null);
                 },
+              },
+              {
+                key: 'motivational',
+                label: 'Mensagens Motivacionais',
+                icon: <Quote className="w-4 h-4 text-amber-400" />,
+                isActive: activeTab === 'motivational',
+                activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
+                onClick: () => setActiveTab('motivational'),
               },
               {
                 key: 'notifications',
@@ -2013,6 +2023,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
             )}
+
+            {/* ================= TAB: MENSAGENS MOTIVACIONAIS ================= */}
+            {activeTab === 'motivational' && <MotivationalSettingsPanel />}
 
             {/* ================= TAB: NOTIFICAÇÕES & AVISOS ================= */}
             {activeTab === 'notifications' && (
