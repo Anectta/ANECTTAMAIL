@@ -70,10 +70,11 @@ export class SearchIndexService {
         });
         // Reconstrói set de IDs existentes
         this.indexedIds.clear();
+        // documentIds mapeia o número interno → ID real do e-mail (storedFields usa só o número interno)
         const stored = JSON.parse(raw);
-        if (stored?.storedFields) {
-          for (const key of Object.keys(stored.storedFields)) {
-            this.indexedIds.add(key);
+        if (stored?.documentIds && typeof stored.documentIds === 'object') {
+          for (const id of Object.values(stored.documentIds)) {
+            if (id !== undefined && id !== null) this.indexedIds.add(String(id));
           }
         }
         console.log(`[SEARCH] Índice FTS carregado com sucesso (${this.indexedIds.size} e-mails indexados)`);
@@ -94,10 +95,14 @@ export class SearchIndexService {
     const start = Date.now();
     const toAdd: IndexedEmail[] = [];
 
+    const seen = new Set<string>();
     for (const email of emails) {
       if (!email || !email.id) continue;
+      // O mesmo ID duas vezes no lote faria o addAll falhar inteiro
+      if (seen.has(email.id)) continue;
+      seen.add(email.id);
 
-      if (this.indexedIds.has(email.id)) {
+      if (this.miniSearch.has(email.id)) {
         try {
           this.miniSearch.discard(email.id);
         } catch {
@@ -177,14 +182,43 @@ export class SearchIndexService {
     };
   }
 
+  /** IDs da lista que ainda não estão no índice. */
+  public getUnindexedIds(ids: string[]): string[] {
+    return ids.filter((id) => typeof id === 'string' && !this.miniSearch.has(id));
+  }
+
+  /** Remove do índice e-mails que não existem mais no app. */
+  public removeIds(ids: string[]): void {
+    let removed = 0;
+    for (const id of ids) {
+      if (!this.miniSearch.has(id)) {
+        this.indexedIds.delete(id);
+        continue;
+      }
+      try {
+        this.miniSearch.discard(id);
+      } catch {
+        // ignore
+      }
+      this.indexedIds.delete(id);
+      removed++;
+    }
+    if (removed > 0) this.persistIndexDebounced();
+  }
+
   private persistTimer: NodeJS.Timeout | null = null;
   private isPersisting = false;
   private persistPending = false;
+  /**
+   * O índice inteiro é regravado a cada persistência; por isso agrupa as mudanças (30 s).
+   * Se o app fechar antes, nada se perde: ao abrir, o app reenvia os e-mails que faltam no índice.
+   */
   private persistIndexDebounced(): void {
-    if (this.persistTimer) clearTimeout(this.persistTimer);
+    if (this.persistTimer) return;
     this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
       void this.flushIndexToDisk();
-    }, 1500);
+    }, 30_000);
   }
 
   private async flushIndexToDisk(): Promise<void> {

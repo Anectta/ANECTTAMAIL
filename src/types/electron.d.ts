@@ -177,6 +177,12 @@ export interface ElectronAPI {
   openLocalStorageFolder: (accountEmail?: string) => Promise<{ success: boolean; folderPath: string; pstFilePath: string }>;
   searchEmailsFts: (payload: { query: string; accountEmail?: string; folder?: string; limit?: number }) => Promise<SearchResultPayload>;
   indexEmailsFts: (payload: { emails: any[]; accountEmail?: string }) => Promise<{ indexedCount: number; durationMs: number; error?: string }>;
+  /** IDs da lista que ainda não estão no índice de pesquisa. */
+  getUnindexedEmailIds?: (ids: string[]) => Promise<string[]>;
+  /** Remove do índice de pesquisa e-mails que saíram do app. */
+  removeIndexedEmails?: (ids: string[]) => Promise<boolean>;
+  /** Grava o cache de e-mails imediatamente e aguarda terminar (usado ao fechar o app). */
+  saveMessageCacheNow?: (json: string) => Promise<boolean>;
   getRecentDownloads: () => Promise<RecentFileItem[]>;
   openFileDialog: () => Promise<RecentFileItem[]>;
   getPrivacyStats: () => Promise<PrivacyStats>;

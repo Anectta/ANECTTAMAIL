@@ -719,10 +719,14 @@ async function writeJsonMailboxStream(filePath: string, pstPayload: {
   messageCount: number;
   emails: any[];
 }): Promise<void> {
+  // Grava num temporário e troca no fim: uma interrupção nunca deixa a cópia cortada
+  const tmpPath = `${filePath}.tmp`;
   await new Promise<void>((resolve, reject) => {
-    const stream = fs.createWriteStream(filePath, { encoding: 'utf-8' });
+    const stream = fs.createWriteStream(tmpPath, { encoding: 'utf-8' });
     stream.on('error', reject);
-    stream.on('finish', resolve);
+    stream.on('finish', () => {
+      fs.promises.rename(tmpPath, filePath).then(resolve, reject);
+    });
 
     stream.write(
       `{\n  "format": ${JSON.stringify(pstPayload.format)},\n  "accountEmail": ${JSON.stringify(
@@ -743,10 +747,13 @@ async function writeJsonMailboxStream(filePath: string, pstPayload: {
 }
 
 async function writeMboxStream(filePath: string, emails: any[]): Promise<void> {
+  const tmpPath = `${filePath}.tmp`;
   await new Promise<void>((resolve, reject) => {
-    const stream = fs.createWriteStream(filePath, { encoding: 'utf-8' });
+    const stream = fs.createWriteStream(tmpPath, { encoding: 'utf-8' });
     stream.on('error', reject);
-    stream.on('finish', resolve);
+    stream.on('finish', () => {
+      fs.promises.rename(tmpPath, filePath).then(resolve, reject);
+    });
 
     for (const email of emails) {
       const fromAddr = email.senderEmail || 'unknown@anectta.local';
@@ -848,14 +855,9 @@ ipcMain.handle('storage:get-info', async (_event, accountEmail: string) => {
 
 ipcMain.handle('storage:save-mailbox', async (_event, payload: { accountEmail: string; protocol?: string; emails: any[] }) => {
   try {
-    const res = await saveMailboxToDisk(payload.accountEmail, payload.emails || [], payload.protocol || 'pop3');
-    // Indexa automaticamente no SQLite FTS5 para busca instantânea (< 15ms)
-    try {
-      SearchIndexService.getInstance().indexEmails(payload.emails || [], payload.accountEmail);
-    } catch (idxErr) {
-      console.warn('[SEARCH] Erro ao atualizar índice FTS5:', idxErr);
-    }
-    return res;
+    // A indexação de pesquisa não é feita aqui: o app envia só os e-mails novos/alterados
+    // via 'search:index-emails' (reindexar a conta inteira a cada gravação travava o app)
+    return await saveMailboxToDisk(payload.accountEmail, payload.emails || [], payload.protocol || 'pop3');
   } catch (err: any) {
     console.error('[MAIN] storage:save-mailbox error:', err);
     throw err;
@@ -894,6 +896,25 @@ ipcMain.handle(
     }
   }
 );
+
+// IDs que ainda não estão no índice de pesquisa (o app envia só esses ao abrir)
+ipcMain.handle('search:unindexed-ids', async (_event, ids: string[]) => {
+  try {
+    return SearchIndexService.getInstance().getUnindexedIds(Array.isArray(ids) ? ids : []);
+  } catch {
+    return [];
+  }
+});
+
+// Remove do índice e-mails que saíram do app
+ipcMain.handle('search:remove-ids', async (_event, ids: string[]) => {
+  try {
+    SearchIndexService.getInstance().removeIds(Array.isArray(ids) ? ids : []);
+    return true;
+  } catch {
+    return false;
+  }
+});
 
 ipcMain.handle('storage:load-mailbox', async (_event, accountEmail: string) => {
   try {
@@ -1232,6 +1253,16 @@ ipcMain.on('cache:save-messages', (event, json: string) => {
   if (!isTrustedRendererSender(event) || typeof json !== 'string') return;
   messageCachePending = json;
   void flushMessageCache();
+});
+
+// Gravação imediata e aguardada (usada ao fechar o app)
+ipcMain.handle('cache:save-messages-now', async (event, json: string) => {
+  if (!isTrustedRendererSender(event) || typeof json !== 'string') return false;
+  messageCachePending = json;
+  // Se já houver uma gravação em andamento, espera ela terminar e grava a versão final
+  while (messageCacheWriting) await new Promise((r) => setTimeout(r, 50));
+  await flushMessageCache();
+  return true;
 });
 
 ipcMain.handle('settings:load', async () => {

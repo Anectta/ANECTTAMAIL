@@ -12,6 +12,7 @@ import type { CorporateContact } from '@/components/ContactsView';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useImapServerSync } from '@/hooks/useImapServerSync';
 import { useMailBackfill } from '@/hooks/useMailBackfill';
+import { useMailPersistence } from '@/hooks/useMailPersistence';
 import { getImapLocation, imapServerKey, parseImapLocationFromId } from './utils/imapLocation';
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount, PriorityLevel, TaskItem } from '@/types/email';
 import {
@@ -450,29 +451,8 @@ export const App: React.FC = () => {
   const emailsRef = useRef<EmailItem[]>(emails);
   emailsRef.current = emails;
 
-  // Salvar e-mails em disco (debounce) para retenção offline, sem o limite de ~5 MB do localStorage
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const persist = () => {
-        try {
-          if (window.electronAPI?.saveMessageCache) {
-            window.electronAPI.saveMessageCache(JSON.stringify(emails));
-            localStorage.removeItem('anectta_mail_messages');
-          } else {
-            localStorage.setItem('anectta_mail_messages', JSON.stringify(emails));
-          }
-        } catch (e) {
-          console.warn('Erro ao salvar e-mails localmente:', e);
-        }
-      };
-      if (typeof (window as any).requestIdleCallback === 'function') {
-        (window as any).requestIdleCallback(persist, { timeout: 2500 });
-      } else {
-        persist();
-      }
-    }, 2000);
-    return () => window.clearTimeout(timer);
-  }, [emails]);
+  // A gravação dos e-mails em disco (cache, índice de pesquisa e cópias .pst/.mbox) fica no hook
+  // useMailPersistence, mais abaixo, agrupando as mudanças para não travar o app.
   // Fallback: se o carregamento síncrono do cache não trouxe mensagens reais, tenta de forma assíncrona
   useEffect(() => {
     const isPlaceholder = (e: EmailItem) =>
@@ -1401,24 +1381,15 @@ export const App: React.FC = () => {
     [settings.accounts]
   );
 
-  // Persistir automaticamente no arquivo físico .pst / .mbox em Documentos\Arquivos do Anectta MAIL para cada conta
-  useEffect(() => {
-    if (!window.electronAPI?.saveLocalMailbox) return;
-    const allAccounts =
-      settings.accounts && settings.accounts.length > 0 ? settings.accounts : [currentAccount];
-
-    allAccounts.forEach((acc) => {
-      if (!acc?.email) return;
-      const accEmails = emails.filter((m) => isEmailForAccount(m, acc));
-      window.electronAPI
-        ?.saveLocalMailbox({
-          accountEmail: acc.email,
-          protocol: acc.incomingServer?.protocol || 'pop3',
-          emails: accEmails,
-        })
-        .catch((err) => console.warn('Erro ao gravar arquivo .pst em disco:', err));
-    });
-  }, [emails, settings.accounts, currentAccount, isEmailForAccount]);
+  // Gravações em disco agrupadas: cache do app (5–30 s), índice de pesquisa (só o que mudou) e
+  // cópias .pst/.mbox em Documentos\Arquivos do Anectta MAIL (só contas alteradas, a cada 10 min)
+  const mailPersistence = useMailPersistence({
+    emails,
+    accounts: settings.accounts && settings.accounts.length > 0 ? settings.accounts : [currentAccount],
+    isEmailForAccount,
+  });
+  const mailPersistenceRef = useRef(mailPersistence);
+  mailPersistenceRef.current = mailPersistence;
 
   // Dynamic Taskbar / Dock Badge Counter
   useEffect(() => {
@@ -4102,6 +4073,11 @@ export const App: React.FC = () => {
       };
 
       await Promise.race([performSendAndReceive(), timeoutPromise]);
+      // Grava o que estiver pendente (cache, índice, cópias .pst/.mbox) antes de encerrar
+      await Promise.race([
+        mailPersistenceRef.current.flushAll(),
+        new Promise<void>((resolve) => setTimeout(resolve, 4000)),
+      ]);
       api.confirmAppClose?.();
     });
 

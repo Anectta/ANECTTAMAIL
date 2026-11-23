@@ -293,6 +293,8 @@ const electronAPI = {
     ipcRenderer.invoke('search:query', payload),
   indexEmailsFts: (payload: { emails: any[]; accountEmail?: string }) =>
     ipcRenderer.invoke('search:index-emails', payload),
+  getUnindexedEmailIds: (ids: string[]) => ipcRenderer.invoke('search:unindexed-ids', ids),
+  removeIndexedEmails: (ids: string[]) => ipcRenderer.invoke('search:remove-ids', ids),
 
   // Smart Attachments (Downloads recentes e File Dialog)
   getRecentDownloads: () => ipcRenderer.invoke('downloads:get-recent'),
@@ -404,6 +406,7 @@ const electronAPI = {
   loadMessageCache: () => ipcRenderer.invoke('cache:load-messages'),
   saveMessageCache: (json: string) =>
     ipcRenderer.send('cache:save-messages', json),
+  saveMessageCacheNow: (json: string) => ipcRenderer.invoke('cache:save-messages-now', json),
 
   // Quick Compose Window
   openQuickCompose: () => ipcRenderer.send('quick-compose:open'),
