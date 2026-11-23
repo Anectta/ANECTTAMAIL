@@ -51,6 +51,8 @@ import {
   getSortGroup,
   isDateSortField,
   loadSortField,
+  loadDateOrder,
+  DATE_ORDER_STORAGE_KEY,
 } from '../utils/emailSort';
 import { EmailThread, groupEmailsIntoThreads } from '../utils/threadUtils';
 import type { BackfillProgress } from '../hooks/useMailBackfill';
@@ -200,6 +202,8 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
     });
     const [sortField, setSortField] = useState<EmailSortField>(loadSortField);
     const sortFieldInfo = getSortFieldInfo(sortField);
+    // "Mais recentes / Mais antigos" dentro dos grupos (critérios que não são data)
+    const [dateOrder, setDateOrder] = useState<'desc' | 'asc'>(loadDateOrder);
     const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
     const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
     const [collapsedPeriods, setCollapsedPeriods] = useState<Record<string, boolean>>({});
@@ -219,6 +223,22 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       setSortOrder(order);
       try {
         localStorage.setItem('anectta_email_sort_order', order);
+      } catch {
+        // ignore storage errors
+      }
+      setIsSortMenuOpen(false);
+    };
+
+    /** Mais recentes / Mais antigos: nos critérios de data é a própria ordem; nos demais, a ordem dentro dos grupos. */
+    const handleSelectDateOrder = (order: 'desc' | 'asc') => {
+      if (isDateSortField(sortField)) {
+        handleSelectSortOrder(order);
+        return;
+      }
+      soundService.play('pop');
+      setDateOrder(order);
+      try {
+        localStorage.setItem(DATE_ORDER_STORAGE_KEY, order);
       } catch {
         // ignore storage errors
       }
@@ -255,10 +275,10 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
           setIsSortMenuOpen(false);
         } else if (event.key.toLowerCase() === 'r') {
           event.preventDefault();
-          handleSelectSortOrder('desc');
+          handleSelectDateOrder('desc');
         } else if (event.key.toLowerCase() === 'm') {
           event.preventDefault();
-          handleSelectSortOrder('asc');
+          handleSelectDateOrder('asc');
         }
       };
 
@@ -268,7 +288,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
         document.removeEventListener('mousedown', handleClickOutside);
         document.removeEventListener('keydown', handleKeyDown);
       };
-    }, [isSortMenuOpen]);
+    }, [isSortMenuOpen, sortField]);
 
     useEffect(() => {
       if (!isMoreMenuOpen) return;
@@ -483,7 +503,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
           .map((g) => ({
             id: g.key.id,
             label: g.key.label,
-            items: g.items.sort((a, b) => compareWithinGroup(a, b, sortField, sortOrder)),
+            items: g.items.sort((a, b) => compareWithinGroup(a, b, sortField, sortOrder, dateOrder)),
           }));
       }
 
@@ -554,7 +574,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
           };
         })
         .filter((group) => group.items.length > 0);
-    }, [filteredEmails, sortOrder, sortField, groupByThread]);
+    }, [filteredEmails, sortOrder, sortField, dateOrder, groupByThread]);
 
     return (
       <section
@@ -866,15 +886,20 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   <div className="px-3 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
                     Ordem
                   </div>
-                  {(['desc', 'asc'] as const).map((dir, i) => {
-                    const active = sortOrder === dir;
-                    return (
+                  {(() => {
+                    const renderOption = (
+                      key: string,
+                      active: boolean,
+                      dir: 'desc' | 'asc',
+                      label: string,
+                      onSelect: () => void
+                    ) => (
                       <button
-                        key={dir}
+                        key={key}
                         type="button"
                         role="menuitemradio"
                         aria-checked={active}
-                        onClick={() => handleSelectSortOrder(dir)}
+                        onClick={onSelect}
                         className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-brand-500/15 transition-colors cursor-pointer"
                       >
                         <span className="w-3.5 flex items-center justify-center shrink-0">
@@ -885,12 +910,30 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                         ) : (
                           <ArrowUp className="w-3 h-3 text-slate-500 shrink-0" />
                         )}
-                        <span className={active ? 'font-semibold text-slate-100' : 'text-slate-300'}>
-                          {sortFieldInfo.directions[i]}
-                        </span>
+                        <span className={active ? 'font-semibold text-slate-100' : 'text-slate-300'}>{label}</span>
                       </button>
                     );
-                  })}
+                    const isDate = isDateSortField(sortField);
+                    // Mais recentes / Mais antigos: sempre presentes (nos critérios de data são a própria ordem)
+                    const dateActive = isDate ? sortOrder : dateOrder;
+                    return (
+                      <>
+                        {!isDate &&
+                          (['desc', 'asc'] as const).map((dir, i) =>
+                            renderOption(`dir-${dir}`, sortOrder === dir, dir, sortFieldInfo.directions[i], () =>
+                              handleSelectSortOrder(dir)
+                            )
+                          )}
+                        {!isDate && <div className="my-1 border-t border-slate-800" />}
+                        {renderOption('date-desc', dateActive === 'desc', 'desc', 'Mais recentes', () =>
+                          handleSelectDateOrder('desc')
+                        )}
+                        {renderOption('date-asc', dateActive === 'asc', 'asc', 'Mais antigos', () =>
+                          handleSelectDateOrder('asc')
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>

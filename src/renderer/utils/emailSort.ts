@@ -29,8 +29,8 @@ export interface EmailSortFieldInfo {
 }
 
 export const EMAIL_SORT_FIELDS: EmailSortFieldInfo[] = [
-  { id: 'received', label: 'Data de recebimento', directions: ['Mais recentes primeiro', 'Mais antigos primeiro'], defaultDirection: 'desc' },
-  { id: 'sent', label: 'Data de envio', directions: ['Mais recentes primeiro', 'Mais antigos primeiro'], defaultDirection: 'desc' },
+  { id: 'received', label: 'Data de recebimento', directions: ['Mais recentes', 'Mais antigos'], defaultDirection: 'desc' },
+  { id: 'sent', label: 'Data de envio', directions: ['Mais recentes', 'Mais antigos'], defaultDirection: 'desc' },
   { id: 'contact', label: 'Contato (De ou Para)', directions: ['Z → A', 'A → Z'], defaultDirection: 'asc', separatorBefore: true },
   { id: 'from', label: 'Remetente (De)', directions: ['Z → A', 'A → Z'], defaultDirection: 'asc' },
   { id: 'to', label: 'Destinatário (Para)', directions: ['Z → A', 'A → Z'], defaultDirection: 'asc' },
@@ -165,12 +165,16 @@ export function compareGroupKeys(a: string | number, b: string | number, directi
   return direction === 'asc' ? c : -c;
 }
 
-/** Ordem dentro de um grupo não-data: tamanho exato ou assunto, depois mais recentes primeiro. */
+/**
+ * Ordem dentro de um grupo não-data: tamanho exato ou assunto, depois pela data
+ * (dateDirection: 'desc' = mais recentes primeiro, 'asc' = mais antigos primeiro).
+ */
 export function compareWithinGroup(
   a: { email: EmailItem; ts: number },
   b: { email: EmailItem; ts: number },
   field: EmailSortField,
-  direction: EmailSortDirection
+  direction: EmailSortDirection,
+  dateDirection: EmailSortDirection = 'desc'
 ): number {
   if (field === 'size') {
     const d = getSizeBytes(a.email) - getSizeBytes(b.email);
@@ -179,8 +183,19 @@ export function compareWithinGroup(
     const c = collator.compare(normalizeSubject(a.email.subject), normalizeSubject(b.email.subject));
     if (c !== 0) return direction === 'asc' ? c : -c;
   }
-  return b.ts - a.ts;
+  return dateDirection === 'desc' ? b.ts - a.ts : a.ts - b.ts;
 }
+
+export const DATE_ORDER_STORAGE_KEY = 'anectta_email_sort_date_order';
+
+/** "Mais recentes / Mais antigos" usado dentro dos grupos dos critérios que não são data. */
+export const loadDateOrder = (): EmailSortDirection => {
+  try {
+    return localStorage.getItem(DATE_ORDER_STORAGE_KEY) === 'asc' ? 'asc' : 'desc';
+  } catch {
+    return 'desc';
+  }
+};
 
 export const SORT_FIELD_STORAGE_KEY = 'anectta_email_sort_field';
 
