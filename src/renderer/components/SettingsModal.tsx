@@ -347,7 +347,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Modal Body: Left Tabs + Right Content */}
         <div className="flex-1 flex overflow-hidden">
           {/* Navigation Tabs (Sidebar) - Sempre classificado em ordem alfabética */}
-          <div className="w-56 bg-slate-950/60 border-r border-slate-800/80 p-3 space-y-1 shrink-0 overflow-y-auto custom-scroll">
+          <div className="w-64 bg-slate-950/60 border-r border-slate-800/80 p-3 space-y-1 shrink-0 overflow-y-auto custom-scroll">
             {[
               {
                 key: 'appearance',
@@ -508,9 +508,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                   }`}
                 >
-                  <div className="flex items-center space-x-2.5">
-                    {item.icon}
-                    <span>{item.label}</span>
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <span className="shrink-0 flex items-center">{item.icon}</span>
+                    <span className="text-left whitespace-nowrap truncate">{item.label}</span>
                   </div>
                   {item.badge !== undefined && (
                     <span className="px-1.5 py-0.5 bg-brand-600/30 text-brand-300 border border-brand-500/30 rounded-full text-[10px] font-bold">
