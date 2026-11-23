@@ -781,8 +781,8 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   title="Filtrar apenas mensagens de pessoas (oculta no-reply, newsletters e alertas automáticos)"
                   className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors ${
                     peopleOnly
-                      ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
-                      : 'bg-slate-800/40 text-slate-400 border-slate-700/60 hover:text-slate-200'
+                      ? 'filter-chip is-on'
+                      : 'filter-chip'
                   }`}
                 >
                   <Users className="w-3 h-3" />
@@ -796,8 +796,8 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   title={`Filtrar apenas e-mails do seu domínio (@${activeDomain})`}
                   className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors max-w-[130px] ${
                     domainOnly
-                      ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
-                      : 'bg-slate-800/40 text-slate-400 border-slate-700/60 hover:text-slate-200'
+                      ? 'filter-chip is-on'
+                      : 'filter-chip'
                   }`}
                 >
                   <Building2 className="w-3 h-3 shrink-0" />
@@ -811,8 +811,8 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   title="Busca Dedicada de Anexos: exibe apenas e-mails com anexos e busca pelo nome dos arquivos"
                   className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors ${
                     attachmentsOnly
-                      ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
-                      : 'bg-slate-800/40 text-slate-400 border-slate-700/60 hover:text-slate-200'
+                      ? 'filter-chip is-on'
+                      : 'filter-chip'
                   }`}
                 >
                   <Paperclip className="w-3 h-3 shrink-0" />

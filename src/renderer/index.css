@@ -1553,3 +1553,21 @@ html body .action-tile.is-active {
   background-color: var(--accent-primary) !important;
   color: #ffffff !important;
 }
+
+/* Filtros da lista (Pessoas, @domínio, Anexos): desligado = só contorno; ligado = cor do tema.
+   Regras próprias para nenhum tema pintar o estado "desligado" como se estivesse marcado. */
+html .filter-chip {
+  background-color: transparent !important;
+  border-color: color-mix(in srgb, currentColor 35%, transparent) !important;
+  color: var(--text-muted, #94a3b8) !important;
+}
+html .filter-chip:hover {
+  background-color: color-mix(in srgb, currentColor 10%, transparent) !important;
+  color: var(--text-primary, #e2e8f0) !important;
+}
+html .filter-chip.is-on,
+html .filter-chip.is-on:hover {
+  background-color: var(--accent-primary, #1473e6) !important;
+  border-color: var(--accent-primary, #1473e6) !important;
+  color: var(--accent-contrast, #ffffff) !important;
+}
