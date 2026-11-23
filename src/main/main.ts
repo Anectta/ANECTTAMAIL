@@ -16,6 +16,7 @@ import { PSTFile, PSTFolder, PSTMessage } from 'pst-extractor';
 import { MailService, MailServerConfig, ImapServerAction } from './services/mailService';
 import { ImapIdleService } from './services/imapIdleService';
 import { SearchIndexService } from './services/searchIndexService';
+import { MailStore, StoreUpsertRecord } from './services/mailStore';
 import { AIAssistantService } from './services/aiAssistantService';
 import { EmlExporterService } from './services/emlExporterService';
 import { OAuthService, OAuthProvider } from './services/oauthService';
@@ -872,6 +873,14 @@ ipcMain.handle(
     payload: { query: string; accountEmail?: string; folder?: string; limit?: number }
   ) => {
     try {
+      // Banco disponível: pesquisa pelo índice do próprio banco (FTS5)
+      if (MailStore.get().isAvailable()) {
+        return MailStore.get().search(payload.query, {
+          accountEmail: payload.accountEmail,
+          folder: payload.folder,
+          limit: payload.limit || 100,
+        });
+      }
       return SearchIndexService.getInstance().search(payload.query, {
         accountEmail: payload.accountEmail,
         folder: payload.folder,
@@ -1192,11 +1201,139 @@ const getMessageCachePath = () => path.join(getDataStorageDir(), 'mail-cache.bin
 let messageCacheWriting = false;
 let messageCachePending: string | null = null;
 
+/** Cache antigo; se ele já foi convertido para o banco, usa a cópia de segurança mais recente. */
+function resolveLegacyCachePath(): string {
+  const p = getMessageCachePath();
+  if (fs.existsSync(p)) return p;
+  try {
+    const dir = path.dirname(p);
+    const backups = fs
+      .readdirSync(dir)
+      .filter((f) => f.startsWith('mail-cache.bin.migrado-') && f.endsWith('.bak'))
+      .sort();
+    if (backups.length > 0) return path.join(dir, backups[backups.length - 1]);
+  } catch {}
+  return p;
+}
+
+// ==========================================
+// Banco local de e-mails (SQLite) — ver services/mailStore.ts
+// ==========================================
+function mailStoreLog(message: string): void {
+  try {
+    const file = path.join(app.getPath('userData'), 'mail-store.log');
+    try {
+      if (fs.existsSync(file) && fs.statSync(file).size > 512 * 1024) fs.writeFileSync(file, '');
+    } catch {}
+    fs.appendFileSync(file, `[${new Date().toISOString()}] ${message}\n`);
+  } catch {}
+}
+
+function initMailStore(): void {
+  const t0 = Date.now();
+  const status = MailStore.get().init(
+    getDataStorageDir(),
+    {
+      available: () => safeStorage.isEncryptionAvailable(),
+      encrypt: (text) => safeStorage.encryptString(text),
+      decrypt: (data) => safeStorage.decryptString(data),
+    },
+    getMessageCachePath(),
+    mailStoreLog
+  );
+  mailStoreLog(`[store] inicialização em ${Date.now() - t0} ms — disponível: ${status.available}`);
+  // O índice de pesquisa antigo (Documentos) não é mais carregado quando o banco está disponível;
+  // o arquivo é mantido como está (serve ao modo antigo, se o banco falhar).
+}
+
+/** Há cache antigo a converter (primeira abertura desta versão)? */
+function isMailStoreConversionPending(): boolean {
+  try {
+    return fs.existsSync(getMessageCachePath());
+  } catch {
+    return false;
+  }
+}
+
+/** Banco de e-mails + (só se o banco falhar) o índice de pesquisa antigo. Executa uma única vez. */
+let storageLayerReady = false;
+function initStorageLayer(): void {
+  if (storageLayerReady) return;
+  storageLayerReady = true;
+  try {
+    initMailStore();
+  } catch (storeErr) {
+    mailStoreLog(`[store] falha inesperada na inicialização: ${(storeErr as any)?.message}`);
+  }
+  if (!MailStore.get().isAvailable()) {
+    try {
+      SearchIndexService.getInstance().initialize(getAnecttaStorageDir());
+    } catch (initErr) {
+      console.warn('[MAIN] Falha ao inicializar SearchIndexService:', initErr);
+    }
+  }
+}
+
+ipcMain.on('store:status-sync', (event) => {
+  event.returnValue = { available: false, count: 0 };
+  if (!isTrustedRendererSender(event)) return;
+  initStorageLayer(); // caso alguma janela peça antes da inicialização normal
+  event.returnValue = MailStore.get().getStatus();
+});
+
+ipcMain.on('store:load-sync', (event) => {
+  event.returnValue = null;
+  if (!isTrustedRendererSender(event)) return;
+  try {
+    if (!MailStore.get().isAvailable()) return;
+    const t0 = Date.now();
+    event.returnValue = MailStore.get().loadAllMetaJson();
+    mailStoreLog(`[store] carregamento dos resumos em ${Date.now() - t0} ms`);
+  } catch (err: any) {
+    mailStoreLog(`[store] erro ao carregar resumos: ${err?.message}`);
+  }
+});
+
+ipcMain.handle('store:upsert', async (event, records: StoreUpsertRecord[]) => {
+  if (!isTrustedRendererSender(event)) return 0;
+  try {
+    return MailStore.get().upsert(Array.isArray(records) ? records : []);
+  } catch (err: any) {
+    mailStoreLog(`[store] erro ao gravar: ${err?.message}`);
+    throw err;
+  }
+});
+
+ipcMain.handle('store:remove', async (event, ids: string[]) => {
+  if (!isTrustedRendererSender(event)) return 0;
+  try {
+    return MailStore.get().remove(Array.isArray(ids) ? ids : []);
+  } catch (err: any) {
+    mailStoreLog(`[store] erro ao excluir: ${err?.message}`);
+    throw err;
+  }
+});
+
+ipcMain.handle('store:get-bodies', async (event, ids: string[]) => {
+  if (!isTrustedRendererSender(event)) return {};
+  return MailStore.get().getBodies(Array.isArray(ids) ? ids.slice(0, 2000) : []);
+});
+
+// Cópias .pst/.mbox em Documentos montadas a partir do banco (o app envia só os IDs da conta)
+ipcMain.handle(
+  'storage:save-mailbox-ids',
+  async (event, payload: { accountEmail: string; protocol?: string; ids: string[] }) => {
+    if (!isTrustedRendererSender(event)) return null;
+    const emails = MailStore.get().getFullEmails(Array.isArray(payload?.ids) ? payload.ids : []);
+    return await saveMailboxToDisk(payload.accountEmail, emails, payload.protocol || 'pop3');
+  }
+);
+
 ipcMain.on('cache:load-messages-sync', (event) => {
   event.returnValue = null;
   if (!isTrustedRendererSender(event)) return;
   try {
-    const p = getMessageCachePath();
+    const p = resolveLegacyCachePath();
     if (!fs.existsSync(p)) return;
     const buf = fs.readFileSync(p);
     const text =
@@ -1529,6 +1666,10 @@ ipcMain.handle(
         path.resolve(previousDir).toLowerCase() === path.resolve(targetDir).toLowerCase();
 
       if (payload?.migrateData && !isSameDir) {
+        // Banco de e-mails: cópia consistente (VACUUM INTO), mesmo com o app aberto
+        if (MailStore.get().isAvailable()) {
+          MailStore.get().copyTo(targetDir);
+        }
         const cacheSrc = path.join(previousDir, 'mail-cache.bin');
         if (fs.existsSync(cacheSrc)) {
           await fs.promises.copyFile(cacheSrc, path.join(targetDir, 'mail-cache.bin'));
@@ -2354,12 +2495,23 @@ ipcMain.handle('templates:delete', async (_event, templateId: string) => {
 // Exportação Padrão RFC 822 (.EML)
 // ==========================================
 
+/** E-mails vindos do app só com o resumo: completa o conteúdo a partir do banco local. */
+function withStoredBodies(emails: any[]): any[] {
+  if (!Array.isArray(emails) || !MailStore.get().isAvailable()) return emails || [];
+  const need = emails
+    .filter((e) => e && e.bodyStored && e.body === undefined && e.bodyHtml === undefined)
+    .map((e) => e.id);
+  if (need.length === 0) return emails;
+  const bodies = MailStore.get().getBodies(need);
+  return emails.map((e) => (e && bodies[e.id] ? { ...e, ...bodies[e.id] } : e));
+}
+
 ipcMain.handle('mail:export-eml-dialog', async (_event, email: any) => {
-  return await EmlExporterService.exportSingleEmailDialog(email);
+  return await EmlExporterService.exportSingleEmailDialog(withStoredBodies([email])[0]);
 });
 
 ipcMain.handle('mail:export-eml-batch', async (_event, payload: { emails: any[]; directory?: string }) => {
-  return await EmlExporterService.exportBatchEmails(payload.emails || [], payload.directory);
+  return await EmlExporterService.exportBatchEmails(withStoredBodies(payload.emails || []), payload.directory);
 });
 
 // ==========================================
@@ -2412,7 +2564,7 @@ function parsedMailToEmailItem(parsed: any, accountId: string, idx: number, fall
 
 ipcMain.handle('mail:export-archive', async (_event, payload: { emails: any[]; accountEmail?: string }) => {
   try {
-    const emails = Array.isArray(payload?.emails) ? payload.emails : [];
+    const emails = withStoredBodies(Array.isArray(payload?.emails) ? payload.emails : []);
     const safeName = (payload?.accountEmail || 'anectta-backup').replace(/[^a-z0-9@._-]/gi, '_');
     const targetWin = BrowserWindow.getFocusedWindow() || mainWindow;
     const { canceled, filePath } = await dialog.showSaveDialog(targetWin!, {
@@ -2911,12 +3063,6 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
-  // Inicializa o motor de busca SQLite FTS5 no diretório de dados
-  try {
-    SearchIndexService.getInstance().initialize(getAnecttaStorageDir());
-  } catch (initErr) {
-    console.warn('[MAIN] Falha ao inicializar SearchIndexService:', initErr);
-  }
 
   // Ensure keyboard shortcuts for editing (Cut, Copy, Paste, SelectAll, Undo, Redo) are always available
   const template: any[] = [
@@ -3027,7 +3173,24 @@ if (!gotTheLock) {
   isClosingAfterSync = false;
   createSplashWindow();
   createSystemTray();
-  createWindow();
+  if (isMailStoreConversionPending()) {
+    // Conversão única do cache antigo para o banco: ocupa o processo principal por alguns
+    // segundos, então primeiro deixa a tela de abertura aparecer
+    let started = false;
+    const startAfterSplash = () => {
+      if (started) return;
+      started = true;
+      setTimeout(() => {
+        initStorageLayer();
+        createWindow();
+      }, 300);
+    };
+    splashWindow?.once('ready-to-show', startAfterSplash);
+    setTimeout(startAfterSplash, 4000);
+  } else {
+    initStorageLayer();
+    createWindow();
+  }
 
   // Auto-Updater: todo o fluxo fica isolado em ./updater (módulo crítico — ver RELEASE.md)
   initUpdater({
@@ -3067,6 +3230,7 @@ app.on('before-quit', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  MailStore.get().close();
   if (systemTray && !systemTray.isDestroyed()) {
     systemTray.destroy();
     systemTray = null;

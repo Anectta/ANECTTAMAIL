@@ -408,6 +408,15 @@ const electronAPI = {
     ipcRenderer.send('cache:save-messages', json),
   saveMessageCacheNow: (json: string) => ipcRenderer.invoke('cache:save-messages-now', json),
 
+  // Banco local de e-mails (SQLite)
+  getMailStoreStatusSync: () => ipcRenderer.sendSync('store:status-sync'),
+  loadMailStoreSync: () => ipcRenderer.sendSync('store:load-sync'),
+  storeUpsertEmails: (records: any[]) => ipcRenderer.invoke('store:upsert', records),
+  storeRemoveEmails: (ids: string[]) => ipcRenderer.invoke('store:remove', ids),
+  storeGetBodies: (ids: string[]) => ipcRenderer.invoke('store:get-bodies', ids),
+  saveLocalMailboxIds: (payload: { accountEmail: string; protocol?: string; ids: string[] }) =>
+    ipcRenderer.invoke('storage:save-mailbox-ids', payload),
+
   // Quick Compose Window
   openQuickCompose: () => ipcRenderer.send('quick-compose:open'),
   closeQuickCompose: () => ipcRenderer.send('quick-compose:close'),

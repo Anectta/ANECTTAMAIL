@@ -83,6 +83,11 @@ export interface EmailItem {
   receivedDateStr?: string;
   /** Tamanho total da mensagem em bytes. Ausente em e-mails baixados antes da v1.0.242. */
   sizeBytes?: number;
+  /**
+   * O conteúdo (body/bodyHtml) está guardado no banco local e não na memória: é carregado
+   * quando o e-mail é aberto (ver services/emailBodyCache).
+   */
+  bodyStored?: boolean;
   period: TimePeriod;
   folder: MailFolder;
   /**

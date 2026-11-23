@@ -183,6 +183,17 @@ export interface ElectronAPI {
   removeIndexedEmails?: (ids: string[]) => Promise<boolean>;
   /** Grava o cache de e-mails imediatamente e aguarda terminar (usado ao fechar o app). */
   saveMessageCacheNow?: (json: string) => Promise<boolean>;
+
+  // ---- Banco local de e-mails (SQLite) ----
+  getMailStoreStatusSync?: () => { available: boolean; count: number; migratedNow?: boolean; error?: string };
+  /** Resumos de todos os e-mails (sem conteúdo) como texto JSON; null se o banco não estiver disponível. */
+  loadMailStoreSync?: () => string | null;
+  storeUpsertEmails?: (
+    records: Array<{ meta: any; body?: string; bodyHtml?: string; hasBody?: boolean; accountEmail?: string }>
+  ) => Promise<number>;
+  storeRemoveEmails?: (ids: string[]) => Promise<number>;
+  storeGetBodies?: (ids: string[]) => Promise<Record<string, { body?: string; bodyHtml?: string }>>;
+  saveLocalMailboxIds?: (payload: { accountEmail: string; protocol?: string; ids: string[] }) => Promise<any>;
   getRecentDownloads: () => Promise<RecentFileItem[]>;
   openFileDialog: () => Promise<RecentFileItem[]>;
   getPrivacyStats: () => Promise<PrivacyStats>;

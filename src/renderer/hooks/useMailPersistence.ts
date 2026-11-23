@@ -1,30 +1,39 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { EmailItem } from '@/types/email';
 import type { AccountSettings } from '@/types/settings';
+import { stripEmailBody } from '../utils/emailBodyStrip';
+import { rememberBody } from '../services/emailBodyCache';
 
 /**
- * Gravações em disco dos e-mails, sem travar o app.
+ * Gravação dos e-mails em disco, sem travar o app.
  *
- *  1. Cache do app (mail-cache.bin): agrupa as mudanças — grava 5 s depois da última mudança,
- *     e no máximo a cada 30 s enquanto as mudanças não param (ex.: download em andamento).
- *  2. Índice de pesquisa: envia só os e-mails NOVOS ou ALTERADOS (comparando a referência do
- *     objeto — o React cria um objeto novo a cada alteração), não todos de novo.
- *  3. Cópias .pst/.mbox em Documentos: só das contas que mudaram, no máximo a cada 10 minutos.
- *  Ao fechar o app, flushAll() grava tudo o que estiver pendente.
+ * Modo BANCO (padrão, banco SQLite disponível):
+ *  - A cada ~2 s, grava no banco só os e-mails NOVOS, ALTERADOS ou EXCLUÍDOS (compara a referência
+ *    do objeto — o React cria um objeto novo a cada alteração). O banco também mantém a pesquisa.
+ *  - Depois de gravar, tira o conteúdo (texto/HTML) da memória: fica só o resumo; o conteúdo volta
+ *    do banco quando o e-mail é aberto (services/emailBodyCache).
+ *
+ * Modo ANTIGO (só se o banco não abrir): arquivo único mail-cache.bin + índice de pesquisa antigo.
+ *
+ * Nos dois modos, as cópias .pst/.mbox em Documentos são gravadas só das contas que mudaram,
+ * no máximo a cada 10 minutos, e tudo o que estiver pendente é gravado ao fechar o app (flushAll).
  */
 
-const CACHE_DEBOUNCE_MS = 5_000;
-const CACHE_MAX_WAIT_MS = 30_000;
-const INDEX_DEBOUNCE_MS = 5_000;
+const STORE_THROTTLE_MS = 2_000;
+const STORE_BATCH = 200;
+const LEGACY_CACHE_DEBOUNCE_MS = 5_000;
+const LEGACY_CACHE_MAX_WAIT_MS = 30_000;
+const LEGACY_INDEX_THROTTLE_MS = 5_000;
 const MAILBOX_COPY_INTERVAL_MS = 10 * 60_000;
 
 export interface MailPersistenceOptions {
   emails: EmailItem[];
+  setEmails: React.Dispatch<React.SetStateAction<EmailItem[]>>;
   accounts: AccountSettings[];
   isEmailForAccount: (m: EmailItem, acc: AccountSettings) => boolean;
 }
 
-/** Só os campos usados pela pesquisa (evita enviar o HTML dos e-mails entre processos). */
+/** Só os campos usados pela pesquisa antiga (modo sem banco). */
 const toIndexable = (e: EmailItem) => ({
   id: e.id,
   accountId: e.accountId,
@@ -38,22 +47,94 @@ const toIndexable = (e: EmailItem) => ({
   attachments: (e.attachments || []).map((a) => ({ name: a.name })),
 });
 
+/** Compara o estado atual com o último gravado: o que é novo/alterado e o que saiu. */
+export function diffEmails(prev: Map<string, EmailItem>, emails: EmailItem[]) {
+  const next = new Map<string, EmailItem>();
+  for (const e of emails) next.set(e.id, e);
+  const changed = emails.filter((e) => prev.get(e.id) !== e);
+  const removed: EmailItem[] = [];
+  for (const [id, old] of prev) if (!next.has(id)) removed.push(old);
+  return { next, changed, removed };
+}
+
+/** Registros para o banco + os e-mails cujo conteúdo sai da memória depois de gravado. */
+export function buildStoreRecords(changed: EmailItem[], accountOf: (e: EmailItem) => string | undefined) {
+  const strips = new Map<string, { from: EmailItem; to: EmailItem }>();
+  const records = changed.map((e) => {
+    const s = stripEmailBody(e as any);
+    if (s.hasBody) strips.set(e.id, { from: e, to: s.meta as EmailItem });
+    return {
+      meta: s.meta,
+      body: s.body,
+      bodyHtml: s.bodyHtml,
+      hasBody: s.hasBody,
+      accountEmail: accountOf(e) || undefined,
+    };
+  });
+  return { records, strips };
+}
+
+/** Troca, no estado, os objetos gravados pelos resumos (só se não foram alterados nesse meio-tempo). */
+export function applyStrips(prevEmails: EmailItem[], strips: Map<string, { from: EmailItem; to: EmailItem }>) {
+  let touched = false;
+  const out = prevEmails.map((x) => {
+    const s = strips.get(x.id);
+    if (s && x === s.from) {
+      touched = true;
+      return s.to;
+    }
+    return x;
+  });
+  return touched ? out : prevEmails;
+}
+
+/** O banco abriu nesta sessão? (decidido uma vez, ao abrir o app) */
+export const isMailStoreAvailable = (() => {
+  let cached: boolean | null = null;
+  return (): boolean => {
+    if (cached === null) {
+      try {
+        cached = Boolean(window.electronAPI?.getMailStoreStatusSync?.()?.available);
+      } catch {
+        cached = false;
+      }
+    }
+    return cached;
+  };
+})();
+
 export function useMailPersistence(opts: MailPersistenceOptions) {
   const optsRef = useRef(opts);
   optsRef.current = opts;
+  const storeMode = isMailStoreAvailable();
 
-  // ---------- 1. Cache do app ----------
-  const cacheTimerRef = useRef<number | null>(null);
-  const cacheFirstPendingAtRef = useRef<number | null>(null);
-  const cacheDirtyRef = useRef(false);
+  // Estado de referência = o que veio do disco ao abrir (capturado já na primeira renderização,
+  // para que mudanças logo no início — ex.: sincronização de abertura — também sejam gravadas)
+  const lastSeenRef = useRef<Map<string, EmailItem> | null>(null);
+  if (lastSeenRef.current === null) {
+    lastSeenRef.current = new Map(opts.emails.map((e) => [e.id, e]));
+  }
+  const dirtyAccountsRef = useRef(new Set<string>());
+  const timerRef = useRef<number | null>(null);
+  const runningRef = useRef<Promise<void> | null>(null);
+
+  const accountEmailOf = useCallback((e: EmailItem): string | undefined => {
+    const { accounts, isEmailForAccount } = optsRef.current;
+    return accounts.find((acc) => acc?.email && isEmailForAccount(e, acc))?.email;
+  }, []);
+
+  // ---------- Cache antigo (só no modo sem banco) ----------
+  const legacyTimerRef = useRef<number | null>(null);
+  const legacyFirstPendingRef = useRef<number | null>(null);
+  const legacyDirtyRef = useRef(false);
   const mountedRef = useRef(false);
 
-  const writeCache = useCallback(() => {
-    cacheDirtyRef.current = false;
-    cacheFirstPendingAtRef.current = null;
-    if (cacheTimerRef.current) {
-      window.clearTimeout(cacheTimerRef.current);
-      cacheTimerRef.current = null;
+  const writeLegacyCache = useCallback(() => {
+    legacyDirtyRef.current = false;
+    legacyFirstPendingRef.current = null;
+    if (legacyTimerRef.current) {
+      window.clearTimeout(legacyTimerRef.current);
+      legacyTimerRef.current = null;
     }
     try {
       const json = JSON.stringify(optsRef.current.emails);
@@ -70,90 +151,103 @@ export function useMailPersistence(opts: MailPersistenceOptions) {
 
   useEffect(() => {
     if (!mountedRef.current) {
-      // O carregamento inicial veio do próprio cache: não precisa regravar
-      mountedRef.current = true;
+      mountedRef.current = true; // o estado inicial veio do próprio disco
       return;
     }
-    cacheDirtyRef.current = true;
+    if (storeMode) return;
+    legacyDirtyRef.current = true;
     const now = Date.now();
-    if (cacheFirstPendingAtRef.current === null) cacheFirstPendingAtRef.current = now;
-    if (cacheTimerRef.current) window.clearTimeout(cacheTimerRef.current);
-    const waited = now - cacheFirstPendingAtRef.current;
-    const delay = Math.max(0, Math.min(CACHE_DEBOUNCE_MS, CACHE_MAX_WAIT_MS - waited));
-    cacheTimerRef.current = window.setTimeout(() => {
+    if (legacyFirstPendingRef.current === null) legacyFirstPendingRef.current = now;
+    if (legacyTimerRef.current) window.clearTimeout(legacyTimerRef.current);
+    const waited = now - legacyFirstPendingRef.current;
+    const delay = Math.max(0, Math.min(LEGACY_CACHE_DEBOUNCE_MS, LEGACY_CACHE_MAX_WAIT_MS - waited));
+    legacyTimerRef.current = window.setTimeout(() => {
       if (typeof (window as any).requestIdleCallback === 'function') {
-        (window as any).requestIdleCallback(writeCache, { timeout: 2500 });
+        (window as any).requestIdleCallback(writeLegacyCache, { timeout: 2500 });
       } else {
-        writeCache();
+        writeLegacyCache();
       }
     }, delay);
-  }, [opts.emails, writeCache]);
+  }, [opts.emails, storeMode, writeLegacyCache]);
 
-  // ---------- 2. Índice de pesquisa + 3. contas com mudanças ----------
-  const lastSeenRef = useRef<Map<string, EmailItem> | null>(null);
-  const dirtyAccountsRef = useRef(new Set<string>());
-  const indexTimerRef = useRef<number | null>(null);
-
-  const accountEmailOf = useCallback((e: EmailItem): string | undefined => {
-    const { accounts, isEmailForAccount } = optsRef.current;
-    return accounts.find((acc) => acc?.email && isEmailForAccount(e, acc))?.email;
-  }, []);
-
-  /** Compara com o último estado visto e envia ao índice só o que mudou. */
-  const processChanges = useCallback(async () => {
-    if (indexTimerRef.current) {
-      window.clearTimeout(indexTimerRef.current);
-      indexTimerRef.current = null;
+  // ---------- Diferenças desde a última gravação ----------
+  const runChanges = useCallback(async () => {
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
     const api = window.electronAPI;
     const emails = optsRef.current.emails;
-    const prev = lastSeenRef.current;
-    const next = new Map<string, EmailItem>();
-    for (const e of emails) next.set(e.id, e);
+    const prev = lastSeenRef.current || new Map<string, EmailItem>();
+    const { next, changed, removed } = diffEmails(prev, emails);
     lastSeenRef.current = next;
 
-    let changed: EmailItem[];
-    let removedIds: string[] = [];
-    if (prev === null) {
-      // Primeira vez na sessão: o índice já está no disco; pede só os que faltam nele
-      changed = [];
-      if (api?.getUnindexedEmailIds) {
-        try {
-          const missing = new Set(await api.getUnindexedEmailIds(emails.map((e) => e.id)));
-          if (missing.size > 0) changed = emails.filter((e) => missing.has(e.id));
-        } catch {}
-      }
-    } else {
-      changed = emails.filter((e) => prev.get(e.id) !== e);
-      for (const [id, old] of prev) {
-        if (!next.has(id)) {
-          removedIds.push(id);
-          const accEmail = accountEmailOf(old);
-          if (accEmail) dirtyAccountsRef.current.add(accEmail);
-        }
-      }
+    const removedIds = removed.map((old) => old.id);
+    for (const old of removed) {
+      const accEmail = accountEmailOf(old);
+      if (accEmail) dirtyAccountsRef.current.add(accEmail);
+    }
+    if (changed.length === 0 && removedIds.length === 0) return;
+
+    const accountOf = new Map<string, string>();
+    for (const e of changed) {
+      const accEmail = accountEmailOf(e) || '';
+      accountOf.set(e.id, accEmail);
+      if (accEmail) dirtyAccountsRef.current.add(accEmail);
     }
 
-    if (changed.length > 0) {
+    if (storeMode) {
+      // 1) Grava no banco (só o que mudou)
+      const strips = new Map<string, { from: EmailItem; to: EmailItem }>();
+      for (let i = 0; i < changed.length; i += STORE_BATCH) {
+        const slice = changed.slice(i, i + STORE_BATCH);
+        const built = buildStoreRecords(slice, (e) => accountOf.get(e.id));
+        const records = built.records;
+        for (const [id, s] of built.strips) strips.set(id, s);
+        try {
+          await api?.storeUpsertEmails?.(records);
+          for (const r of records) {
+            if (r.hasBody) rememberBody(r.meta.id, { body: r.body, bodyHtml: r.bodyHtml });
+          }
+        } catch (err) {
+          console.warn('[store] falha ao gravar e-mails; nova tentativa em seguida:', err);
+          // Esquece esses IDs para a próxima rodada tentar de novo
+          for (const e of slice) {
+            lastSeenRef.current?.delete(e.id);
+            strips.delete(e.id);
+          }
+        }
+      }
+      if (removedIds.length > 0) {
+        try {
+          await api?.storeRemoveEmails?.(removedIds);
+        } catch (err) {
+          console.warn('[store] falha ao excluir e-mails do banco:', err);
+        }
+      }
+
+      // 2) Tira o conteúdo da memória (fica só o resumo; o conteúdo volta do banco ao abrir)
+      if (strips.size > 0) {
+        for (const [id, s] of strips) lastSeenRef.current?.set(id, s.to);
+        optsRef.current.setEmails((prevEmails) => applyStrips(prevEmails, strips));
+      }
+      return;
+    }
+
+    // Modo antigo: índice de pesquisa só com o que mudou
+    if (api?.indexEmailsFts) {
       const byAccount = new Map<string, EmailItem[]>();
       for (const e of changed) {
-        const accEmail = accountEmailOf(e) || '';
-        if (prev !== null && accEmail) dirtyAccountsRef.current.add(accEmail);
+        const accEmail = accountOf.get(e.id) || '';
         const list = byAccount.get(accEmail) || [];
         list.push(e);
         byAccount.set(accEmail, list);
       }
-      if (api?.indexEmailsFts) {
-        for (const [accEmail, list] of byAccount) {
-          // Lotes moderados para não travar o processo principal
-          for (let i = 0; i < list.length; i += 500) {
-            try {
-              await api.indexEmailsFts({
-                emails: list.slice(i, i + 500).map(toIndexable),
-                accountEmail: accEmail || undefined,
-              });
-            } catch {}
-          }
+      for (const [accEmail, list] of byAccount) {
+        for (let i = 0; i < list.length; i += 500) {
+          try {
+            await api.indexEmailsFts({ emails: list.slice(i, i + 500).map(toIndexable), accountEmail: accEmail || undefined });
+          } catch {}
         }
       }
     }
@@ -162,20 +256,50 @@ export function useMailPersistence(opts: MailPersistenceOptions) {
         await api.removeIndexedEmails(removedIds);
       } catch {}
     }
-  }, [accountEmailOf]);
+  }, [accountEmailOf, storeMode]);
+
+  /** Executa (ou aguarda a execução em andamento) e roda de novo se algo mudou nesse meio-tempo. */
+  const processChanges = useCallback(async () => {
+    while (runningRef.current) await runningRef.current;
+    const p = runChanges().finally(() => {
+      runningRef.current = null;
+    });
+    runningRef.current = p;
+    await p;
+  }, [runChanges]);
+
+  // Modo antigo: ao abrir, indexa os e-mails que faltam no índice de pesquisa antigo
+  useEffect(() => {
+    if (storeMode) return;
+    const api = window.electronAPI;
+    if (!api?.getUnindexedEmailIds || !api.indexEmailsFts) return;
+    const emails = optsRef.current.emails;
+    void (async () => {
+      try {
+        const missing = new Set(await api.getUnindexedEmailIds!(emails.map((e) => e.id)));
+        const toIndex = emails.filter((e) => missing.has(e.id));
+        for (let i = 0; i < toIndex.length; i += 500) {
+          await api.indexEmailsFts({ emails: toIndex.slice(i, i + 500).map(toIndexable) });
+        }
+      } catch {}
+    })();
+  }, [storeMode]);
 
   useEffect(() => {
-    // Processa no máximo uma vez a cada 5 s (não adia indefinidamente durante downloads contínuos)
-    if (indexTimerRef.current) return;
-    indexTimerRef.current = window.setTimeout(() => void processChanges(), INDEX_DEBOUNCE_MS);
-  }, [opts.emails, processChanges]);
+    // No máximo uma vez a cada ~2 s (não adia indefinidamente durante downloads contínuos)
+    if (timerRef.current) return;
+    timerRef.current = window.setTimeout(
+      () => void processChanges(),
+      storeMode ? STORE_THROTTLE_MS : LEGACY_INDEX_THROTTLE_MS
+    );
+  }, [opts.emails, processChanges, storeMode]);
 
-  // ---------- 3. Cópias .pst/.mbox ----------
+  // ---------- Cópias .pst/.mbox ----------
   const savingCopiesRef = useRef(false);
   const saveMailboxCopies = useCallback(async () => {
     const api = window.electronAPI;
-    if (!api?.saveLocalMailbox || savingCopiesRef.current) return;
-    if (dirtyAccountsRef.current.size === 0) return;
+    if (savingCopiesRef.current || dirtyAccountsRef.current.size === 0) return;
+    if (storeMode ? !api?.saveLocalMailboxIds : !api?.saveLocalMailbox) return;
     savingCopiesRef.current = true;
     const targets = Array.from(dirtyAccountsRef.current);
     dirtyAccountsRef.current.clear();
@@ -184,12 +308,22 @@ export function useMailPersistence(opts: MailPersistenceOptions) {
       for (const accEmail of targets) {
         const acc = accounts.find((a) => a?.email === accEmail);
         if (!acc) continue;
+        const accEmails = emails.filter((m) => isEmailForAccount(m, acc));
         try {
-          await api.saveLocalMailbox({
-            accountEmail: acc.email,
-            protocol: acc.incomingServer?.protocol || 'pop3',
-            emails: emails.filter((m) => isEmailForAccount(m, acc)),
-          });
+          if (storeMode) {
+            // O conteúdo completo vem do banco: o app envia só os IDs
+            await api!.saveLocalMailboxIds!({
+              accountEmail: acc.email,
+              protocol: acc.incomingServer?.protocol || 'pop3',
+              ids: accEmails.map((m) => m.id),
+            });
+          } else {
+            await api!.saveLocalMailbox({
+              accountEmail: acc.email,
+              protocol: acc.incomingServer?.protocol || 'pop3',
+              emails: accEmails,
+            });
+          }
         } catch (err) {
           console.warn('Erro ao gravar arquivo .pst em disco:', err);
           dirtyAccountsRef.current.add(accEmail); // tenta de novo no próximo ciclo
@@ -198,33 +332,35 @@ export function useMailPersistence(opts: MailPersistenceOptions) {
     } finally {
       savingCopiesRef.current = false;
     }
-  }, []);
+  }, [storeMode]);
 
   useEffect(() => {
     const timer = window.setInterval(() => void saveMailboxCopies(), MAILBOX_COPY_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [saveMailboxCopies]);
 
-  /** Ao fechar o app: grava tudo o que estiver pendente (cache, índice e cópias). */
+  /** Ao fechar o app: grava tudo o que estiver pendente. */
   const flushAll = useCallback(async () => {
     try {
       await processChanges();
     } catch {}
-    try {
-      if (cacheDirtyRef.current) {
-        const json = JSON.stringify(optsRef.current.emails);
-        if (window.electronAPI?.saveMessageCacheNow) {
-          await window.electronAPI.saveMessageCacheNow(json);
-        } else {
-          writeCache();
+    if (!storeMode) {
+      try {
+        if (legacyDirtyRef.current) {
+          const json = JSON.stringify(optsRef.current.emails);
+          if (window.electronAPI?.saveMessageCacheNow) {
+            await window.electronAPI.saveMessageCacheNow(json);
+          } else {
+            writeLegacyCache();
+          }
+          legacyDirtyRef.current = false;
         }
-        cacheDirtyRef.current = false;
-      }
-    } catch {}
+      } catch {}
+    }
     try {
       await saveMailboxCopies();
     } catch {}
-  }, [processChanges, saveMailboxCopies, writeCache]);
+  }, [processChanges, saveMailboxCopies, storeMode, writeLegacyCache]);
 
   return { flushAll };
 }

@@ -12,7 +12,9 @@ import type { CorporateContact } from '@/components/ContactsView';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useImapServerSync } from '@/hooks/useImapServerSync';
 import { useMailBackfill } from '@/hooks/useMailBackfill';
-import { useMailPersistence } from '@/hooks/useMailPersistence';
+import { useMailPersistence, isMailStoreAvailable } from '@/hooks/useMailPersistence';
+import { ensureEmailBody, useHydratedEmails } from '@/services/emailBodyCache';
+import { isBodyStripped } from './utils/emailBodyStrip';
 import { getImapLocation, imapServerKey, parseImapLocationFromId } from './utils/imapLocation';
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount, PriorityLevel, TaskItem } from '@/types/email';
 import {
@@ -429,7 +431,16 @@ export const App: React.FC = () => {
   }, [emailListWidth]);
   const [emails, setEmails] = useState<EmailItem[]>(() => {
     try {
-      // 1) Cache em disco (sem limite de tamanho, criptografado)
+      // 0) Banco local (SQLite): carrega só os resumos — o conteúdo vem ao abrir cada e-mail
+      if (isMailStoreAvailable()) {
+        const json = window.electronAPI?.loadMailStoreSync?.();
+        if (typeof json === 'string') {
+          const fromStore = JSON.parse(json);
+          if (Array.isArray(fromStore) && fromStore.length > 0) return fromStore as EmailItem[];
+          return INITIAL_EMAILS;
+        }
+      }
+      // 1) Cache em disco antigo (só se o banco não estiver disponível)
       const diskCache = window.electronAPI?.loadMessageCacheSync?.();
       if (Array.isArray(diskCache) && diskCache.length > 0) {
         return diskCache as EmailItem[];
@@ -455,6 +466,7 @@ export const App: React.FC = () => {
   // useMailPersistence, mais abaixo, agrupando as mudanças para não travar o app.
   // Fallback: se o carregamento síncrono do cache não trouxe mensagens reais, tenta de forma assíncrona
   useEffect(() => {
+    if (isMailStoreAvailable()) return; // com o banco, o carregamento inicial já é completo
     const isPlaceholder = (e: EmailItem) =>
       e.id.startsWith('msg-coworking-') || e.id.startsWith('msg-marco-') || e.id.startsWith('msg-anectta-');
     if (emails.some((e) => !isPlaceholder(e))) return;
@@ -1385,6 +1397,7 @@ export const App: React.FC = () => {
   // cópias .pst/.mbox em Documentos\Arquivos do Anectta MAIL (só contas alteradas, a cada 10 min)
   const mailPersistence = useMailPersistence({
     emails,
+    setEmails,
     accounts: settings.accounts && settings.accounts.length > 0 ? settings.accounts : [currentAccount],
     isEmailForAccount,
   });
@@ -2487,7 +2500,7 @@ export const App: React.FC = () => {
     showToast('✓ Regras automáticas salvas!');
   };
 
-  const handleRunRulesNow = () => {
+  const handleRunRulesNow = async () => {
     const conf = {
       ...DEFAULT_CONFIRMATION_SETTINGS,
       ...(settings.notifications?.confirmations || {}),
@@ -2502,7 +2515,36 @@ export const App: React.FC = () => {
       showToast('Nenhuma mensagem na Caixa de Entrada para processar.');
       return;
     }
-    const { emails: nextEmails, affectedCount } = applyRulesToEmails(emails, rules, inboxIds);
+    // Regras que olham o texto do e-mail precisam do conteúdo, que pode estar só no banco
+    const currentEmails = emailsRef.current;
+    const needBody = currentEmails.filter((e) => inboxIds.has(e.id) && isBodyStripped(e)).map((e) => e.id);
+    const loadedBodies: Record<string, { body?: string; bodyHtml?: string }> = {};
+    if (needBody.length > 0 && window.electronAPI?.storeGetBodies) {
+      showToast(`Preparando ${needBody.length} mensagem(ns) para as regras...`);
+      for (let i = 0; i < needBody.length; i += 500) {
+        try {
+          Object.assign(loadedBodies, await window.electronAPI.storeGetBodies(needBody.slice(i, i + 500)));
+        } catch {}
+      }
+    }
+    const originals = new Map(currentEmails.map((e) => [e.id, e]));
+    const hydratedById = new Map<string, EmailItem>();
+    const input = currentEmails.map((e) => {
+      const b = loadedBodies[e.id];
+      if (!b) return e;
+      const h = { ...e, body: b.body ?? '', bodyHtml: b.bodyHtml } as EmailItem;
+      hydratedById.set(e.id, h);
+      return h;
+    });
+    const { emails: ruled, affectedCount } = applyRulesToEmails(input, rules, inboxIds);
+    // Devolve à memória só os resumos (o conteúdo continua no banco)
+    const nextEmails = ruled.map((r) => {
+      const h = hydratedById.get(r.id);
+      if (!h) return r;
+      if (r === h) return originals.get(r.id) || r;
+      const { body: _b, bodyHtml: _h, ...rest } = r;
+      return rest as EmailItem;
+    });
     setEmails(nextEmails);
     if (affectedCount > 0) {
       showToast(`✓ Regras aplicadas em ${affectedCount} mensagem(ns)!`);
@@ -2837,6 +2879,17 @@ export const App: React.FC = () => {
     }
     return selectedEmail;
   }, [activeTabEmailId, emails, selectedEmail]);
+
+  // Tela de leitura: e-mail e conversa com o conteúdo carregado do banco (só o que está aberto)
+  const displayedThreadMessages = useMemo(
+    () => (groupByThread && displayedEmail ? getThreadMessagesForEmail(displayedEmail, emails) : undefined),
+    [groupByThread, displayedEmail, emails]
+  );
+  const hydratedReader = useHydratedEmails([displayedEmail, ...(displayedThreadMessages || [])]);
+  const readerEmail = (hydratedReader[0] ?? null) as EmailItem | null;
+  const readerThreadMessages = displayedThreadMessages
+    ? (hydratedReader.slice(1) as EmailItem[])
+    : undefined;
 
   const handleOpenEmailInTab = useCallback(
     (emailId: string) => {
@@ -3363,10 +3416,12 @@ export const App: React.FC = () => {
     };
   };
 
-  const handleReply = (targetEmail?: EmailItem) => {
-    const baseEmail = targetEmail || selectedEmail;
+  const handleReply = async (targetEmail?: EmailItem) => {
+    let baseEmail = targetEmail || selectedEmail;
     if (!baseEmail) return;
     if (baseEmail.folder === 'drafts') {
+      // Rascunho: o texto pode estar só no banco — carrega antes de abrir para edição
+      baseEmail = await ensureEmailBody(baseEmail);
       const fallbackBody =
         baseEmail.body ||
         (baseEmail.bodyHtml
@@ -4670,12 +4725,8 @@ export const App: React.FC = () => {
                   onCloseAllTabs={handleCloseAllEmailTabs}
                 />
                 <EmailView
-                  email={displayedEmail}
-                  threadMessages={
-                    groupByThread && displayedEmail
-                      ? getThreadMessagesForEmail(displayedEmail, emails)
-                      : undefined
-                  }
+                  email={readerEmail}
+                  threadMessages={readerThreadMessages}
                   onArchive={handleArchive}
                   onSnooze={handleSnooze}
                   onDelete={handleDelete}
@@ -4846,12 +4897,8 @@ export const App: React.FC = () => {
         <Suspense fallback={null}>
           <EmailReaderModal
             isOpen={isReaderModalOpen}
-            email={displayedEmail}
-            threadMessages={
-              groupByThread && displayedEmail
-                ? getThreadMessagesForEmail(displayedEmail, emails)
-                : undefined
-            }
+            email={readerEmail}
+            threadMessages={readerThreadMessages}
             onClose={() => setIsReaderModalOpen(false)}
             onArchive={handleArchive}
             onSnooze={handleSnooze}
