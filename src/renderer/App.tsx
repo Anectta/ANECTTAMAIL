@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
-import { RotateCw, MailPlus, Search, Minus, Square, X } from 'lucide-react';
+import { RotateCw, MailPlus, SlidersHorizontal, Minus, Square, X } from 'lucide-react';
 import { ActiveModule } from '@/components/AppRail';
 import { Sidebar } from '@/components/Sidebar';
 import { EmailList, EmailListRef, EmailLayoutMode } from '@/components/EmailList';
@@ -4506,27 +4506,29 @@ export const App: React.FC = () => {
                   <span>Novo E-mail</span>
                 </button>
 
-                {/* White Search Input (ao lado de Novo E-mail) */}
-                <div className="relative w-64 shrink-0">
-                  <Search className="header-search-icon w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Pesquisar..."
-                    className="header-search w-full rounded-md pl-8 pr-7 py-1 text-xs shadow-sm focus:outline-none"
-                  />
-                  {searchQuery && (
+                {/* Atalho: Regras de e-mails (a pesquisa fica no topo da lista de e-mails) */}
+                {(() => {
+                  const activeRules = rules.filter((r) => r.enabled).length;
+                  return (
                     <button
                       type="button"
-                      onClick={() => setSearchQuery('')}
-                      className="header-search-clear absolute right-2 top-1/2 -translate-y-1/2"
-                      title="Limpar pesquisa"
+                      onClick={() => setIsRulesModalOpen(true)}
+                      title="Configurar Motor de Regras Automáticas"
+                      className="header-ghost flex items-center space-x-1.5 px-3 py-1 border rounded-md text-xs font-semibold transition-colors shrink-0"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                      <span>Regras de e-mails</span>
+                      {activeRules > 0 && (
+                        <span
+                          className="ml-0.5 px-1.5 rounded-full text-[10px] font-bold"
+                          style={{ background: 'color-mix(in srgb, currentColor 20%, transparent)' }}
+                        >
+                          {activeRules}
+                        </span>
+                      )}
                     </button>
-                  )}
-                </div>
+                  );
+                })()}
 
                 {/* Frase motivacional à direita da pesquisa */}
                 <MotivationalBanner />
