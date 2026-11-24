@@ -118,6 +118,9 @@ function isAutomatedSender(item: EmailItem, savedSet: Set<string>): boolean {
   return AUTOMATED_SENDER_REGEX.test(emailAddr);
 }
 
+/** Quantos itens da lista são desenhados por vez (o restante entra conforme a rolagem). */
+const LIST_RENDER_PAGE = 100;
+
 export const EmailList = forwardRef<EmailListRef, EmailListProps>(
   (
     {
@@ -575,6 +578,89 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
         })
         .filter((group) => group.items.length > 0);
     }, [filteredEmails, sortOrder, sortField, dateOrder, groupByThread]);
+
+    // Desenho progressivo: só os primeiros itens são desenhados; os demais entram conforme a
+    // rolagem. Evita travar com caixas grandes (ex.: Caixa Unificada com várias contas).
+    // O limite volta ao início quando muda a pasta, a conta, a busca, o filtro ou a ordenação.
+    const listContextKey = [
+      activeAccountEmail,
+      isUnifiedView ? 'u' : '',
+      emails[0]?.folder || '',
+      searchQuery,
+      activeTab,
+      triageFilter,
+      sortField,
+      sortOrder,
+      dateOrder,
+      groupByThread ? 't' : '',
+      peopleOnly ? 'p' : '',
+      domainOnly ? activeDomain : '',
+      attachmentsOnly ? 'a' : '',
+    ].join('|');
+    const [renderLimitState, setRenderLimitState] = useState({ key: listContextKey, limit: LIST_RENDER_PAGE });
+    const renderLimit = renderLimitState.key === listContextKey ? renderLimitState.limit : LIST_RENDER_PAGE;
+    const growRenderLimit = (to: number) =>
+      setRenderLimitState((prev) => {
+        const current = prev.key === listContextKey ? prev.limit : LIST_RENDER_PAGE;
+        return to > current ? { key: listContextKey, limit: to } : prev;
+      });
+
+    const { visibleGroups, hasMoreToRender } = useMemo(() => {
+      let budget = renderLimit;
+      let remaining = 0;
+      const out: Array<(typeof groupedEmails)[number] & { total: number }> = [];
+      for (const g of groupedEmails) {
+        const collapsed = Boolean(collapsedPeriods[g.id]);
+        if (budget <= 0) {
+          if (!collapsed) remaining += g.items.length;
+          continue;
+        }
+        if (collapsed) {
+          out.push({ ...g, total: g.items.length });
+          continue;
+        }
+        const shown = g.items.length > budget ? g.items.slice(0, budget) : g.items;
+        remaining += g.items.length - shown.length;
+        budget -= shown.length;
+        out.push({ ...g, items: shown, total: g.items.length });
+      }
+      return { visibleGroups: out, hasMoreToRender: remaining > 0 };
+    }, [groupedEmails, collapsedPeriods, renderLimit]);
+
+    // E-mail selecionado além do trecho desenhado (ex.: navegação pelo teclado): estende até ele.
+    useEffect(() => {
+      if (!selectedEmailId) return;
+      let idx = 0;
+      for (const g of groupedEmails) {
+        if (collapsedPeriods[g.id]) continue;
+        for (const it of g.items) {
+          if (it.email.id === selectedEmailId || it.thread?.messages.some((m) => m.id === selectedEmailId)) {
+            if (idx >= renderLimit) growRenderLimit(idx + LIST_RENDER_PAGE);
+            return;
+          }
+          idx++;
+        }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedEmailId, groupedEmails]);
+
+    // Ao chegar perto do fim do trecho desenhado, desenha o próximo bloco.
+    const loadMoreRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (!hasMoreToRender) return;
+      const el = loadMoreRef.current;
+      const root = listScrollRef.current;
+      if (!el || !root || typeof IntersectionObserver === 'undefined') return;
+      const io = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((e) => e.isIntersecting)) growRenderLimit(renderLimit + LIST_RENDER_PAGE);
+        },
+        { root, rootMargin: '0px 0px 800px 0px' }
+      );
+      io.observe(el);
+      return () => io.disconnect();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasMoreToRender, renderLimit, listContextKey]);
 
     return (
       <section
@@ -1305,7 +1391,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
               )}
             </div>
           ) : (
-            groupedEmails.map((group) => {
+            visibleGroups.map((group) => {
               const isCollapsed = collapsedPeriods[group.id];
               return (
                 <div key={group.id} className="bg-slate-925">
@@ -1321,7 +1407,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                     )}
                     <span>{group.label}</span>
                     <span className="text-[10px] text-slate-600 font-normal">
-                      ({group.items.length})
+                      ({group.total})
                     </span>
                   </div>
 
@@ -1653,6 +1739,15 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                 </div>
               );
             })
+          )}
+          {filteredEmails.length > 0 && hasMoreToRender && (
+            <div
+              ref={loadMoreRef}
+              onClick={() => growRenderLimit(renderLimit + LIST_RENDER_PAGE)}
+              className="py-3 text-center text-[11px] text-slate-500 cursor-pointer hover:text-slate-300"
+            >
+              Carregando mais mensagens…
+            </div>
           )}
 
         </div>
