@@ -1265,19 +1265,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           ) : null}
                         </div>
                       </button>
-                      {onCreateFolder && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startCreateFolder(accId, 'inbox');
-                          }}
-                          title="Criar subpasta em Caixa de Entrada"
-                          className="opacity-0 group-hover/inbox:opacity-100 p-1 text-slate-500 hover:text-brand-400 rounded transition-opacity"
-                        >
-                          <FolderPlus className="w-3.5 h-3.5" />
-                        </button>
-                      )}
                     </div>
                     {isFolderNodeExpanded(accId, 'inbox') && renderCustomSubfolders('inbox', 1)}
                     {renderInlineCreateInput('inbox')}
