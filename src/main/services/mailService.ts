@@ -1144,8 +1144,8 @@ export class MailService {
         try {
           serverTotal = client.mailbox ? client.mailbox.exists : 0;
           if (serverTotal > 0) {
-            const found = await client.search({ all: true }, { uid: true });
-            const allUids = Array.isArray(found) ? found.map(Number).filter(Number.isFinite) : [];
+            // Lista completa (sem o limite de 10.000 resultados da busca de alguns provedores)
+            const allUids = (await this.listServerUids(client)).uids;
             const missing = allUids.filter((uid) => !knownUids.has(uid)).sort((a, b) => b - a);
             attemptedUids = missing.slice(0, batchSize);
             remaining = missing.length - attemptedUids.length;
@@ -1577,6 +1577,28 @@ export class MailService {
    * vieram na janela normal — e-mails novos acima do limite da janela e lacunas. Mais novas primeiro.
    * Deve ser chamada com a pasta já selecionada (dentro do mailbox lock).
    */
+  /**
+   * Lista os UIDs da pasta aberta no servidor.
+   *
+   * NÃO usa SEARCH: alguns provedores (ex.: Yahoo) devolvem no máximo 10.000 resultados por busca,
+   * e o restante parecia "apagado no servidor" — o app removia e baixava de novo, em loop.
+   * Usa FETCH dos UIDs (sem esse limite) e confere com o total da pasta.
+   *
+   * complete = a lista bate com o total de mensagens da pasta (só então é seguro concluir que
+   * algo foi apagado no servidor).
+   */
+  private static async listServerUids(client: ImapFlow): Promise<{ uids: number[]; complete: boolean }> {
+    const exists = client.mailbox ? client.mailbox.exists : 0;
+    if (!exists) return { uids: [], complete: true };
+    const uids: number[] = [];
+    for await (const msg of client.fetch('1:*', { uid: true })) {
+      const uid = Number(msg?.uid);
+      if (Number.isFinite(uid)) uids.push(uid);
+    }
+    const unique = Array.from(new Set(uids));
+    return { uids: unique, complete: unique.length === exists };
+  }
+
   private static async fetchSyncCatchUp(
     client: ImapFlow,
     folderKey: string,
@@ -1597,13 +1619,19 @@ export class MailService {
         if (Number.isFinite(uid)) fetchedNow.add(uid);
       }
 
-      const found = await client.search({ uid: `${minKnown}:*` }, { uid: true });
-      if (!Array.isArray(found)) return { messages, remaining: 0, vanished };
-      const serverUids = new Set(found.map(Number).filter(Number.isFinite));
+      const listed = await this.listServerUids(client);
+      const serverUids = new Set(listed.uids.filter((uid) => uid >= minKnown));
 
       // Servidor → app: mensagens que o app conhece mas não existem mais nesta pasta do servidor
-      // (apagadas ou movidas no webmail/celular/outro cliente)
-      vanished = Array.from(knownUids).filter((uid) => !serverUids.has(uid));
+      // (apagadas ou movidas no webmail/celular/outro cliente). Só quando a lista do servidor está
+      // completa — nunca remover do app com base numa lista parcial.
+      if (listed.complete) {
+        vanished = Array.from(knownUids).filter((uid) => !serverUids.has(uid));
+      } else {
+        console.warn(
+          `[IMAP] ${folderKey}: lista de UIDs incompleta (${listed.uids.length} de ${client.mailbox ? client.mailbox.exists : '?'}); remoções ignoradas nesta rodada.`
+        );
+      }
 
       const missing = Array.from(serverUids)
         .filter((uid) => uid > minKnown && !knownUids.has(uid) && !fetchedNow.has(uid))

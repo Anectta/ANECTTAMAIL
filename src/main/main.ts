@@ -594,12 +594,25 @@ function showNotifierWindow(emailData: {
     notifierWindow.on('closed', () => {
       notifierWindow = null;
     });
+
+    // Primeira vez: só mostra quando o conteúdo estiver pronto (janela transparente aberta antes
+    // de carregar pode ficar invisível); garante exibição mesmo se o evento não vier
+    const win = notifierWindow;
+    let shown = false;
+    const reveal = () => {
+      if (shown || win.isDestroyed()) return;
+      shown = true;
+      win.setAlwaysOnTop(true, 'screen-saver');
+      win.showInactive();
+    };
+    win.once('ready-to-show', reveal);
+    setTimeout(reveal, 1500);
   } else {
     notifierWindow.setPosition(posX, posY);
     notifierWindow.webContents.send('notifier:data', lastNotifierData);
+    notifierWindow.setAlwaysOnTop(true, 'screen-saver');
+    notifierWindow.showInactive();
   }
-
-  notifierWindow.showInactive();
 
   if (notifierTimeout) clearTimeout(notifierTimeout);
   notifierTimeout = setTimeout(() => {
