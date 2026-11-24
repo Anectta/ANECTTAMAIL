@@ -425,6 +425,12 @@ const electronAPI = {
   showNotifier: (data: any) => ipcRenderer.invoke('notifier:show', data),
   closeNotifier: () => ipcRenderer.send('notifier:close'),
   clickNotifier: (emailId: string) => ipcRenderer.send('notifier:click', emailId),
+  // Janela principal: clique no aviso de novo e-mail → abrir esse e-mail
+  onNotificationEmailClicked: (callback: (emailId: string) => void) => {
+    const listener = (_e: any, emailId: string) => callback(emailId);
+    ipcRenderer.on('notification:email-clicked', listener);
+    return () => ipcRenderer.removeListener('notification:email-clicked', listener);
+  },
   getLatestNotifierData: () => ipcRenderer.invoke('notifier:get-latest'),
   onNotifierData: (callback: (data: any) => void) => {
     const listener = (_event: any, data: any) => callback(data);

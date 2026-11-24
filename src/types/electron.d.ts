@@ -281,9 +281,13 @@ export interface ElectronAPI {
     subject: string;
     snippet?: string;
     avatar?: string;
+    /** Quantos e-mails novos o aviso resume (1 = um e-mail). */
+    count?: number;
   }) => Promise<boolean>;
   closeNotifier: () => void;
   clickNotifier: (emailId: string) => void;
+  /** Janela principal: o usuário clicou no aviso de novo e-mail. */
+  onNotificationEmailClicked?: (callback: (emailId: string) => void) => () => void;
   getLatestNotifierData: () => Promise<{
     id: string;
     sender: string;

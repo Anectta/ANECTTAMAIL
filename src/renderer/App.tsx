@@ -16,6 +16,7 @@ import { useMailPersistence, isMailStoreAvailable } from '@/hooks/useMailPersist
 import { ensureEmailBody, useHydratedEmails } from '@/services/emailBodyCache';
 import { isBodyStripped } from './utils/emailBodyStrip';
 import { removeServerDuplicates } from './utils/emailDedupe';
+import { pickNewArrivals, buildNewMailNotice } from './utils/newMailDetect';
 import { getImapLocation, imapServerKey, parseImapLocationFromId } from './utils/imapLocation';
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount, PriorityLevel, TaskItem } from '@/types/email';
 import {
@@ -2156,6 +2157,14 @@ export const App: React.FC = () => {
     // A recuperação automática traz até 300 mensagens novas por pasta em cada sincronização;
     // se ainda faltar, agenda outra sincronização em segundo plano até completar.
     let needsCatchUpFollowUp = false;
+    // E-mails novos que chegaram nesta sincronização (para o aviso de novo e-mail)
+    const newArrivals: EmailItem[] = [];
+    const collectNewArrivals = (acc: AccountSettings, incoming: EmailItem[]) => {
+      const current = emailsRef.current;
+      const existingIds = new Set(current.map((e) => e.id));
+      const accountHadMail = current.some((e) => e.accountId === acc.id);
+      newArrivals.push(...pickNewArrivals(incoming, existingIds, { accountHadMail, accountEmail: acc.email }));
+    };
 
     const run = (async () => {
     try {
@@ -2308,6 +2317,7 @@ export const App: React.FC = () => {
               folder: (imapFolderKeyToId.get(m.folder) || m.folder) as MailFolder,
             }));
             totalSynced += taggedEmails.length;
+            collectNewArrivals(acc, taggedEmails);
 
             // Mensagens movidas no servidor pelo app têm id antigo + imapLocation: mapeia a chave do
             // servidor para o id local, para lido/estrela vindos do servidor chegarem nelas também
@@ -2446,6 +2456,7 @@ export const App: React.FC = () => {
               accountId: acc.id,
             }));
             totalSynced += taggedEmails.length;
+            collectNewArrivals(acc, taggedEmails);
 
             setEmails((prev) => {
               const existingIds = new Set(prev.map((p) => p.id));
@@ -2505,6 +2516,10 @@ export const App: React.FC = () => {
       // Baixa tudo o que ainda falta (todas as pastas). Retoma também após um Cancelar.
       // Pequena espera para as pastas descobertas nesta sincronização já estarem no estado.
       setTimeout(() => startBackfillRef.current(), 1500);
+      // Aviso de novo e-mail (depois das regras e do filtro de spam do app terem rodado)
+      if (newArrivals.length > 0) {
+        setTimeout(() => notifyNewMailRef.current(newArrivals), 800);
+      }
     }
     })();
 
@@ -4054,6 +4069,53 @@ export const App: React.FC = () => {
   scheduledEmailsRef.current = scheduledEmails;
   const handleSyncAllRef = useRef(handleSyncAll);
   handleSyncAllRef.current = handleSyncAll;
+
+  // ==========================================
+  // Aviso de novo e-mail (janela no canto da tela + som escolhido nas Configurações)
+  // ==========================================
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const notifyNewMailRef = useRef<(list: EmailItem[]) => void>(() => {});
+  notifyNewMailRef.current = (list: EmailItem[]) => {
+    const conf = settings.notifications;
+    if (conf && conf.notificationsEnabled === false) return;
+    // Confere de novo no estado atual: regras/filtro de spam podem ter tirado da Entrada,
+    // e o usuário pode já ter lido
+    const ids = new Set(list.map((e) => e.id));
+    const still = emailsRef.current.filter((e) => ids.has(e.id) && e.folder === 'inbox' && !e.isRead);
+    const notice = buildNewMailNotice(still);
+    if (!notice) return;
+    // "Silencioso" não toca nada; "Padrão do Tema" usa o som do tema
+    soundService.playNotificationPreset(conf?.notificationSound || 'theme');
+    void window.electronAPI?.showNotifier?.(notice);
+  };
+
+  // Clique no aviso: abre o app já no e-mail (trocando de conta, se preciso)
+  const handleSelectAccountRef = useRef(handleSelectAccount);
+  handleSelectAccountRef.current = handleSelectAccount;
+  const notificationTargetRef = useRef<string | null>(null);
+  useEffect(() => {
+    const off = window.electronAPI?.onNotificationEmailClicked?.((emailId: string) => {
+      const target = emailsRef.current.find((e) => e.id === emailId);
+      if (!target) return;
+      setActiveModule('mail');
+      const unified = settingsRef.current.activeAccountId === '__unified__';
+      if (!unified && target.accountId && target.accountId !== settingsRef.current.activeAccountId) {
+        handleSelectAccountRef.current(target.accountId);
+      }
+      setCurrentFolder(target.folder);
+      notificationTargetRef.current = emailId;
+    });
+    return () => off?.();
+  }, []);
+  // Seleciona o e-mail depois que a troca de conta/pasta foi aplicada
+  useEffect(() => {
+    const id = notificationTargetRef.current;
+    if (!id) return;
+    notificationTargetRef.current = null;
+    setSelectedEmailId(id);
+    setEmails((prev) => prev.map((e) => (e.id === id && !e.isRead ? { ...e, isRead: true } : e)));
+  });
 
   // Download completo automático de todas as pastas (substitui "Carregar +150" / "Baixar todas")
   const mailBackfill = useMailBackfill({

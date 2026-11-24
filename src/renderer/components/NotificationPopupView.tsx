@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
-import { SenderAvatar } from './SenderAvatar';
+import { X, Mail } from 'lucide-react';
+import { NotifierMascot } from './NotifierMascot';
 import { soundService } from '../services/soundService';
 
 interface NotifierData {
@@ -10,15 +10,22 @@ interface NotifierData {
   avatar?: string;
   subject: string;
   snippet?: string;
+  /** Quantos e-mails novos o aviso resume. */
+  count?: number;
 }
 
+/**
+ * Aviso de novo e-mail (janela própria, no canto inferior direito da tela).
+ * O som é tocado pela janela principal (respeita o som escolhido e o modo Silencioso).
+ */
 export const NotificationPopupView: React.FC = () => {
   const [data, setData] = useState<NotifierData>({
     id: '',
-    sender: 'Novo Remetente',
-    subject: 'Nova mensagem corporativa recebida',
-    snippet: 'Clique para abrir e visualizar no Anectta MAIL.',
+    sender: '',
+    subject: 'Você recebeu uma nova mensagem',
   });
+  // Reinicia a animação de entrada a cada novo aviso
+  const [shownAt, setShownAt] = useState(0);
 
   useEffect(() => {
     // Garante que o fundo do documento seja 100% transparente
@@ -29,7 +36,7 @@ export const NotificationPopupView: React.FC = () => {
       window.electronAPI.getLatestNotifierData().then((latest) => {
         if (latest) {
           setData(latest as NotifierData);
-          soundService.play('notify');
+          setShownAt(Date.now());
         }
       });
     }
@@ -38,7 +45,7 @@ export const NotificationPopupView: React.FC = () => {
       const cleanup = window.electronAPI.onNotifierData((incoming) => {
         if (incoming) {
           setData(incoming as NotifierData);
-          soundService.play('notify');
+          setShownAt(Date.now());
         }
       });
       return () => cleanup();
@@ -47,79 +54,76 @@ export const NotificationPopupView: React.FC = () => {
 
   const handleClick = () => {
     soundService.play('click');
-    if (window.electronAPI?.clickNotifier) {
-      window.electronAPI.clickNotifier(data.id);
-    }
+    window.electronAPI?.clickNotifier?.(data.id);
   };
 
   const handleClose = (e: React.MouseEvent) => {
     e.stopPropagation();
     soundService.play('pop');
-    if (window.electronAPI?.closeNotifier) {
-      window.electronAPI.closeNotifier();
-    }
+    window.electronAPI?.closeNotifier?.();
   };
 
+  const many = Boolean(data.count && data.count > 1);
+  const title = many ? `${data.count} Novos E-mails!` : 'Novo E-mail Recebido!';
+
   return (
-    <div className="w-screen h-screen p-2.5 flex items-center justify-center overflow-hidden bg-transparent font-sans">
+    <div className="w-screen h-screen p-2 flex items-center justify-center overflow-hidden bg-transparent font-sans">
+      <style>{`
+        @keyframes notifierIn { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+        .notifier-card { animation: notifierIn .35s cubic-bezier(.2,.8,.2,1) both; }
+      `}</style>
       <div
+        key={shownAt}
         onClick={handleClick}
-        className="w-full h-full rounded-2xl px-3.5 py-2.5 shadow-2xl backdrop-blur-xl flex items-center space-x-3 cursor-pointer transition-all duration-200 group active:scale-[0.99] border"
+        className="notifier-card relative w-full h-full rounded-2xl pl-1.5 pr-3 flex items-center gap-2 cursor-pointer border select-none group"
         style={{
-          background: 'var(--bg-surface, rgba(15, 23, 42, 0.95))',
-          borderColor: 'var(--border-highlight, rgba(59, 130, 246, 0.6))',
-          boxShadow: 'var(--accent-glow, 0 10px 25px rgba(0,0,0,0.5))',
+          background: 'linear-gradient(135deg, #0e1a36 0%, #13244a 55%, #0c1830 100%)',
+          borderColor: 'rgba(96, 165, 250, 0.35)',
+          boxShadow: '0 12px 28px rgba(2, 6, 23, 0.55), inset 0 1px 0 rgba(255,255,255,0.06)',
         }}
-        title="Clique para abrir mensagem no Anectta MAIL"
+        title="Clique para abrir no Anectta MAIL"
       >
-        {/* Avatar do Remetente */}
         <div className="shrink-0 group-hover:scale-105 transition-transform">
-          <SenderAvatar
-            name={data.sender}
-            email={data.senderEmail}
-            avatar={data.avatar}
-            size={48}
-          />
+          <NotifierMascot size={78} />
         </div>
 
-        {/* Content Body */}
-        <div className="flex-1 min-w-0 pr-1">
-          {/* Header Row */}
-          <div className="flex items-center justify-between pb-0.5">
-            <span
-              className="flex items-center space-x-1.5 text-[10px] font-bold tracking-wider uppercase font-mono"
-              style={{ color: 'var(--accent-primary, #38bdf8)' }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping inline-block" />
-              <span>Novo E-mail Recebido</span>
+        <div className="flex-1 min-w-0 pr-5">
+          <div className="flex items-center gap-1.5">
+            <Mail className="w-4 h-4 shrink-0" style={{ color: '#60a5fa' }} />
+            <span className="text-[13px] font-bold truncate" style={{ color: '#ffffff' }}>
+              {title}
             </span>
-
-            <button
-              onClick={handleClose}
-              className="w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-              title="Fechar notificação"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
           </div>
-
-          {/* Sender */}
-          <h4 className="text-xs font-bold truncate leading-snug group-hover:text-brand-300 transition-colors text-white">
-            {data.sender}
-          </h4>
-
-          {/* Subject */}
-          <p className="text-[11px] font-medium truncate text-slate-300">
-            {data.subject}
-          </p>
-
-          {/* Snippet */}
-          {data.snippet && (
-            <p className="text-[10px] truncate font-sans text-slate-400">
-              {data.snippet}
+          {data.sender ? (
+            <>
+              <p className="mt-0.5 text-[12px] font-semibold truncate" style={{ color: '#dbe7ff' }}>
+                {data.sender}
+              </p>
+              <p className="text-[11px] truncate" style={{ color: '#9fb3d6' }}>
+                {data.subject}
+              </p>
+              {many && data.snippet && (
+                <p className="text-[10px] truncate" style={{ color: '#7f95bb' }}>
+                  {data.snippet}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="mt-0.5 text-[12px]" style={{ color: '#9fb3d6' }}>
+              {data.subject}
             </p>
           )}
         </div>
+
+        <button
+          onClick={handleClose}
+          className="absolute top-2 right-2 w-5 h-5 rounded-md flex items-center justify-center transition-colors hover:bg-white/10"
+          style={{ color: '#94a3b8' }}
+          title="Fechar"
+          aria-label="Fechar aviso"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
       </div>
     </div>
   );
