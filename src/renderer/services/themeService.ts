@@ -1,5 +1,5 @@
 /**
- * ThemeService - Sistema de 16 Skins (1 Padrão + 7 Claros + 8 Escuros) e Variáveis CSS para o Anectta MAIL
+ * ThemeService - Sistema de 17 Skins (2 Padrão + 7 Claros + 8 Escuros) e Variáveis CSS para o Anectta MAIL
  * Gerencia paletas completas de cores, estilos visuais, persistência de último tema Claro/Escuro e integração sonora.
  */
 
@@ -21,7 +21,7 @@ export interface SkinDefinition {
 
 export const AVAILABLE_SKINS: SkinDefinition[] = [
   // =========================================================================
-  // TEMA PADRÃO (1)
+  // TEMAS PADRÃO (2)
   // =========================================================================
   {
     id: 'executive-midnight',
@@ -62,6 +62,48 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
       '--primary-btn-hover': '#3b82f6',
       '--primary-btn-text': '#ffffff',
       '--secondary-btn-bg': '#172236',
+    },
+  },
+
+  {
+    id: 'anectta-glass',
+    name: 'Anectta Glass',
+    subtitle: 'Vidro azul-marinho translúcido com brilho ciano (painéis de vidro sobre fundo luminoso)',
+    category: 'dark',
+    section: 'default',
+    soundTheme: 'executive',
+    icon: 'sparkles',
+    previewColors: ['#081a36', '#10284c', '#38bdf8'],
+    variables: {
+      '--bg-app': '#071327',
+      '--bg-sidebar': '#0b1d3a',
+      '--bg-surface': '#0f2648',
+      '--bg-surface-hover': '#173763',
+      '--bg-hover': '#173763',
+      '--bg-card': '#0d2242',
+      '--bg-input': '#0a1a34',
+      '--border-subtle': '#1e406f',
+      '--border-highlight': '#38bdf8',
+      '--text-primary': '#eaf4ff',
+      '--text-secondary': '#a7c1e2',
+      '--text-muted': '#7290b8',
+      '--accent-primary': '#0ea5e9',
+      '--accent-hover': '#38bdf8',
+      '--accent-contrast': '#ffffff',
+      '--accent-gradient': 'linear-gradient(135deg, #0369a1 0%, #0ea5e9 55%, #22d3ee 100%)',
+      '--accent-glow': '0 0 22px rgba(56, 189, 248, 0.45)',
+      '--badge-bg': 'rgba(56, 189, 248, 0.16)',
+      '--badge-text': '#7dd3fc',
+      '--email-anim-primary': '#0ea5e9',
+      '--email-anim-accent': '#22d3ee',
+      '--email-anim-trail': '#7dd3fc',
+      '--icon-border-radius': '12px',
+      '--selection-bg': '#143a66',
+      '--selection-border': '#38bdf8',
+      '--primary-btn-bg': '#0ea5e9',
+      '--primary-btn-hover': '#38bdf8',
+      '--primary-btn-text': '#ffffff',
+      '--secondary-btn-bg': '#12294d',
     },
   },
 

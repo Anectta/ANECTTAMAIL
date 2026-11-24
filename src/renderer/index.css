@@ -1580,3 +1580,90 @@ html.clean-white .filter-chip.is-on,
 html.clean-white .filter-chip.is-on:hover {
   border-color: #1d4ed8 !important;
 }
+
+/* ==========================================================================
+   Tema "Anectta Glass" — painéis de vidro translúcidos sobre fundo azul luminoso.
+   Só os painéis grandes (pastas, lista, leitura, barra lateral de apps) ficam
+   translúcidos; menus, janelas e campos continuam opacos (variáveis do tema)
+   para não perder a leitura. Sem backdrop-filter nos painéis grandes: o fundo é
+   um degradê liso, então o efeito é o mesmo sem custo de desempenho.
+   ========================================================================== */
+html[data-theme="anectta-glass"] {
+  --glass-panel: rgba(16, 40, 78, 0.42);
+  --glass-panel-strong: rgba(14, 34, 68, 0.62);
+  --glass-line: rgba(125, 211, 252, 0.16);
+  --glass-line-strong: rgba(125, 211, 252, 0.38);
+}
+html[data-theme="anectta-glass"],
+html[data-theme="anectta-glass"] body,
+html[data-theme="anectta-glass"] #root {
+  background-color: #061226 !important;
+  background-image:
+    radial-gradient(1100px 620px at 88% -12%, rgba(56, 189, 248, 0.20), transparent 62%),
+    radial-gradient(900px 560px at -6% 108%, rgba(99, 102, 241, 0.18), transparent 60%),
+    radial-gradient(700px 420px at 45% 55%, rgba(14, 165, 233, 0.07), transparent 70%),
+    linear-gradient(160deg, #061226 0%, #0a1f40 52%, #071631 100%) !important;
+  background-attachment: fixed !important;
+}
+
+/* Contêineres de fundo: transparentes para o brilho aparecer */
+html[data-theme="anectta-glass"] main,
+html[data-theme="anectta-glass"] .bg-white:has(> header.mockup-header) {
+  background-color: transparent !important;
+}
+
+/* Painéis de vidro */
+html[data-theme="anectta-glass"] aside,
+html[data-theme="anectta-glass"] aside.sidebar-navy,
+html[data-theme="anectta-glass"] .app-rail,
+html[data-theme="anectta-glass"] section.bg-slate-925,
+html[data-theme="anectta-glass"] main.bg-slate-950 {
+  background-color: var(--glass-panel) !important;
+  border-color: var(--glass-line) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+html[data-theme="anectta-glass"] aside.sidebar-navy [class*="bg-slate-900"] {
+  background-color: rgba(23, 55, 99, 0.45) !important;
+  border-color: var(--glass-line) !important;
+}
+html[data-theme="anectta-glass"] .dark [class*="border-slate-800"],
+html[data-theme="anectta-glass"] [class*="border-slate-800"],
+html[data-theme="anectta-glass"] [class*="border-slate-700"] {
+  border-color: var(--glass-line) !important;
+}
+
+/* Pasta / e-mail selecionado: vidro mais claro com filete ciano e brilho */
+html[data-theme="anectta-glass"] aside button[class*="bg-slate-800"],
+html[data-theme="anectta-glass"] aside.sidebar-navy button[class*="bg-slate-800"],
+html[data-theme="anectta-glass"] section div[class*="bg-slate-850"] {
+  background-color: rgba(56, 189, 248, 0.13) !important;
+  border-color: var(--glass-line-strong) !important;
+  border-left-color: #38bdf8 !important;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Barra superior: vidro ciano em vez de cor sólida */
+html[data-theme="anectta-glass"] header.mockup-header {
+  background-color: rgba(12, 40, 80, 0.55) !important;
+  background-image: linear-gradient(90deg, rgba(14, 165, 233, 0.30), rgba(30, 64, 175, 0.22) 60%, rgba(99, 102, 241, 0.18)) !important;
+  border-bottom: 1px solid var(--glass-line-strong) !important;
+  box-shadow: 0 6px 24px rgba(2, 8, 23, 0.35), 0 1px 0 rgba(125, 211, 252, 0.25) !important;
+}
+html[data-theme="anectta-glass"] header.mockup-header .motivational-pill {
+  background-color: rgba(8, 26, 54, 0.55) !important;
+  border-color: var(--glass-line-strong) !important;
+}
+
+/* Botões principais com brilho */
+html[data-theme="anectta-glass"] button.bg-brand-600,
+html[data-theme="anectta-glass"] .accent-solid-btn {
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.35) !important;
+}
+
+/* Cartão do Amoroso: vidro com contorno luminoso */
+html[data-theme="anectta-glass"] .assistant-card {
+  background-color: rgba(14, 40, 80, 0.55) !important;
+  background-image: linear-gradient(160deg, rgba(56, 189, 248, 0.14), rgba(99, 102, 241, 0.08)) !important;
+  border-color: rgba(56, 189, 248, 0.55) !important;
+  box-shadow: 0 0 28px rgba(56, 189, 248, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}

@@ -24,6 +24,8 @@ export interface MotivationalPrefs {
   random: boolean;
   /** Tamanho da letra da frase no cabeçalho. */
   fontSize: QuoteFontSize;
+  /** Amoroso (robozinho) ao lado da frase. */
+  showAmoroso: boolean;
 }
 
 /** Opções de velocidade de troca (segundos). */
@@ -35,7 +37,7 @@ export const FONT_SIZE_OPTIONS: Array<{ value: QuoteFontSize; label: string }> =
   { value: 'large', label: 'Grande' },
 ];
 
-const DEFAULT_PREFS: MotivationalPrefs = { enabled: true, intervalSec: 1800, random: false, fontSize: 'medium' };
+const DEFAULT_PREFS: MotivationalPrefs = { enabled: true, intervalSec: 1800, random: false, fontSize: 'medium', showAmoroso: true };
 
 export const formatInterval = (sec: number): string =>
   sec < 60
@@ -96,6 +98,7 @@ export const getPrefs = (): MotivationalPrefs => {
       if (typeof saved?.enabled === 'boolean') prefs.enabled = saved.enabled;
       if (typeof saved?.intervalSec === 'number') prefs.intervalSec = saved.intervalSec;
       if (typeof saved?.random === 'boolean') prefs.random = saved.random;
+      if (typeof saved?.showAmoroso === 'boolean') prefs.showAmoroso = saved.showAmoroso;
       if (saved?.fontSize === 'small' || saved?.fontSize === 'medium' || saved?.fontSize === 'large') {
         prefs.fontSize = saved.fontSize;
       }

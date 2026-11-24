@@ -8,6 +8,7 @@ import {
   savePrefs,
   subscribe,
 } from '../services/motivationalQuotesService';
+import { AmorosoFace } from './NotifierMascot';
 
 const FADE_DURATION_MS = 600;
 
@@ -78,7 +79,13 @@ export const MotivationalBanner: React.FC = () => {
       className="motivational-pill flex items-center space-x-2 px-3 py-1 rounded-full border shadow-sm max-w-xl min-w-0"
       title={`${quote}\n\nClique para ver a próxima mensagem`}
     >
-      <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+      {prefs.showAmoroso ? (
+        <span className="-my-1 -ml-1.5 flex items-center" title="Amoroso — Assistente Anectta">
+          <AmorosoFace size={prefs.fontSize === 'large' ? 24 : 22} />
+        </span>
+      ) : (
+        <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+      )}
       <button
         type="button"
         onClick={handleNext}

@@ -14,6 +14,7 @@ import {
   saveQuotes,
   subscribe,
 } from '../services/motivationalQuotesService';
+import { AmorosoFace } from './NotifierMascot';
 
 /**
  * Configurações → Mensagens Motivacionais.
@@ -200,7 +201,7 @@ export const MotivationalSettingsPanel: React.FC = () => {
             </div>
             {/* Prévia do tamanho escolhido */}
             <div className="mt-2 inline-flex max-w-full items-center gap-2 px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10">
-              <Quote className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              {prefs.showAmoroso ? <AmorosoFace size={20} /> : <Quote className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
               <span
                 className={`${
                   prefs.fontSize === 'small' ? 'text-[11px]' : prefs.fontSize === 'large' ? 'text-sm' : 'text-xs'
@@ -210,6 +211,23 @@ export const MotivationalSettingsPanel: React.FC = () => {
               </span>
             </div>
           </div>
+          <label className="sm:col-span-2 flex items-center justify-between gap-3 cursor-pointer">
+            <div className="flex items-center space-x-2.5">
+              <AmorosoFace size={26} />
+              <div>
+                <span className="text-xs text-slate-100 block font-semibold">Mostrar o Amoroso ao lado da frase</span>
+                <span className="text-[11px] text-slate-400">
+                  O robozinho do Anectta fica parado ao lado da mensagem e só pisca de vez em quando.
+                </span>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={prefs.showAmoroso}
+              onChange={(e) => updatePrefs({ showAmoroso: e.target.checked })}
+              className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 bg-slate-900 border-slate-700 shrink-0"
+            />
+          </label>
           <p className="sm:col-span-2 text-[11px] text-slate-500">
             Dica: clique na mensagem do cabeçalho para ver a próxima.
           </p>

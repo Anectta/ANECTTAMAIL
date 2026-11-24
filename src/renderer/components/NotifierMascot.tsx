@@ -1,6 +1,30 @@
 import React from 'react';
 
 /**
+ * Rosto do Amoroso em tamanho pequeno (frase motivacional do cabeçalho).
+ * Parado; só pisca os olhos de vez em quando (animação leve).
+ */
+export const AmorosoFace: React.FC<{ size?: number }> = ({ size = 22 }) => (
+  <svg width={size} height={size} viewBox="16 4 88 74" className="amoroso-face shrink-0" role="img" aria-label="Amoroso">
+    <style>{`
+      .amoroso-face .af-eyes { animation: afBlink 5.5s ease-in-out infinite; transform-origin: 60px 48px; }
+      @keyframes afBlink { 0%,94%,100% { transform: scaleY(1); } 96.5% { transform: scaleY(.15); } }
+    `}</style>
+    <line x1="60" y1="16" x2="60" y2="26" stroke="#9fb7d8" strokeWidth="4" strokeLinecap="round" />
+    <circle cx="60" cy="11" r="6" fill="#38bdf8" />
+    <rect x="18" y="38" width="12" height="22" rx="6" fill="#7cc7f0" />
+    <rect x="90" y="38" width="12" height="22" rx="6" fill="#7cc7f0" />
+    <rect x="25" y="23" width="70" height="53" rx="23" fill="#eef4fc" />
+    <rect x="33" y="32" width="54" height="34" rx="15" fill="#0d1a3a" />
+    <g className="af-eyes">
+      <path d="M44 49 q6 -8 12 0" fill="none" stroke="#5ee0ff" strokeWidth="4.5" strokeLinecap="round" />
+      <path d="M64 49 q6 -8 12 0" fill="none" stroke="#5ee0ff" strokeWidth="4.5" strokeLinecap="round" />
+    </g>
+    <path d="M52 57 q8 6 16 0" fill="none" stroke="#5ee0ff" strokeWidth="3.6" strokeLinecap="round" />
+  </svg>
+);
+
+/**
  * Amoroso — mascote e assistente do Anectta (desenho original): robozinho segurando um envelope.
  * Usado no aviso de novo e-mail. Animações leves: flutua, a antena pisca e ele pisca os olhos.
  */
