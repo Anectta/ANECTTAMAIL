@@ -71,12 +71,24 @@ let blockedTrackersCount = 0;
 let isClosingAfterSync = false;
 let closeSafetyTimer: NodeJS.Timeout | null = null;
 
-const MIN_ZOOM_FACTOR = 0.85;
-const MAX_ZOOM_FACTOR = 1.2;
+const MIN_ZOOM_FACTOR = 0.7;
+const MAX_ZOOM_FACTOR = 1.5;
+const ZOOM_STEP = 0.1;
+const zoomPrefsFile = () => path.join(app.getPath('userData'), 'zoom.json');
+
+/** Zoom salvo da janela principal (Ctrl + / Ctrl - / Ctrl 0), lembrado entre sessões. */
+function loadSavedMainZoom(): number {
+  try {
+    const v = Number(JSON.parse(fs.readFileSync(zoomPrefsFile(), 'utf8'))?.factor);
+    if (Number.isFinite(v)) return Math.min(MAX_ZOOM_FACTOR, Math.max(MIN_ZOOM_FACTOR, v));
+  } catch {}
+  return 1.0;
+}
 let mainZoomFactor = 1.0;
+let mainZoomLoaded = false;
 
 /**
- * Applies a clamped zoom factor to the main window.
+ * Applies a clamped zoom factor to the main window and remembers it.
  */
 function applyMainZoom(factor: number): void {
   const clamped = Math.min(MAX_ZOOM_FACTOR, Math.max(MIN_ZOOM_FACTOR, factor));
@@ -84,12 +96,19 @@ function applyMainZoom(factor: number): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.setZoomFactor(mainZoomFactor);
   }
+  try {
+    fs.writeFileSync(zoomPrefsFile(), JSON.stringify({ factor: mainZoomFactor }));
+  } catch {}
 }
 
 /**
  * Prevents accidental pinch/Ctrl+wheel zoom and resets persisted Chromium zoom on load.
  */
 function configureZoomProtection(win: BrowserWindow, isMain = false): void {
+  if (isMain && !mainZoomLoaded) {
+    mainZoomLoaded = true;
+    mainZoomFactor = loadSavedMainZoom();
+  }
   const targetZoom = () => (isMain ? mainZoomFactor : 1.0);
 
   win.webContents.setVisualZoomLevelLimits(1, 1).catch(() => {});
@@ -109,15 +128,20 @@ function configureZoomProtection(win: BrowserWindow, isMain = false): void {
     win.webContents.setZoomFactor(targetZoom());
   });
 
-  // Bloqueia atalhos acidentais de zoom (+ / - / =), mantendo apenas Ctrl+0 para restaurar 100%
+  // Janela principal: Ctrl + / Ctrl - aumentam/diminuem o zoom (passos de 10%) e Ctrl 0 volta a 100%.
+  // Demais janelas: atalhos de zoom bloqueados (Ctrl 0 restaura 100%).
   win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
     if ((input.control || input.meta) && !input.alt) {
-      if (input.key === '0') {
+      const zoomIn = input.key === '+' || input.key === '=' || input.code === 'NumpadAdd';
+      const zoomOut = input.key === '-' || input.key === '_' || input.code === 'NumpadSubtract';
+      if (input.key === '0' || input.code === 'Numpad0') {
         event.preventDefault();
         if (isMain) applyMainZoom(1.0);
         else win.webContents.setZoomFactor(1.0);
-      } else if (input.key === '+' || input.key === '=' || input.key === '-' || input.key === '_') {
+      } else if (zoomIn || zoomOut) {
         event.preventDefault();
+        if (isMain) applyMainZoom(mainZoomFactor + (zoomIn ? ZOOM_STEP : -ZOOM_STEP));
       }
     }
   });
@@ -3225,12 +3249,12 @@ if (!gotTheLock) {
         {
           label: 'Aumentar Zoom',
           accelerator: 'CmdOrCtrl+=',
-          click: () => applyMainZoom(mainZoomFactor + 0.1),
+          click: () => applyMainZoom(mainZoomFactor + ZOOM_STEP),
         },
         {
           label: 'Diminuir Zoom',
           accelerator: 'CmdOrCtrl+-',
-          click: () => applyMainZoom(mainZoomFactor - 0.1),
+          click: () => applyMainZoom(mainZoomFactor - ZOOM_STEP),
         },
       ],
     },
