@@ -3,6 +3,7 @@ import type { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import type { AccountSettings } from '@/types/settings';
 import { getImapLocation, parseImapLocationFromId } from '../utils/imapLocation';
 import { getEmailTimestampMs } from '../utils/dateSortUtils';
+import { removeServerDuplicates } from '../utils/emailDedupe';
 
 /**
  * Download completo automático ("backfill").
@@ -67,7 +68,8 @@ export function useMailBackfill(opts: MailBackfillOptions) {
       const existing = new Set(prev.map((e) => e.id));
       const added = incoming.filter((m) => !existing.has(m.id));
       if (added.length === 0) return prev;
-      const merged = [...prev, ...added];
+      // Cópia do servidor de um e-mail que o app já tem (ex.: enviado pelo app) não vira duplicado
+      const merged = removeServerDuplicates([...prev, ...added]).emails.slice();
       merged.sort((a, b) => getEmailTimestampMs(b) - getEmailTimestampMs(a));
       return merged;
     });

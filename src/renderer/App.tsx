@@ -15,6 +15,7 @@ import { useMailBackfill } from '@/hooks/useMailBackfill';
 import { useMailPersistence, isMailStoreAvailable } from '@/hooks/useMailPersistence';
 import { ensureEmailBody, useHydratedEmails } from '@/services/emailBodyCache';
 import { isBodyStripped } from './utils/emailBodyStrip';
+import { removeServerDuplicates } from './utils/emailDedupe';
 import { getImapLocation, imapServerKey, parseImapLocationFromId } from './utils/imapLocation';
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount, PriorityLevel, TaskItem } from '@/types/email';
 import {
@@ -444,7 +445,15 @@ export const App: React.FC = () => {
               const removedIds = (fromStore as EmailItem[]).filter((e) => deleted.has(e.id)).map((e) => e.id);
               void window.electronAPI?.storeRemoveEmails?.(removedIds);
             }
-            return kept;
+            // Duplicados de uma mesma mensagem do servidor (só no app — nada é apagado no servidor)
+            const dedup = removeServerDuplicates(kept);
+            if (dedup.removedIds.length > 0) {
+              void window.electronAPI?.storeRemoveEmails?.(dedup.removedIds);
+            }
+            if (dedup.linked.length > 0) {
+              void window.electronAPI?.storeUpsertEmails?.(dedup.linked.map((e) => ({ meta: e, hasBody: false })));
+            }
+            return dedup.emails;
           }
           return INITIAL_EMAILS;
         }
