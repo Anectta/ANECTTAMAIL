@@ -88,6 +88,8 @@ export interface EmailItem {
    * quando o e-mail é aberto (ver services/emailBodyCache).
    */
   bodyStored?: boolean;
+  /** Importado de outro programa (.pst/.mbox/.eml/pasta) — não veio do servidor. */
+  importedFrom?: 'pst' | 'mbox' | 'eml' | 'folder';
   period: TimePeriod;
   folder: MailFolder;
   /**

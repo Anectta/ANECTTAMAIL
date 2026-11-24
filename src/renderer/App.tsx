@@ -18,6 +18,7 @@ import { isBodyStripped } from './utils/emailBodyStrip';
 import { removeServerDuplicates } from './utils/emailDedupe';
 import { pickNewArrivals, buildNewMailNotice } from './utils/newMailDetect';
 import { findFoldersDeletedOnServer } from './utils/serverFolderSync';
+import { dropPop3AlreadyImported, replaceImportedWithServerCopies } from './utils/importReconcile';
 import { getImapLocation, imapServerKey, parseImapLocationFromId } from './utils/imapLocation';
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount, PriorityLevel, TaskItem } from '@/types/email';
 import {
@@ -80,6 +81,7 @@ import { saveSettingsLocal, loadSettingsLocal } from './utils/secureSettingsStor
 import { themeService } from './services/themeService';
 import { applyRulesToEmails, loadMailRules, MailRule, saveMailRules } from './services/rulesService';
 import { getEmailTimestampMs } from './utils/dateSortUtils';
+import type { MailImportResult } from '../types/electron';
 import { getThreadMessagesForEmail } from './utils/threadUtils';
 import {
   buildIcsRsvpReply,
@@ -2391,7 +2393,8 @@ export const App: React.FC = () => {
             }
 
             setEmails((prevState) => {
-              let prev = prevState;
+              // Cópias importadas (.pst/.mbox) que chegaram agora do servidor: fica a do servidor
+              let prev = replaceImportedWithServerCopies(prevState, taggedEmails, acc.id).prev;
               let incomingEmails = taggedEmails;
               // Enviados: a cópia baixada do servidor corresponde ao e-mail que o app já guardou
               // localmente ao enviar (mesmo Message-ID) → vincula em vez de duplicar
@@ -2501,11 +2504,18 @@ export const App: React.FC = () => {
           }
 
           if (res.success && res.emails && res.emails.length > 0) {
-            const taggedEmails: EmailItem[] = res.emails.map((m) => ({
+            const receivedPop3: EmailItem[] = res.emails.map((m) => ({
               ...m,
               id: m.id.startsWith(`${acc.id}-`) ? m.id : `${acc.id}-${m.id}`,
               accountId: acc.id,
             }));
+            // Mensagens que já vieram de um arquivo importado (.pst/.mbox): não duplicar e não
+            // baixar de novo nas próximas vezes
+            const pop3Reconciled = dropPop3AlreadyImported(receivedPop3, emailsRef.current, acc.id);
+            if (pop3Reconciled.dropped.length > 0) {
+              rememberDeletedEmailIds(pop3Reconciled.dropped.map((m) => m.id));
+            }
+            const taggedEmails = pop3Reconciled.kept;
             totalSynced += taggedEmails.length;
             collectNewArrivals(acc, taggedEmails);
 
@@ -2750,7 +2760,61 @@ export const App: React.FC = () => {
     }, 300);
   };
 
-  const handleAccountConnectedFromWizard = (newAccount: AccountSettings) => {
+  /**
+   * E-mails importados de outro programa (.pst/.mbox/.eml) para uma conta: cria as pastas
+   * próprias do arquivo (reaproveitando pastas de mesmo nome que a conta já tenha) e adiciona os
+   * e-mails. O conteúdo já foi gravado no banco pelo processo principal.
+   */
+  const handleImportedMail = useCallback(
+    (result: MailImportResult, account: AccountSettings) => {
+      if (!result || result.count === 0) return;
+      const accountFolders = customFoldersRef.current.filter((f) => f.accountId === account.id);
+      const idMap = new Map<string, string>();
+      const newFolders: CustomFolder[] = [];
+      for (const f of result.folders) {
+        const parent = f.parentSystem || (f.parentId ? idMap.get(f.parentId) || f.parentId : undefined);
+        const existing = accountFolders.find(
+          (cf) =>
+            cf.id === f.id ||
+            (cf.name.toLowerCase() === f.name.toLowerCase() && (cf.parentFolder || undefined) === parent)
+        );
+        if (existing) {
+          idMap.set(f.id, existing.id);
+          continue;
+        }
+        idMap.set(f.id, f.id);
+        newFolders.push({
+          id: f.id,
+          name: f.name,
+          accountId: account.id,
+          parentFolder: parent as MailFolder | undefined,
+          order: accountFolders.length + newFolders.length,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      if (newFolders.length > 0) setCustomFolders((prev) => [...prev, ...newFolders]);
+      const incoming = (result.emails as EmailItem[]).map((e) => {
+        const mapped = idMap.get(e.folder);
+        return mapped && mapped !== e.folder ? { ...e, folder: mapped } : e;
+      });
+      setEmails((prev) => {
+        const have = new Set(prev.map((e) => e.id));
+        const added = incoming.filter((e) => !have.has(e.id));
+        if (added.length === 0) return prev;
+        const merged = [...added, ...prev];
+        merged.sort((a, b) => getEmailTimestampMs(b) - getEmailTimestampMs(a));
+        return merged;
+      });
+      showToast(
+        `✓ ${result.count} e-mail(s) importado(s) para ${account.email}` +
+          (result.duplicates > 0 ? ` (${result.duplicates} repetido(s) ignorado(s))` : '') +
+          (newFolders.length > 0 ? ` · ${newFolders.length} pasta(s) criada(s)` : '')
+      );
+    },
+    []
+  );
+
+  const handleAccountConnectedFromWizard = (newAccount: AccountSettings, importResult?: MailImportResult) => {
     const existingAccounts = settings.accounts && settings.accounts.length > 0 ? [...settings.accounts] : [];
     const filtered = existingAccounts.filter(
       (a) => a.email.toLowerCase() !== newAccount.email.toLowerCase() && a.id !== 'acc-1'
@@ -2772,6 +2836,9 @@ export const App: React.FC = () => {
     setSearchQuery('');
     showToast(`✓ Conta ${newAccount.email} conectada com sucesso!`);
     soundService.play('send');
+    if (importResult && importResult.count > 0) {
+      setTimeout(() => handleImportedMail(importResult, newAccount), 300);
+    }
   };
 
   const handleCloseWizard = () => {
@@ -3135,7 +3202,8 @@ export const App: React.FC = () => {
               accountId: targetAcc.id,
               folder: folder,
             }));
-            setEmails((prev) => {
+            setEmails((prevState) => {
+              const prev = replaceImportedWithServerCopies(prevState, taggedEmails, targetAcc.id).prev;
               const incomingMap = new Map(taggedEmails.map((m) => [m.id, m]));
               const updated = prev.filter((p) => !incomingMap.has(p.id));
               const combined = [...taggedEmails, ...updated];
@@ -4186,6 +4254,7 @@ export const App: React.FC = () => {
     setServerFolderTotals,
     ensureFreshAccessToken,
     loadDeletedEmailIds,
+    rememberDeletedEmailIds,
   });
   startBackfillRef.current = () => void mailBackfill.start();
 
@@ -5169,6 +5238,12 @@ export const App: React.FC = () => {
           <SettingsModal
             isOpen={isSettingsOpen}
             initialTab={settingsInitialTab}
+            onImportMailResult={handleImportedMail}
+            getKnownMessageIds={(accountId) =>
+              emailsRef.current
+                .filter((e) => e.accountId === accountId && e.messageIdHeader)
+                .map((e) => e.messageIdHeader as string)
+            }
             onClose={() => setIsSettingsOpen(false)}
             settings={settings}
             onSaveSettings={handleSaveSettings}

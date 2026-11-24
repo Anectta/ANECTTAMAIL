@@ -465,6 +465,14 @@ const electronAPI = {
     ipcRenderer.invoke('sync:list-calendars', payload),
   syncCloudContacts: (payload: any) =>
     ipcRenderer.invoke('sync:contacts', payload),
+  // Importar e-mails de outro programa direto para uma conta
+  importMailIntoAccount: (payload: { accountId: string; accountEmail: string; mode: 'pst' | 'mbox' | 'eml' | 'folder'; knownMessageIds?: string[] }) =>
+    ipcRenderer.invoke('mail:import-into-account', payload),
+  onMailImportProgress: (callback: (p: any) => void) => {
+    const listener = (_e: any, p: any) => callback(p);
+    ipcRenderer.on('mail:import-progress', listener);
+    return () => ipcRenderer.removeListener('mail:import-progress', listener);
+  },
   importMigrationFolder: (payload: { accountId: string; mode?: 'folder' | 'pst' | 'mbox' | 'eml' }) =>
     ipcRenderer.invoke('mail:import-migration', payload),
   oneClickUnsubscribe: (url: string) =>

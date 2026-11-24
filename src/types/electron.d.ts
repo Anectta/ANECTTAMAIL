@@ -12,6 +12,35 @@ export type MailFolder =
 
 export type TimePeriod = 'today' | 'yesterday' | 'last_week' | 'older';
 
+export interface MailImportFolder {
+  id: string;
+  name: string;
+  path: string;
+  parentSystem?: string;
+  parentId?: string;
+}
+
+export interface MailImportProgress {
+  processed: number;
+  imported: number;
+  duplicates: number;
+  folder?: string;
+  file?: string;
+}
+
+export interface MailImportResult {
+  success: boolean;
+  canceled?: boolean;
+  count: number;
+  duplicates: number;
+  failed: number;
+  filesScanned: number;
+  folders: MailImportFolder[];
+  emails: any[];
+  storedInDb: boolean;
+  error?: string;
+}
+
 export interface MailServerSpec {
   protocol: 'imap' | 'pop3' | 'smtp';
   host: string;
@@ -138,6 +167,14 @@ export interface ElectronAPI {
   summarizeEmailWithAI: (content: string, subject?: string) => Promise<AISummaryResult>;
   suggestRepliesWithAI: (emailContent: string) => Promise<string[]>;
   testImapConnection: (config: any) => Promise<{ success: boolean; message: string }>;
+  /** Importa e-mails de outro programa (.pst/.mbox/.eml/pasta) para uma conta. */
+  importMailIntoAccount?: (payload: {
+    accountId: string;
+    accountEmail: string;
+    mode: 'pst' | 'mbox' | 'eml' | 'folder';
+    knownMessageIds?: string[];
+  }) => Promise<MailImportResult>;
+  onMailImportProgress?: (callback: (p: MailImportProgress) => void) => () => void;
   /** Descobre os servidores de e-mail a partir do endereço. */
   discoverMailSettings?: (email: string) => Promise<MailDiscoveryResult>;
   /** Testa entrada e saída separadamente, com mensagens claras. */

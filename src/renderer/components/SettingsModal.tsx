@@ -39,7 +39,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { EmailItem } from '@/types/email';
-import { AppSettings, EmailSignature } from '@/types/settings';
+import { AccountSettings, AppSettings, EmailSignature } from '@/types/settings';
 import { OUTGOING_ANIMATIONS } from '../services/stationeryCompiler';
 import { QuickRepliesService, QuickSnippetItem } from '../services/quickRepliesService';
 import { EmailProviderNotice } from './EmailProviderNotice';
@@ -48,6 +48,7 @@ import { PrivacyCenterPanel } from './PrivacyCenterPanel';
 import { SupportHelpPanel } from './SupportHelpPanel';
 import { NotificationsSettingsPanel } from './NotificationsSettingsPanel';
 import { MotivationalSettingsPanel } from './MotivationalSettingsPanel';
+import type { MailImportResult } from '../../types/electron';
 import { CalendarSettingsPanel } from './CalendarSettingsPanel';
 import { AppsSettingsPanel } from './AppsSettingsPanel';
 import { SkinGalleryPanel } from './SkinGalleryPanel';
@@ -69,6 +70,10 @@ interface SettingsModalProps {
   emails?: EmailItem[];
   onImportEmails?: (imported: EmailItem[]) => void;
   onComposeSupport?: (recipient: string, subject: string, body?: string) => void;
+  /** E-mails importados de outro programa (Configurações → Backup) para uma conta. */
+  onImportMailResult?: (result: MailImportResult, account: AccountSettings) => void;
+  /** Message-IDs que a conta já tem (a importação não duplica). */
+  getKnownMessageIds?: (accountId: string) => string[];
   initialTab?:
     | 'account'
     | 'appearance'
@@ -98,6 +103,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   emails = [],
   onImportEmails,
   onComposeSupport,
+  onImportMailResult,
+  getKnownMessageIds,
   initialTab,
 }) => {
   const [activeTab, setActiveTab] = useState<
@@ -2147,6 +2154,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onChangeBackup={(nextBackup) =>
                   setFormData({ ...formData, backup: nextBackup })
                 }
+                accounts={formData.accounts}
+                activeAccountId={formData.activeAccountId}
+                onImportResult={onImportMailResult}
+                getKnownMessageIds={getKnownMessageIds}
                 onRestoredData={({ settings: restoredSettings, emails: restoredEmails }) => {
                   if (restoredSettings) {
                     setFormData(restoredSettings);

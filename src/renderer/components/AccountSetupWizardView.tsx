@@ -20,7 +20,8 @@ import {
 import { AccountSettings, AppSettings } from '@/types/settings';
 import { soundService } from '@/services/soundService';
 import { EmailProviderNotice, detectProviderType } from './EmailProviderNotice';
-import type { MailDiscoveryResult, MailTestStep } from '../../types/electron';
+import type { MailDiscoveryResult, MailTestStep, MailImportResult } from '../../types/electron';
+import { MailImportStep } from './MailImportStep';
 import {
   MailSecurity,
   SECURITY_LABELS,
@@ -53,7 +54,7 @@ export type ProviderId =
 
 interface AccountSetupWizardViewProps {
   currentSettings?: AppSettings;
-  onAccountConnected: (account: AccountSettings) => void;
+  onAccountConnected: (account: AccountSettings, importResult?: MailImportResult) => void;
   onClose: () => void;
   isFirstRun?: boolean;
 }
@@ -86,6 +87,12 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   // Teste detalhado: entrada e saída separadamente
   const [accountTest, setAccountTest] = useState<{ incoming: MailTestStep; outgoing: MailTestStep } | null>(null);
+
+  // Etapa final opcional: trazer e-mails de outro programa (.pst/.mbox/.eml) para a conta nova
+  const [pendingAccount, setPendingAccount] = useState<AccountSettings | null>(null);
+  const goToImportStep = (acc: AccountSettings) => {
+    setPendingAccount(acc);
+  };
 
   // Configuração automática pelo e-mail
   const [autoEmail, setAutoEmail] = useState('');
@@ -453,7 +460,7 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
         if (result.incoming.ok && result.outgoing.ok) {
           soundService.play('pop');
           setTestResult({ success: true, message: 'Recebimento e envio funcionando! Adicionando a conta...' });
-          setTimeout(() => onAccountConnected(buildAccountObject()), 900);
+          setTimeout(() => goToImportStep(buildAccountObject()), 900);
         } else {
           soundService.play('error');
         }
@@ -477,10 +484,7 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
             message: res.message || 'Conta conectada e autenticada com sucesso no servidor!',
           });
 
-          setTimeout(() => {
-            const newAcc = buildAccountObject();
-            onAccountConnected(newAcc);
-          }, 800);
+          setTimeout(() => goToImportStep(buildAccountObject()), 800);
         } else {
           soundService.play('error');
           setTestResult({
@@ -491,8 +495,7 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
       } else {
         setTimeout(() => {
           soundService.play('pop');
-          const newAcc = buildAccountObject();
-          onAccountConnected(newAcc);
+          goToImportStep(buildAccountObject());
         }, 600);
       }
     } catch (err: any) {
@@ -515,8 +518,7 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
       return;
     }
     soundService.play('click');
-    const newAcc = buildAccountObject();
-    onAccountConnected(newAcc);
+    goToImportStep(buildAccountObject());
   };
 
   return (
@@ -556,8 +558,14 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
       {/* Main Container - Compact Spacing (Reduzido em 50% dos espaços em branco) */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-3 sm:py-5">
         <div className="w-full max-w-md mx-auto">
-          {/* STEP 1: Provider selection list */}
-          {!selectedProvider ? (
+          {/* ETAPA FINAL (opcional): importar e-mails de outro programa */}
+          {pendingAccount ? (
+            <MailImportStep
+              account={pendingAccount}
+              onFinish={(result) => onAccountConnected(pendingAccount, result)}
+            />
+          ) : /* STEP 1: Provider selection list */
+          !selectedProvider ? (
             <div className="animate-in fade-in zoom-in-95 duration-150">
               {/* Header Title and Subtitle - Compact */}
               <div className="text-center mb-4">
@@ -1284,7 +1292,7 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
                         type="button"
                         onClick={() => {
                           soundService.play('click');
-                          onAccountConnected(buildAccountObject());
+                          goToImportStep(buildAccountObject());
                         }}
                         className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md shrink-0 cursor-pointer"
                       >

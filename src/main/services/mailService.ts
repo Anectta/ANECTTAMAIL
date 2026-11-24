@@ -306,7 +306,7 @@ function extractCalendarInviteFromParsed(parsed: any): any | undefined {
 /**
  * Resolve referências cid: em HTML recebido usando buffers de anexos embutidos.
  */
-function resolveCidImagesInHtml(html: string, attachments?: any[]): string {
+export function resolveCidImagesInHtml(html: string, attachments?: any[]): string {
   if (!html || !Array.isArray(attachments) || attachments.length === 0 || !/cid:/i.test(html)) {
     return html;
   }
@@ -625,7 +625,7 @@ export class MailService {
   /**
    * Grava anexo baixado em cache local de dados do usuário
    */
-  private static saveAttachmentCache(
+  public static saveAttachmentCache(
     messageId: string,
     att: any,
     index: number,

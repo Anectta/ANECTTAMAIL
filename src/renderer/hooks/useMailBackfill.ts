@@ -4,6 +4,7 @@ import type { AccountSettings } from '@/types/settings';
 import { getImapLocation, parseImapLocationFromId } from '../utils/imapLocation';
 import { getEmailTimestampMs } from '../utils/dateSortUtils';
 import { removeServerDuplicates } from '../utils/emailDedupe';
+import { dropPop3AlreadyImported, replaceImportedWithServerCopies } from '../utils/importReconcile';
 
 /**
  * Download completo automático ("backfill").
@@ -73,6 +74,8 @@ export interface MailBackfillOptions {
   setServerFolderTotals: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   ensureFreshAccessToken: (acc: AccountSettings) => Promise<string | undefined>;
   loadDeletedEmailIds: () => string[];
+  /** Marca IDs como "não baixar de novo" (ex.: mensagem POP3 que já veio de um arquivo importado). */
+  rememberDeletedEmailIds?: (ids: string[]) => void;
 }
 
 export function useMailBackfill(opts: MailBackfillOptions) {
@@ -86,12 +89,21 @@ export function useMailBackfill(opts: MailBackfillOptions) {
   const [progress, setProgress] = useState<BackfillProgress | null>(null);
 
   /** Acrescenta mensagens baixadas sem sobrescrever as que o app já tem. */
-  const mergeEmails = useCallback((incoming: EmailItem[]) => {
+  const mergeEmails = useCallback((received: EmailItem[], accountId?: string, protocol: 'imap' | 'pop3' = 'imap') => {
+    let incoming = received;
+    // POP3: mensagens já importadas de um arquivo (.pst/.mbox) não entram de novo
+    if (protocol === 'pop3' && accountId) {
+      const r = dropPop3AlreadyImported(incoming, optsRef.current.emailsRef.current, accountId);
+      if (r.dropped.length > 0) optsRef.current.rememberDeletedEmailIds?.(r.dropped.map((m) => m.id));
+      incoming = r.kept;
+    }
     if (incoming.length === 0) return;
-    optsRef.current.setEmails((prev) => {
+    optsRef.current.setEmails((prevState) => {
+      // IMAP: a cópia do servidor substitui a importada
+      const prev = accountId && protocol === 'imap' ? replaceImportedWithServerCopies(prevState, incoming, accountId).prev : prevState;
       const existing = new Set(prev.map((e) => e.id));
       const added = incoming.filter((m) => !existing.has(m.id));
-      if (added.length === 0) return prev;
+      if (added.length === 0) return prev === prevState ? prevState : prev;
       // Cópia do servidor de um e-mail que o app já tem (ex.: enviado pelo app) não vira duplicado
       const merged = removeServerDuplicates([...prev, ...added]).emails.slice();
       merged.sort((a, b) => getEmailTimestampMs(b) - getEmailTimestampMs(a));
@@ -220,7 +232,7 @@ export function useMailBackfill(opts: MailBackfillOptions) {
             folder: folder.localId,
           })) as EmailItem[];
           counter.downloaded += batch.length;
-          mergeEmails(batch);
+          mergeEmails(batch, acc.id, 'imap');
 
           // O aviso só aparece quando realmente há mensagens sendo baixadas
           if (batch.length > 0) {
@@ -303,7 +315,7 @@ export function useMailBackfill(opts: MailBackfillOptions) {
           accountId: acc.id,
         })) as EmailItem[];
         counter.downloaded += batch.length;
-        mergeEmails(batch);
+        mergeEmails(batch, acc.id, 'pop3');
         setProgress({
           label,
           downloaded: counter.downloaded,

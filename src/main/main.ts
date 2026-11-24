@@ -20,6 +20,7 @@ import { MailStore, StoreUpsertRecord } from './services/mailStore';
 import { discoverMailSettings } from './services/accountDiscovery';
 import { testAccount } from './services/connectionTest';
 import { implicitTls } from './services/mailSecurity';
+import { importIntoAccount } from './services/mailImport';
 import { AIAssistantService } from './services/aiAssistantService';
 import { EmlExporterService } from './services/emlExporterService';
 import { OAuthService, OAuthProvider } from './services/oauthService';
@@ -2902,6 +2903,59 @@ ipcMain.handle('mail:import-emails', async (_event, payload: { accountId: string
 });
 
 // Assistente de Migração Guiado (.PST Outlook, .MBOX Thunderbird/Apple Mail, .EML em lote ou Pasta de Perfil)
+// Importar e-mails de outro programa (.pst/.mbox/.eml/pasta de perfil) para uma conta específica
+ipcMain.handle(
+  'mail:import-into-account',
+  async (event, payload: { accountId: string; accountEmail: string; mode: 'pst' | 'mbox' | 'eml' | 'folder'; knownMessageIds?: string[] }) => {
+    if (!isTrustedRendererSender(event)) return { success: false, error: 'não autorizado' };
+    const mode = payload?.mode || 'pst';
+    const targetWin = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow() || mainWindow;
+    const dialogOptions: Electron.OpenDialogOptions =
+      mode === 'folder'
+        ? { title: 'Selecionar a pasta de e-mails (perfil do Thunderbird ou pasta com arquivos)', properties: ['openDirectory'] }
+        : mode === 'pst'
+        ? {
+            title: 'Selecionar arquivo do Outlook (.pst)',
+            properties: ['openFile', 'multiSelections'],
+            filters: [{ name: 'Arquivo de dados do Outlook (*.pst)', extensions: ['pst'] }],
+          }
+        : mode === 'mbox'
+        ? {
+            title: 'Selecionar arquivo .mbox',
+            properties: ['openFile', 'multiSelections'],
+            filters: [
+              { name: 'Caixa de e-mail MBOX (*.mbox)', extensions: ['mbox'] },
+              { name: 'Todos os arquivos (*.*)', extensions: ['*'] },
+            ],
+          }
+        : {
+            title: 'Selecionar mensagens .eml',
+            properties: ['openFile', 'multiSelections'],
+            filters: [{ name: 'Mensagens EML (*.eml)', extensions: ['eml'] }],
+          };
+    const pick = await dialog.showOpenDialog(targetWin!, dialogOptions);
+    if (pick.canceled || pick.filePaths.length === 0) {
+      return { success: false, canceled: true, count: 0, duplicates: 0, failed: 0, filesScanned: 0, folders: [], emails: [], storedInDb: false };
+    }
+    const result = await importIntoAccount({
+      accountId: payload.accountId,
+      accountEmail: payload.accountEmail,
+      mode,
+      paths: pick.filePaths,
+      knownMessageIds: Array.isArray(payload?.knownMessageIds) ? payload.knownMessageIds : [],
+      onProgress: (p) => {
+        if (!event.sender.isDestroyed()) event.sender.send('mail:import-progress', p);
+      },
+    });
+    imapSyncLog(
+      `importação ${payload.accountEmail} (${mode}): ${result.count} importados, ${result.duplicates} repetidos ignorados, ` +
+        `${result.failed} com erro, ${result.filesScanned} arquivo(s)` +
+        (result.error ? ` — ${result.error}` : '')
+    );
+    return result;
+  }
+);
+
 ipcMain.handle(
   'mail:import-migration',
   async (_event, payload: { accountId: string; mode?: 'folder' | 'pst' | 'mbox' | 'eml' }) => {
