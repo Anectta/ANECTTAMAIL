@@ -23,7 +23,6 @@ import {
   ArrowUp,
   ArrowDown,
   Info,
-  Plus,
   Check,
   X,
   Calendar,
@@ -1111,7 +1110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 }
                                 handleFolderClick(accId, cf.id);
                               }}
-                              className={`flex-1 flex items-center justify-between px-1.5 py-[4.5px] rounded-md transition-colors min-w-0 ${
+                              className={`flex-1 flex items-center justify-between px-1.5 py-[3px] rounded-md transition-colors min-w-0 ${
                                 isFolderActive(cf.id)
                                   ? 'bg-slate-800 text-white font-bold'
                                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1242,7 +1241,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                 {/* Árvore de Pastas exclusiva desta Conta */}
                 {expanded && (
-                  <div className="pl-3 space-y-0.5 pt-0.5">
+                  <div className="w-[calc((100%_-_12px)_*_0.9)] mx-auto space-y-0.5 pt-0.5">
                     {/* Caixa de Entrada */}
                     <div
                       className="group/inbox flex items-center"
@@ -1257,7 +1256,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           }
                           handleFolderClick(accId, 'inbox');
                         }}
-                        className={`flex-1 flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                        className={`flex-1 flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                           isFolderActive('inbox')
                             ? 'bg-slate-800 text-white font-bold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1298,7 +1297,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onContextMenu={(e) =>
                         openFolderContextMenu(e, accId, 'sent', 'Itens Enviados', false)
                       }
-                      className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                      className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                         isFolderActive('sent')
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1328,7 +1327,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onContextMenu={(e) =>
                         openFolderContextMenu(e, accId, 'outbox', 'Caixa de Saída', false)
                       }
-                      className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                      className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                         isFolderActive('outbox')
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1358,7 +1357,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onContextMenu={(e) =>
                         openFolderContextMenu(e, accId, 'trash', 'Itens Excluídos', false)
                       }
-                      className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                      className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                         isFolderActive('trash')
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1388,7 +1387,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onContextMenu={(e) =>
                         openFolderContextMenu(e, accId, 'junk', 'Lixo eletrônico', false)
                       }
-                      className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                      className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                         isFolderActive('junk')
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1415,7 +1414,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       type="button"
                       onClick={toggleMoreFolders}
-                      title={showMoreFolders ? 'Mostrar só as pastas principais' : 'Mostrar todas as pastas'}
+                      title={showMoreFolders ? 'Exibir só as pastas principais' : 'Exibir todas as pastas'}
                       className="w-full flex items-center space-x-2 px-2 py-1 rounded-md text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
                     >
                       {showMoreFolders ? (
@@ -1423,14 +1422,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       ) : (
                         <ChevronRight className="w-3 h-3" />
                       )}
-                      <span>{showMoreFolders ? 'Menos pastas' : 'Mais pastas'}</span>
+                      <span>{showMoreFolders ? 'Exibir menos pastas' : 'Exibir mais pastas'}</span>
                     </button>
                     {showMoreFolders && (
                       <>
                       {/* Favoritos (mensagens com estrela) */}
                       <button
                         onClick={() => handleFolderClick(accId, 'favorites')}
-                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                        className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                           isFolderActive('favorites')
                             ? 'bg-slate-800 text-white font-bold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1450,7 +1449,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {/* Tarefas */}
                       <button
                         onClick={() => handleFolderClick(accId, 'tasks')}
-                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                        className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                           isFolderActive('tasks')
                             ? 'bg-slate-800 text-white font-bold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1470,7 +1469,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {/* Lista de leitura */}
                       <button
                         onClick={() => handleFolderClick(accId, 'reading_list')}
-                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                        className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                           isFolderActive('reading_list')
                             ? 'bg-slate-800 text-white font-bold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1490,7 +1489,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {/* Importante */}
                       <button
                         onClick={() => handleFolderClick(accId, 'important')}
-                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                        className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                           isFolderActive('important')
                             ? 'bg-slate-800 text-white font-bold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1518,7 +1517,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onContextMenu={(e) =>
                           openFolderContextMenu(e, accId, 'drafts', 'Rascunhos', false)
                         }
-                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                        className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                           isFolderActive('drafts')
                             ? 'bg-slate-800 text-white font-bold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1548,7 +1547,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onContextMenu={(e) =>
                           openFolderContextMenu(e, accId, 'archive', 'Arquivados', false)
                         }
-                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                        className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                           isFolderActive('archive')
                             ? 'bg-slate-800 text-white font-bold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1578,7 +1577,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onContextMenu={(e) =>
                           openFolderContextMenu(e, accId, 'snooze', 'Snoozed (Adiados)', false)
                         }
-                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                        className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                           isFolderActive('snooze')
                             ? 'bg-slate-800 text-white font-bold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1600,7 +1599,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {/* RSS Feeds */}
                       <button
                         onClick={() => handleFolderClick(accId, 'inbox')}
-                        className="w-full flex items-center justify-between px-2 py-[4.5px] rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                        className="w-full flex items-center justify-between px-2 py-[3px] rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-900"
                       >
                         <div className="flex items-center space-x-2">
                           <Rss className="w-3 h-3 text-orange-500" />
@@ -1611,7 +1610,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {/* Pastas de Pesquisa */}
                       <button
                         onClick={() => handleFolderClick(accId, 'search_folders')}
-                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                        className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
                           isFolderActive('search_folders')
                             ? 'bg-slate-800 text-white font-bold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1627,18 +1626,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {renderCustomSubfolders('root', 0)}
                       </>
                     )}
-                    {renderInlineCreateInput(undefined) || (
-                      onCreateFolder && (
-                        <button
-                          type="button"
-                          onClick={() => startCreateFolder(accId)}
-                          className="w-full flex items-center space-x-2 px-2 py-[3px] rounded-md text-[11px] text-brand-400/90 hover:text-brand-300 hover:bg-slate-900 transition-colors"
-                        >
-                          <Plus className="w-3 h-3" />
-                          <span>Nova Pasta</span>
-                        </button>
-                      )
-                    )}
+                    {renderInlineCreateInput(undefined)}
                   </div>
                 )}
               </div>
