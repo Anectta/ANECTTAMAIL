@@ -1986,6 +1986,10 @@ ipcMain.handle('mail:sync-all-folders', async (_event, payload: any) => {
         (res.catchUpPending ? ` | recuperação pendente ${JSON.stringify(res.catchUpPending)}` : '')
     );
   }
+  // Diagnóstico: o que o servidor listou × o que o app conhece, por pasta
+  if (Array.isArray(res.diag)) {
+    for (const line of res.diag) imapSyncLog(`   diagnóstico ${config?.user || ''} → ${line}`);
+  }
   return res;
 });
 
@@ -1993,13 +1997,24 @@ ipcMain.handle('mail:fetch-older-folder', async (_event, payload: any) => {
   { const g = await tlsGate(payload?.config || payload); if (g) return g; }
   const config: MailServerConfig = payload?.config || payload;
   const folder: string = payload?.folder || 'inbox';
-  return await MailService.fetchOlderFolderMessages(config, folder, {
+  const res = await MailService.fetchOlderFolderMessages(config, folder, {
     offset: payload?.offset,
     batchSize: payload?.batchSize,
     imapPath: payload?.imapPath,
     knownUids: payload?.knownUids,
     missingOnly: payload?.missingOnly === true,
   });
+  // Diagnóstico do download automático: só quando baixou algo (ou falhou)
+  if (payload?.missingOnly === true && (!res.success || (res.attemptedUids?.length ?? 0) > 0)) {
+    const uids = res.attemptedUids || [];
+    imapSyncLog(
+      `download automático ${config?.user || ''} ${folder}: ${res.success ? 'ok' : 'ERRO ' + res.error} | servidor diz ${res.serverTotal ?? '?'}` +
+        `, app conhecia ${Array.isArray(payload?.knownUids) ? payload.knownUids.length : '?'}, baixou ${res.emails?.length ?? 0}` +
+        (uids.length ? ` (UIDs ${Math.min(...uids)}..${Math.max(...uids)})` : '') +
+        `, faltam ${res.remaining ?? '?'}`
+    );
+  }
+  return res;
 });
 
 ipcMain.handle('mail:start-idle', async (_event, payload: any) => {

@@ -74,6 +74,8 @@ export interface FetchResult {
   catchUpPending?: Record<string, number>;
   /** Sincronização: UIDs que o app conhecia e não existem mais no servidor (pasta -> UIDs). */
   vanished?: Record<string, number[]>;
+  /** Diagnóstico da comparação servidor × app (gravado no imap-sync.log). */
+  diag?: string[];
   folderStats?: Record<string, number>;
   customFolders?: DiscoveredCustomFolder[];
   quota?: QuotaInfo;
@@ -1385,6 +1387,7 @@ export class MailService {
       const knownUidsByFolder = config.knownUidsByFolder || {};
       const catchUpPending: Record<string, number> = {};
       const vanishedByFolder: Record<string, number[]> = {};
+      const syncDiag: string[] = [];
       let fallbackUsedBytes = 0;
 
       for (const folder of foldersToSync) {
@@ -1431,10 +1434,13 @@ export class MailService {
                 if (catchUp.messages.length > 0) folderMessages.push(...catchUp.messages);
                 if (catchUp.remaining > 0) catchUpPending[folder] = catchUp.remaining;
                 if (catchUp.vanished.length > 0) vanishedByFolder[folder] = catchUp.vanished;
+                if (catchUp.diag) syncDiag.push(catchUp.diag);
               }
             } else if (total === 0 && (knownUidsByFolder[folder] || []).length > 0) {
               // Pasta esvaziada no servidor: tudo o que o app tinha nela saiu do servidor
-              vanishedByFolder[folder] = [...(knownUidsByFolder[folder] || [])];
+              const allKnown = [...(knownUidsByFolder[folder] || [])];
+              if (allKnown.length <= this.MAX_VANISHED_PER_SYNC) vanishedByFolder[folder] = allKnown;
+              else syncDiag.push(`${folder}: servidor diz 0 mensagens, app conhece ${allKnown.length} — NADA removido nesta rodada`);
             }
           } finally {
             lock.release();
@@ -1518,9 +1524,12 @@ export class MailService {
                 if (catchUp.messages.length > 0) customMessages.push(...catchUp.messages);
                 if (catchUp.remaining > 0) catchUpPending[folderKey] = catchUp.remaining;
                 if (catchUp.vanished.length > 0) vanishedByFolder[folderKey] = catchUp.vanished;
+                if (catchUp.diag) syncDiag.push(catchUp.diag);
               }
             } else if (total === 0 && (knownUidsByFolder[`imap:${m.path}`] || []).length > 0) {
-              vanishedByFolder[`imap:${m.path}`] = [...(knownUidsByFolder[`imap:${m.path}`] || [])];
+              const allKnownCustom = [...(knownUidsByFolder[`imap:${m.path}`] || [])];
+              if (allKnownCustom.length <= this.MAX_VANISHED_PER_SYNC) vanishedByFolder[`imap:${m.path}`] = allKnownCustom;
+              else syncDiag.push(`imap:${m.path}: servidor diz 0 mensagens, app conhece ${allKnownCustom.length} — NADA removido nesta rodada`);
             }
           } finally {
             lock.release();
@@ -1559,6 +1568,7 @@ export class MailService {
         flagUpdates: flagUpdates.length > 0 ? flagUpdates : undefined,
         catchUpPending: Object.keys(catchUpPending).length > 0 ? catchUpPending : undefined,
         vanished: Object.keys(vanishedByFolder).length > 0 ? vanishedByFolder : undefined,
+        diag: syncDiag.length > 0 ? syncDiag : undefined,
       };
     } catch (err: any) {
       return {
@@ -1599,15 +1609,19 @@ export class MailService {
     return { uids: unique, complete: unique.length === exists };
   }
 
+  /** Acima disso, "removidas no servidor" numa única pasta/rodada é tratado como suspeito. */
+  private static readonly MAX_VANISHED_PER_SYNC = 300;
+
   private static async fetchSyncCatchUp(
     client: ImapFlow,
     folderKey: string,
     config: MailServerConfig,
     knownUids: Set<number>,
     alreadyFetched: any[]
-  ): Promise<{ messages: any[]; remaining: number; vanished: number[] }> {
+  ): Promise<{ messages: any[]; remaining: number; vanished: number[]; diag?: string }> {
     const messages: any[] = [];
     let vanished: number[] = [];
+    let diag: string | undefined;
     try {
       let minKnown = Number.POSITIVE_INFINITY;
       for (const uid of knownUids) if (uid < minKnown) minKnown = uid;
@@ -1625,18 +1639,38 @@ export class MailService {
       // Servidor → app: mensagens que o app conhece mas não existem mais nesta pasta do servidor
       // (apagadas ou movidas no webmail/celular/outro cliente). Só quando a lista do servidor está
       // completa — nunca remover do app com base numa lista parcial.
+      const exists = client.mailbox ? client.mailbox.exists : 0;
+      const span = (arr: number[]) => {
+        if (arr.length === 0) return '-';
+        let lo = arr[0];
+        let hi = arr[0];
+        for (const v of arr) {
+          if (v < lo) lo = v;
+          if (v > hi) hi = v;
+        }
+        return `${lo}..${hi}`;
+      };
       if (listed.complete) {
         vanished = Array.from(knownUids).filter((uid) => !serverUids.has(uid));
-      } else {
-        console.warn(
-          `[IMAP] ${folderKey}: lista de UIDs incompleta (${listed.uids.length} de ${client.mailbox ? client.mailbox.exists : '?'}); remoções ignoradas nesta rodada.`
-        );
+      }
+      if (!listed.complete || vanished.length > 0) {
+        diag =
+          `${folderKey}: servidor diz ${exists}, listou ${listed.uids.length} (UIDs ${span(listed.uids)}), ` +
+          `app conhece ${knownUids.size} (UIDs ${span(Array.from(knownUids))}), ` +
+          `"removidas" ${vanished.length} (UIDs ${span(vanished)})` +
+          (listed.complete ? '' : ' — lista incompleta: nada removido');
+      }
+      // Trava de segurança: remoção em massa numa única rodada não é aplicada (só registrada).
+      // Evita o vai-e-vem com provedores que mostram conjuntos diferentes de mensagens.
+      if (vanished.length > this.MAX_VANISHED_PER_SYNC) {
+        diag = `${diag} — acima de ${this.MAX_VANISHED_PER_SYNC}: NADA removido nesta rodada`;
+        vanished = [];
       }
 
       const missing = Array.from(serverUids)
         .filter((uid) => uid > minKnown && !knownUids.has(uid) && !fetchedNow.has(uid))
         .sort((a, b) => b - a);
-      if (missing.length === 0) return { messages, remaining: 0, vanished };
+      if (missing.length === 0) return { messages, remaining: 0, vanished, diag };
 
       const batch = missing.slice(0, this.SYNC_CATCHUP_BATCH);
       for await (const message of client.fetch(
@@ -1655,7 +1689,7 @@ export class MailService {
           `[IMAP] Recuperação automática em ${folderKey}: +${messages.length} mensagem(ns), faltam ${missing.length - batch.length}.`
         );
       }
-      return { messages, remaining: missing.length - batch.length, vanished };
+      return { messages, remaining: missing.length - batch.length, vanished, diag };
     } catch (err: any) {
       // Em erro NÃO informa removidas (nunca apagar localmente com base numa consulta que falhou)
       console.warn(`[IMAP] Falha na recuperação automática de ${folderKey}:`, err?.message || err);
