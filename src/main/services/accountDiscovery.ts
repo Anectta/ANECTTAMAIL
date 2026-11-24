@@ -101,7 +101,7 @@ const LOCAWEB: ProviderPreset = {
   outgoing: smtp('email-ssl.com.br'),
 };
 const ZOHO: ProviderPreset = {
-  providerId: 'manual',
+  providerId: 'zoho',
   providerName: 'Zoho Mail',
   incoming: imap('imap.zoho.com'),
   outgoing: smtp('smtp.zoho.com'),
@@ -133,7 +133,7 @@ const KNOWN_DOMAINS: Record<string, ProviderPreset> = {
     outgoing: smtp('smtps.uol.com.br', 587, 'starttls'),
   },
   'bol.com.br': {
-    providerId: 'uol',
+    providerId: 'bol',
     providerName: 'BOL',
     incoming: imap('imap.bol.com.br'),
     outgoing: smtp('smtps.bol.com.br', 587, 'starttls'),
@@ -156,7 +156,7 @@ const MX_RULES: Array<{ test: RegExp; preset: (domain: string) => ProviderPreset
   {
     test: /(^|\.)titan\.email$/i,
     preset: () => ({
-      providerId: 'manual',
+      providerId: 'titan',
       providerName: 'Titan Mail',
       incoming: imap('imap.titan.email'),
       outgoing: smtp('smtp.titan.email'),
@@ -165,7 +165,7 @@ const MX_RULES: Array<{ test: RegExp; preset: (domain: string) => ProviderPreset
   {
     test: /(^|\.)hostinger\.(com|com\.br)$/i,
     preset: () => ({
-      providerId: 'manual',
+      providerId: 'hostinger',
       providerName: 'Hostinger',
       incoming: imap('imap.hostinger.com'),
       outgoing: smtp('smtp.hostinger.com'),
@@ -174,7 +174,7 @@ const MX_RULES: Array<{ test: RegExp; preset: (domain: string) => ProviderPreset
   {
     test: /(^|\.)secureserver\.net$/i,
     preset: () => ({
-      providerId: 'manual',
+      providerId: 'godaddy',
       providerName: 'GoDaddy',
       incoming: imap('imap.secureserver.net'),
       outgoing: smtp('smtpout.secureserver.net'),

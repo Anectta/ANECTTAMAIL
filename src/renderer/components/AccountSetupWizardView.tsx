@@ -23,6 +23,13 @@ import { EmailProviderNotice, detectProviderType } from './EmailProviderNotice';
 import type { MailDiscoveryResult, MailTestStep, MailImportResult } from '../../types/electron';
 import { MailImportStep } from './MailImportStep';
 import {
+  ExtraMailProvider,
+  findExtraProvider,
+  searchExtraProviders,
+  domainOf,
+} from '../utils/extraMailProviders';
+import { ChevronDown } from 'lucide-react';
+import {
   MailSecurity,
   SECURITY_LABELS,
   defaultPort,
@@ -38,7 +45,11 @@ const DISCOVERY_SOURCE_LABEL: Record<string, string> = {
   'registro-mx': 'registro de e-mail (MX) do seu domínio',
   'teste-de-portas': 'teste automático dos servidores do seu domínio',
 };
-const WIZARD_PROVIDER_IDS = ['gmail', 'outlook', 'm365', 'locaweb', 'terra', 'uol', 'icloud', 'yahoo', 'aol'];
+const WIZARD_PROVIDER_IDS = [
+  'gmail', 'outlook', 'm365', 'locaweb', 'terra', 'uol', 'icloud', 'yahoo', 'aol',
+  // Mais provedores
+  'bol', 'zoho', 'titan', 'hostinger', 'godaddy', 'kinghost', 'hostgator', 'gmx',
+];
 
 export type ProviderId = 
   | 'gmail' 
@@ -50,7 +61,8 @@ export type ProviderId =
   | 'icloud' 
   | 'yahoo' 
   | 'aol'
-  | 'manual';
+  | 'manual'
+  | ExtraMailProvider['id'];
 
 interface AccountSetupWizardViewProps {
   currentSettings?: AppSettings;
@@ -87,6 +99,52 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   // Teste detalhado: entrada e saída separadamente
   const [accountTest, setAccountTest] = useState<{ incoming: MailTestStep; outgoing: MailTestStep } | null>(null);
+
+  // "Mais provedores": lista expansível com busca
+  const [showMoreProviders, setShowMoreProviders] = useState(false);
+  const [providerQuery, setProviderQuery] = useState('');
+  const extraProvider = findExtraProvider(selectedProvider);
+  /** Provedores cujo formulário mostra os servidores (editáveis): manual e os extras. */
+  const showsServers = selectedProvider === 'manual' || Boolean(extraProvider);
+  // Últimos servidores preenchidos automaticamente (atualiza pelo domínio sem apagar edição do usuário)
+  const autoHostsRef = React.useRef<{ incoming: string; outgoing: string }>({ incoming: '', outgoing: '' });
+  /** Servidor que depende do domínio do cliente (ex.: mail.suaempresa.com.br). */
+  const dependsOnDomain = (fn: (d: string) => { host: string }) => fn('exemplo.test').host.endsWith('exemplo.test');
+  const applyExtraProviderServers = (ex: ExtraMailProvider, mail: string) => {
+    const d = domainOf(mail);
+    const inc = ex.incoming(d);
+    const out = ex.outgoing(d);
+    // Sem domínio digitado ainda: servidores que dependem do domínio ficam vazios até o e-mail
+    const incHost = !d && dependsOnDomain(ex.incoming) ? '' : inc.host;
+    const outHost = !d && dependsOnDomain(ex.outgoing) ? '' : out.host;
+    setProtocol('imap');
+    setIncomingHost(incHost);
+    setIncomingPort(inc.port);
+    setIncomingSecurity(inc.security);
+    setOutgoingHost(outHost);
+    setOutgoingPort(out.port);
+    setOutgoingSecurity(out.security);
+    autoHostsRef.current = { incoming: incHost, outgoing: outHost };
+  };
+  // Ao digitar o e-mail: atualiza os servidores que dependem do domínio (se o usuário não editou)
+  React.useEffect(() => {
+    if (!extraProvider) return;
+    const d = domainOf(email);
+    if (!d) return;
+    const inc = extraProvider.incoming(d).host;
+    const out = extraProvider.outgoing(d).host;
+    const next = { ...autoHostsRef.current };
+    if (incomingHost === autoHostsRef.current.incoming) {
+      next.incoming = inc;
+      if (incomingHost !== inc) setIncomingHost(inc);
+    }
+    if (outgoingHost === autoHostsRef.current.outgoing) {
+      next.outgoing = out;
+      if (outgoingHost !== out) setOutgoingHost(out);
+    }
+    autoHostsRef.current = next;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email, selectedProvider]);
 
   // Etapa final opcional: trazer e-mails de outro programa (.pst/.mbox/.eml) para a conta nova
   const [pendingAccount, setPendingAccount] = useState<AccountSettings | null>(null);
@@ -186,6 +244,11 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
         setOutgoingPort(465);
         setOutgoingSecurity('ssl');
         break;
+      default: {
+        const ex = findExtraProvider(provider);
+        if (ex) applyExtraProviderServers(ex, email);
+        break;
+      }
       case 'manual':
         // 100% limpo: nenhum dado pré-escrito para o cliente configurar tudo manualmente do zero
         setIncomingHost('');
@@ -280,7 +343,8 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
              selectedProvider === 'locaweb' ? '#f0142f' :
              selectedProvider === 'terra' ? '#ff6700' :
              selectedProvider === 'uol' ? '#f26f21' :
-             selectedProvider === 'yahoo' ? '#6001d2' : '#2563eb',
+             selectedProvider === 'yahoo' ? '#6001d2' :
+             extraProvider ? extraProvider.color : '#2563eb',
       isDefault: true,
       displayName: cleanName,
       email: cleanEmail,
@@ -293,7 +357,7 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
                   selectedProvider === 'gmail' ? 'google' : 
                   selectedProvider === 'outlook' ? 'exchange' : 'imap_smtp',
       incomingServer: {
-        protocol: selectedProvider === 'manual' ? protocol : 'imap',
+        protocol: showsServers ? protocol : 'imap',
         host: incomingHost.trim(),
         port: Number(incomingPort) || (protocol === 'imap' ? 993 : 995),
         security: incomingSecurity,
@@ -438,7 +502,7 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
     try {
       // Teste detalhado: entrada e saída separadamente, com login e explicação clara
       if (window.electronAPI?.testMailAccount) {
-        const proto = selectedProvider === 'manual' ? protocol : 'imap';
+        const proto = showsServers ? protocol : 'imap';
         const result = await window.electronAPI.testMailAccount({
           incoming: {
             protocol: proto,
@@ -469,7 +533,7 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
 
       if (window.electronAPI?.testImapConnection) {
         const res = await window.electronAPI.testImapConnection({
-          protocol: selectedProvider === 'manual' ? protocol : 'imap',
+          protocol: showsServers ? protocol : 'imap',
           host: incomingHost.trim(),
           port: Number(incomingPort) || (protocol === 'imap' ? 993 : 995),
           secure: incomingSecurity === 'ssl',
@@ -809,6 +873,63 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
                 </button>
               </div>
 
+              {/* Mais provedores: lista expansível com busca */}
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundService.play('click');
+                    setShowMoreProviders((v) => !v);
+                  }}
+                  aria-expanded={showMoreProviders}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                >
+                  {showMoreProviders ? 'Menos provedores' : 'Mais provedores'}
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showMoreProviders ? 'rotate-180' : ''}`} />
+                </button>
+                {showMoreProviders && (
+                  <div className="mt-1 p-2.5 rounded-xl border border-slate-100 bg-white shadow-sm animate-in fade-in duration-150">
+                    <div className="relative mb-2">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={providerQuery}
+                        onChange={(e) => setProviderQuery(e.target.value)}
+                        placeholder="Procurar provedor..."
+                        autoFocus
+                        className="w-full pl-8 pr-2 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {searchExtraProviders(providerQuery).map((ex) => (
+                        <button
+                          key={ex.id}
+                          type="button"
+                          onClick={() => handleSelectProvider(ex.id)}
+                          className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 text-left transition-all cursor-pointer"
+                        >
+                          <span
+                            className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+                            style={{ backgroundColor: ex.color }}
+                          >
+                            <span className="text-white text-[8.5px] font-black leading-none">{ex.badge}</span>
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-xs font-semibold text-slate-800 truncate">{ex.name}</span>
+                            {ex.hosting && <span className="block text-[10px] text-slate-400">Domínio próprio</span>}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    {searchExtraProviders(providerQuery).length === 0 && (
+                      <p className="text-[11px] text-slate-500 text-center py-2">
+                        Não encontrado — use a Configuração automática ou "Configurar manualmente".
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Bottom Skip / Demo Mode Link */}
               <div className="mt-4 text-center">
                 <button
@@ -906,6 +1027,14 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
                     <span className="text-white font-extrabold text-sm tracking-tight">Aol.</span>
                   </div>
                 )}
+                {extraProvider && (
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm"
+                    style={{ backgroundColor: extraProvider.color }}
+                  >
+                    <span className="text-white text-[10px] font-black tracking-tight leading-none">{extraProvider.badge}</span>
+                  </div>
+                )}
                 {selectedProvider === 'manual' && (
                   <div className="w-8 h-8 rounded-full border-2 border-blue-600 flex items-center justify-center shrink-0">
                     <span className="text-blue-600 font-bold text-sm leading-none">@</span>
@@ -923,10 +1052,15 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
                     {selectedProvider === 'yahoo' && 'Conectar conta Yahoo'}
                     {selectedProvider === 'aol' && 'Conectar conta AOL Mail'}
                     {selectedProvider === 'manual' && 'Configuração Manual (IMAP/POP)'}
+                    {extraProvider && `Conectar ${extraProvider.name}`}
                   </h2>
                   <span className="text-[11px] text-slate-500">
                     {selectedProvider === 'manual'
                       ? 'Preencha os endereços e portas do seu servidor'
+                      : extraProvider?.hosting
+                      ? 'Use o e-mail completo do seu domínio — os servidores abaixo são preenchidos e podem ser ajustados'
+                      : extraProvider
+                      ? 'Servidores pré-configurados (confira abaixo)'
                       : 'Servidores pré-configurados com criptografia segura'}
                   </span>
                 </div>
@@ -1061,7 +1195,8 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
                       selectedProvider === 'uol' ? 'seuemail@uol.com.br' :
                       selectedProvider === 'icloud' ? 'seuemail@icloud.com' :
                       selectedProvider === 'yahoo' ? 'seuemail@yahoo.com' :
-                      selectedProvider === 'aol' ? 'seuemail@aol.com' : 'voce@seudominio.com.br'
+                      selectedProvider === 'aol' ? 'seuemail@aol.com' :
+                      extraProvider ? extraProvider.placeholder : 'voce@seudominio.com.br'
                     }
                     className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-900 transition-all font-mono"
                   />
@@ -1109,7 +1244,7 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
                 </div>
 
                 {/* Manual Server Configuration Details - Clean for User Input */}
-                {selectedProvider === 'manual' && (
+                {showsServers && (
                   <div className="pt-2.5 border-t border-slate-200 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-800 flex items-center">
