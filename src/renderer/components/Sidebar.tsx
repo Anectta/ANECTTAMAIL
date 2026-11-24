@@ -48,6 +48,7 @@ import { AccountSettings, AppsSettings } from '@/types/settings';
 import logoImg from '../assets/logo.png';
 
 const QUICK_NAV_COLLAPSED_KEY = 'anectta_sidebar_quicknav_collapsed';
+const MORE_FOLDERS_KEY = 'anectta_sidebar_more_folders';
 
 interface QuickNavItem {
   key: string;
@@ -158,6 +159,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
       const next = !prev;
       try {
         localStorage.setItem(QUICK_NAV_COLLAPSED_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  };
+  // Pastas além das principais (Entrada, Enviados, Saída, Excluídos, Lixo): recolhíveis.
+  const [showMoreFolders, setShowMoreFolders] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(MORE_FOLDERS_KEY) !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const toggleMoreFolders = () => {
+    setShowMoreFolders((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(MORE_FOLDERS_KEY, next ? '1' : '0');
       } catch {}
       return next;
     });
@@ -1093,7 +1111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 }
                                 handleFolderClick(accId, cf.id);
                               }}
-                              className={`flex-1 flex items-center justify-between px-1.5 py-1.5 rounded-md transition-colors min-w-0 ${
+                              className={`flex-1 flex items-center justify-between px-1.5 py-[4.5px] rounded-md transition-colors min-w-0 ${
                                 isFolderActive(cf.id)
                                   ? 'bg-slate-800 text-white font-bold'
                                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1239,7 +1257,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           }
                           handleFolderClick(accId, 'inbox');
                         }}
-                        className={`flex-1 flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
+                        className={`flex-1 flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
                           isFolderActive('inbox')
                             ? 'bg-slate-800 text-white font-bold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1269,86 +1287,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {isFolderNodeExpanded(accId, 'inbox') && renderCustomSubfolders('inbox', 1)}
                     {renderInlineCreateInput('inbox')}
 
-                    {/* Favoritos (mensagens com estrela) */}
-                    <button
-                      onClick={() => handleFolderClick(accId, 'favorites')}
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
-                        isFolderActive('favorites')
-                          ? 'bg-slate-800 text-white font-bold'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <Star className="w-3 h-3 text-amber-400" />
-                        <span>Favoritos</span>
-                      </div>
-                      {accTotal['favorites'] > 0 && (
-                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
-                          {accTotal['favorites']}
-                        </span>
-                      )}
-                    </button>
-
-                    {/* Tarefas */}
-                    <button
-                      onClick={() => handleFolderClick(accId, 'tasks')}
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
-                        isFolderActive('tasks')
-                          ? 'bg-slate-800 text-white font-bold'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <CheckSquare className="w-3 h-3 text-emerald-400" />
-                        <span>Tarefas</span>
-                      </div>
-                      {accTotal['tasks'] > 0 && (
-                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
-                          {accTotal['tasks']}
-                        </span>
-                      )}
-                    </button>
-
-                    {/* Lista de leitura */}
-                    <button
-                      onClick={() => handleFolderClick(accId, 'reading_list')}
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
-                        isFolderActive('reading_list')
-                          ? 'bg-slate-800 text-white font-bold'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <BookOpen className="w-3 h-3 text-sky-400" />
-                        <span>Lista de leitura</span>
-                      </div>
-                      {accTotal['reading_list'] > 0 && (
-                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
-                          {accTotal['reading_list']}
-                        </span>
-                      )}
-                    </button>
-
-                    {/* Importante */}
-                    <button
-                      onClick={() => handleFolderClick(accId, 'important')}
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
-                        isFolderActive('important')
-                          ? 'bg-slate-800 text-white font-bold'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <Tag className="w-3 h-3 text-amber-300" />
-                        <span>Importante</span>
-                      </div>
-                      {accTotal['important'] > 0 && (
-                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
-                          {accTotal['important']}
-                        </span>
-                      )}
-                    </button>
-
                     {/* Itens Enviados */}
                     <button
                       onClick={() => {
@@ -1360,7 +1298,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onContextMenu={(e) =>
                         openFolderContextMenu(e, accId, 'sent', 'Itens Enviados', false)
                       }
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
+                      className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
                         isFolderActive('sent')
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1379,40 +1317,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {isFolderNodeExpanded(accId, 'sent') && renderCustomSubfolders('sent', 1)}
                     {renderInlineCreateInput('sent')}
 
-                    {/* Lixo Eletrônico */}
-                    <button
-                      onClick={() => {
-                        if (hasSubfoldersForNode(accId, 'junk')) {
-                          toggleFolderNodeExpanded(accId, 'junk');
-                        }
-                        handleFolderClick(accId, 'junk');
-                      }}
-                      onContextMenu={(e) =>
-                        openFolderContextMenu(e, accId, 'junk', 'Lixo eletrônico', false)
-                      }
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
-                        isFolderActive('junk')
-                          ? 'bg-slate-800 text-white font-bold'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <AlertOctagon className="w-3 h-3 text-orange-400" />
-                        <span>Lixo eletrônico</span>
-                      </div>
-                      {accUnread['junk'] > 0 ? (
-                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
-                          {accUnread['junk']}
-                        </span>
-                      ) : accTotal['junk'] > 0 ? (
-                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
-                          {accTotal['junk']}
-                        </span>
-                      ) : null}
-                    </button>
-                    {isFolderNodeExpanded(accId, 'junk') && renderCustomSubfolders('junk', 1)}
-                    {renderInlineCreateInput('junk')}
-
                     {/* Caixa de Saída */}
                     <button
                       onClick={() => {
@@ -1424,7 +1328,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onContextMenu={(e) =>
                         openFolderContextMenu(e, accId, 'outbox', 'Caixa de Saída', false)
                       }
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
+                      className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
                         isFolderActive('outbox')
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1454,7 +1358,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onContextMenu={(e) =>
                         openFolderContextMenu(e, accId, 'trash', 'Itens Excluídos', false)
                       }
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
+                      className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
                         isFolderActive('trash')
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1473,130 +1377,262 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {isFolderNodeExpanded(accId, 'trash') && renderCustomSubfolders('trash', 1)}
                     {renderInlineCreateInput('trash')}
 
-                    {/* Rascunhos */}
+                    {/* Lixo Eletrônico */}
                     <button
                       onClick={() => {
-                        if (hasSubfoldersForNode(accId, 'drafts')) {
-                          toggleFolderNodeExpanded(accId, 'drafts');
+                        if (hasSubfoldersForNode(accId, 'junk')) {
+                          toggleFolderNodeExpanded(accId, 'junk');
                         }
-                        handleFolderClick(accId, 'drafts');
+                        handleFolderClick(accId, 'junk');
                       }}
                       onContextMenu={(e) =>
-                        openFolderContextMenu(e, accId, 'drafts', 'Rascunhos', false)
+                        openFolderContextMenu(e, accId, 'junk', 'Lixo eletrônico', false)
                       }
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
-                        isFolderActive('drafts')
+                      className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                        isFolderActive('junk')
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
                       }`}
                     >
                       <div className="flex items-center space-x-2">
-                        <FileText className="w-3 h-3 text-violet-400" />
-                        <span>Rascunhos</span>
+                        <AlertOctagon className="w-3 h-3 text-orange-400" />
+                        <span>Lixo eletrônico</span>
                       </div>
-                      {accTotal['drafts'] > 0 && (
+                      {accUnread['junk'] > 0 ? (
                         <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
-                          {accTotal['drafts']}
+                          {accUnread['junk']}
                         </span>
-                      )}
+                      ) : accTotal['junk'] > 0 ? (
+                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
+                          {accTotal['junk']}
+                        </span>
+                      ) : null}
                     </button>
-                    {isFolderNodeExpanded(accId, 'drafts') && renderCustomSubfolders('drafts', 1)}
-                    {renderInlineCreateInput('drafts')}
+                    {isFolderNodeExpanded(accId, 'junk') && renderCustomSubfolders('junk', 1)}
+                    {renderInlineCreateInput('junk')}
 
-                    {/* Arquivados */}
+                    {/* Mais pastas: mostra/oculta as pastas além das principais */}
                     <button
-                      onClick={() => {
-                        if (hasSubfoldersForNode(accId, 'archive')) {
-                          toggleFolderNodeExpanded(accId, 'archive');
+                      type="button"
+                      onClick={toggleMoreFolders}
+                      title={showMoreFolders ? 'Mostrar só as pastas principais' : 'Mostrar todas as pastas'}
+                      className="w-full flex items-center space-x-2 px-2 py-1 rounded-md text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+                    >
+                      {showMoreFolders ? (
+                        <ChevronDown className="w-3 h-3" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3" />
+                      )}
+                      <span>{showMoreFolders ? 'Menos pastas' : 'Mais pastas'}</span>
+                    </button>
+                    {showMoreFolders && (
+                      <>
+                      {/* Favoritos (mensagens com estrela) */}
+                      <button
+                        onClick={() => handleFolderClick(accId, 'favorites')}
+                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                          isFolderActive('favorites')
+                            ? 'bg-slate-800 text-white font-bold'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <Star className="w-3 h-3 text-amber-400" />
+                          <span>Favoritos</span>
+                        </div>
+                        {accTotal['favorites'] > 0 && (
+                          <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
+                            {accTotal['favorites']}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Tarefas */}
+                      <button
+                        onClick={() => handleFolderClick(accId, 'tasks')}
+                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                          isFolderActive('tasks')
+                            ? 'bg-slate-800 text-white font-bold'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <CheckSquare className="w-3 h-3 text-emerald-400" />
+                          <span>Tarefas</span>
+                        </div>
+                        {accTotal['tasks'] > 0 && (
+                          <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
+                            {accTotal['tasks']}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Lista de leitura */}
+                      <button
+                        onClick={() => handleFolderClick(accId, 'reading_list')}
+                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                          isFolderActive('reading_list')
+                            ? 'bg-slate-800 text-white font-bold'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <BookOpen className="w-3 h-3 text-sky-400" />
+                          <span>Lista de leitura</span>
+                        </div>
+                        {accTotal['reading_list'] > 0 && (
+                          <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
+                            {accTotal['reading_list']}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Importante */}
+                      <button
+                        onClick={() => handleFolderClick(accId, 'important')}
+                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                          isFolderActive('important')
+                            ? 'bg-slate-800 text-white font-bold'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <Tag className="w-3 h-3 text-amber-300" />
+                          <span>Importante</span>
+                        </div>
+                        {accTotal['important'] > 0 && (
+                          <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
+                            {accTotal['important']}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Rascunhos */}
+                      <button
+                        onClick={() => {
+                          if (hasSubfoldersForNode(accId, 'drafts')) {
+                            toggleFolderNodeExpanded(accId, 'drafts');
+                          }
+                          handleFolderClick(accId, 'drafts');
+                        }}
+                        onContextMenu={(e) =>
+                          openFolderContextMenu(e, accId, 'drafts', 'Rascunhos', false)
                         }
-                        handleFolderClick(accId, 'archive');
-                      }}
-                      onContextMenu={(e) =>
-                        openFolderContextMenu(e, accId, 'archive', 'Arquivados', false)
-                      }
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
-                        isFolderActive('archive')
-                          ? 'bg-slate-800 text-white font-bold'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <Archive className="w-3 h-3 text-teal-400" />
-                        <span>Arquivados</span>
-                      </div>
-                      {accTotal['archive'] > 0 && (
-                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
-                          {accTotal['archive']}
-                        </span>
-                      )}
-                    </button>
-                    {isFolderNodeExpanded(accId, 'archive') && renderCustomSubfolders('archive', 1)}
-                    {renderInlineCreateInput('archive')}
+                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                          isFolderActive('drafts')
+                            ? 'bg-slate-800 text-white font-bold'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <FileText className="w-3 h-3 text-violet-400" />
+                          <span>Rascunhos</span>
+                        </div>
+                        {accTotal['drafts'] > 0 && (
+                          <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
+                            {accTotal['drafts']}
+                          </span>
+                        )}
+                      </button>
+                      {isFolderNodeExpanded(accId, 'drafts') && renderCustomSubfolders('drafts', 1)}
+                      {renderInlineCreateInput('drafts')}
 
-                    {/* Snoozed (Adiados) */}
-                    <button
-                      onClick={() => {
-                        if (hasSubfoldersForNode(accId, 'snooze')) {
-                          toggleFolderNodeExpanded(accId, 'snooze');
+                      {/* Arquivados */}
+                      <button
+                        onClick={() => {
+                          if (hasSubfoldersForNode(accId, 'archive')) {
+                            toggleFolderNodeExpanded(accId, 'archive');
+                          }
+                          handleFolderClick(accId, 'archive');
+                        }}
+                        onContextMenu={(e) =>
+                          openFolderContextMenu(e, accId, 'archive', 'Arquivados', false)
                         }
-                        handleFolderClick(accId, 'snooze');
-                      }}
-                      onContextMenu={(e) =>
-                        openFolderContextMenu(e, accId, 'snooze', 'Snoozed (Adiados)', false)
-                      }
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
-                        isFolderActive('snooze')
-                          ? 'bg-slate-800 text-white font-bold'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-3 h-3 text-amber-400" />
-                        <span>Snoozed (Adiados)</span>
-                      </div>
-                      {accTotal['snooze'] > 0 && (
-                        <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
-                          {accTotal['snooze']}
-                        </span>
-                      )}
-                    </button>
-                    {isFolderNodeExpanded(accId, 'snooze') && renderCustomSubfolders('snooze', 1)}
-                    {renderInlineCreateInput('snooze')}
+                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                          isFolderActive('archive')
+                            ? 'bg-slate-800 text-white font-bold'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <Archive className="w-3 h-3 text-teal-400" />
+                          <span>Arquivados</span>
+                        </div>
+                        {accTotal['archive'] > 0 && (
+                          <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
+                            {accTotal['archive']}
+                          </span>
+                        )}
+                      </button>
+                      {isFolderNodeExpanded(accId, 'archive') && renderCustomSubfolders('archive', 1)}
+                      {renderInlineCreateInput('archive')}
 
-                    {/* RSS Feeds */}
-                    <button
-                      onClick={() => handleFolderClick(accId, 'inbox')}
-                      className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-900"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <Rss className="w-3 h-3 text-orange-500" />
-                        <span>RSS Feeds</span>
-                      </div>
-                    </button>
+                      {/* Snoozed (Adiados) */}
+                      <button
+                        onClick={() => {
+                          if (hasSubfoldersForNode(accId, 'snooze')) {
+                            toggleFolderNodeExpanded(accId, 'snooze');
+                          }
+                          handleFolderClick(accId, 'snooze');
+                        }}
+                        onContextMenu={(e) =>
+                          openFolderContextMenu(e, accId, 'snooze', 'Snoozed (Adiados)', false)
+                        }
+                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                          isFolderActive('snooze')
+                            ? 'bg-slate-800 text-white font-bold'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <Clock className="w-3 h-3 text-amber-400" />
+                          <span>Snoozed (Adiados)</span>
+                        </div>
+                        {accTotal['snooze'] > 0 && (
+                          <span className="font-bold text-white text-[11px] bg-brand-600/60 px-1.5 rounded-full">
+                            {accTotal['snooze']}
+                          </span>
+                        )}
+                      </button>
+                      {isFolderNodeExpanded(accId, 'snooze') && renderCustomSubfolders('snooze', 1)}
+                      {renderInlineCreateInput('snooze')}
 
-                    {/* Pastas de Pesquisa */}
-                    <button
-                      onClick={() => handleFolderClick(accId, 'search_folders')}
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
-                        isFolderActive('search_folders')
-                          ? 'bg-slate-800 text-white font-bold'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <FolderSearch className="w-3 h-3 text-blue-400" />
-                        <span>Pastas de Pesquisa</span>
-                      </div>
-                    </button>
+                      {/* RSS Feeds */}
+                      <button
+                        onClick={() => handleFolderClick(accId, 'inbox')}
+                        className="w-full flex items-center justify-between px-2 py-[4.5px] rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <Rss className="w-3 h-3 text-orange-500" />
+                          <span>RSS Feeds</span>
+                        </div>
+                      </button>
 
-                    {/* Pastas Personalizadas na Raiz da Conta */}
-                    {renderCustomSubfolders('root', 0)}
+                      {/* Pastas de Pesquisa */}
+                      <button
+                        onClick={() => handleFolderClick(accId, 'search_folders')}
+                        className={`w-full flex items-center justify-between px-2 py-[4.5px] rounded-md transition-colors ${
+                          isFolderActive('search_folders')
+                            ? 'bg-slate-800 text-white font-bold'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <FolderSearch className="w-3 h-3 text-blue-400" />
+                          <span>Pastas de Pesquisa</span>
+                        </div>
+                      </button>
+
+                      {/* Pastas Personalizadas na Raiz da Conta */}
+                      {renderCustomSubfolders('root', 0)}
+                      </>
+                    )}
                     {renderInlineCreateInput(undefined) || (
                       onCreateFolder && (
                         <button
                           type="button"
                           onClick={() => startCreateFolder(accId)}
-                          className="w-full flex items-center space-x-2 px-2 py-1 rounded-md text-[11px] text-brand-400/90 hover:text-brand-300 hover:bg-slate-900 transition-colors"
+                          className="w-full flex items-center space-x-2 px-2 py-[3px] rounded-md text-[11px] text-brand-400/90 hover:text-brand-300 hover:bg-slate-900 transition-colors"
                         >
                           <Plus className="w-3 h-3" />
                           <span>Nova Pasta</span>
