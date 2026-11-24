@@ -15,6 +15,7 @@ import { useMailBackfill } from '@/hooks/useMailBackfill';
 import { useMailPersistence, isMailStoreAvailable } from '@/hooks/useMailPersistence';
 import { ensureEmailBody, useHydratedEmails } from '@/services/emailBodyCache';
 import { isBodyStripped } from './utils/emailBodyStrip';
+import { quickReplyText, type DateMention } from './utils/assistantInsights';
 import { removeServerDuplicates } from './utils/emailDedupe';
 import { pickNewArrivals, buildNewMailNotice } from './utils/newMailDetect';
 import { findFoldersDeletedOnServer } from './utils/serverFolderSync';
@@ -2009,6 +2010,74 @@ export const App: React.FC = () => {
   }, []);
 
   // ==========================================
+  // Amoroso — Assistente Anectta: ações rápidas
+  // ==========================================
+  /** Data/hora da ação: a encontrada no e-mail ou amanhã às 9h. */
+  const assistantWhen = (when?: DateMention) => {
+    if (when) return { date: when.date, time: when.time, label: when.label };
+    const t = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const date = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    return { date, time: '09:00', label: 'amanhã às 9h' };
+  };
+
+  const handleAssistantCreateEvent = useCallback((email: EmailItem, when?: DateMention) => {
+    try {
+      const w = assistantWhen(when);
+      const key = 'anectta_mail_calendar_events_v1';
+      const raw = localStorage.getItem(key);
+      const existing: any[] = raw ? JSON.parse(raw) : [];
+      const startTime = w.time || '09:00';
+      const [h, m] = startTime.split(':').map((n) => parseInt(n, 10) || 0);
+      const endTime = `${String(Math.min(23, h + 1)).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      const calEvent = {
+        id: `cal-amoroso-${Date.now()}`,
+        title: email.subject || '(Sem assunto)',
+        date: w.date,
+        endDate: w.date,
+        // Data sem horário no e-mail: evento de dia inteiro
+        allDay: Boolean(when && !when.time),
+        startTime,
+        endTime,
+        organizer: email.sender || email.senderEmail || '',
+        participants: email.senderEmail ? [email.senderEmail] : [],
+        location: '',
+        badge: 'E-mail',
+        calendarId: 'default',
+        color: 'blue',
+        reminderMinutes: 30,
+        description: `Criado pelo Amoroso a partir do e-mail de ${email.sender} (${email.senderEmail}).`,
+      };
+      localStorage.setItem(key, JSON.stringify([...existing, calEvent]));
+      window.dispatchEvent(new Event('anectta:calendar-updated'));
+      soundService.play('pop');
+      showToast(`📅 Compromisso criado na Agenda: ${w.label}${when ? '' : ' (ajuste se precisar)'}.`);
+    } catch {
+      showToast('Não foi possível criar o compromisso na Agenda.');
+    }
+  }, []);
+
+  const handleAssistantCreateReminder = useCallback((email: EmailItem, when?: DateMention) => {
+    const w = assistantWhen(when);
+    const created: TaskItem = {
+      id: `task-em-${Date.now()}`,
+      title: email.subject || '(Sem assunto)',
+      description: `De: ${email.sender} (${email.senderEmail}) — ${(email.snippet || '').slice(0, 140)}`,
+      status: 'todo',
+      priority: email.priority || 'medium',
+      dueDate: w.date,
+      dueTime: w.time || '09:00',
+      sourceEmailId: email.id,
+      sourceEmailSubject: email.subject,
+      sourceEmailSender: email.sender,
+      createdAt: new Date().toISOString(),
+    };
+    setTasks((prev) => [created, ...prev]);
+    setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, isTask: true } : e)));
+    soundService.play('pop');
+    showToast(`⏰ Lembrete criado em Tarefas: ${w.label}.`);
+  }, []);
+
+  // ==========================================
   // Snooze com Data/Hora + Lembrete de Follow-up
   // ==========================================
   const handleSnoozeWithTime = useCallback((id: string, untilMs: number, label: string) => {
@@ -3616,6 +3685,30 @@ export const App: React.FC = () => {
     setIsComposeOpen(true);
   };
 
+  /** Amoroso: resposta pronta (Confirmar recebimento / Agradecer) — o usuário revisa antes de enviar. */
+  const handleAssistantQuickReply = (baseEmail: EmailItem, kind: 'confirm' | 'thanks') => {
+    soundService.play('click');
+    const { inReplyTo, references } = buildReplyThreadingHeaders(baseEmail);
+    setComposeDefaults({
+      recipient: baseEmail.senderEmail,
+      subject: baseEmail.subject.startsWith('Re:') ? baseEmail.subject : `Re: ${baseEmail.subject}`,
+      body: quickReplyText(kind, baseEmail.sender),
+      inReplyTo,
+      references,
+    });
+    setIsComposeOpen(true);
+  };
+
+  const handleHideAssistant = () => {
+    const updated: AppSettings = {
+      ...settings,
+      appearance: { ...settings.appearance, showAssistant: false },
+    };
+    setSettings(updated);
+    persistSettings(updated);
+    showToast('Amoroso ocultado. Para mostrar de novo: Configurações → Aparência.');
+  };
+
   const handleReplyAll = (targetEmail?: EmailItem) => {
     const baseEmail = targetEmail || selectedEmail;
     if (!baseEmail) return;
@@ -4965,6 +5058,11 @@ export const App: React.FC = () => {
                   onUnsubscribe={handleUnsubscribeEmail}
                   onToggleContactContext={handleToggleContactContext}
                   isContactContextOpen={isContactContextOpen}
+                  showAssistant={settings.appearance?.showAssistant ?? true}
+                  onAssistantQuickReply={handleAssistantQuickReply}
+                  onAssistantCreateEvent={handleAssistantCreateEvent}
+                  onAssistantCreateReminder={handleAssistantCreateReminder}
+                  onHideAssistant={handleHideAssistant}
                   onComposeNewEmail={() => {
                     const defaultAcc =
                       settings.accounts?.find((a) => a.isDefault) ||

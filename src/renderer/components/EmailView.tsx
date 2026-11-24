@@ -54,6 +54,8 @@ import {
 } from 'lucide-react';
 import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
+import { AssistantCard } from './AssistantCard';
+import type { DateMention } from '../utils/assistantInsights';
 import { soundService } from '../services/soundService';
 import { filterRealAttachments } from '../utils/attachmentUtils';
 import DOMPurify from 'dompurify';
@@ -200,6 +202,12 @@ interface EmailViewProps {
   onUnsubscribe?: (email: EmailItem) => Promise<void> | void;
   onToggleContactContext?: () => void;
   isContactContextOpen?: boolean;
+  /** Amoroso — Assistente Anectta */
+  showAssistant?: boolean;
+  onAssistantQuickReply?: (email: EmailItem, kind: 'confirm' | 'thanks') => void;
+  onAssistantCreateEvent?: (email: EmailItem, when?: DateMention) => void;
+  onAssistantCreateReminder?: (email: EmailItem, when?: DateMention) => void;
+  onHideAssistant?: () => void;
 }
 
 export const EmailView: React.FC<EmailViewProps> = ({
@@ -238,6 +246,11 @@ export const EmailView: React.FC<EmailViewProps> = ({
   onUnsubscribe,
   onToggleContactContext,
   isContactContextOpen = false,
+  showAssistant = false,
+  onAssistantQuickReply,
+  onAssistantCreateEvent,
+  onAssistantCreateReminder,
+  onHideAssistant,
 }) => {
   const [revealedImagesEmailIds, setRevealedImagesEmailIds] = useState<Record<string, boolean>>({});
   const [expandedThreadIds, setExpandedThreadIds] = useState<Record<string, boolean>>({});
@@ -1801,6 +1814,18 @@ export const EmailView: React.FC<EmailViewProps> = ({
             )}
           </div>
         </div>
+
+        {/* Amoroso — Assistente Anectta (resumo rápido local + ações) */}
+        {showAssistant && !['drafts', 'sent', 'outbox'].includes(String(email.folder)) && (
+          <AssistantCard
+            email={email}
+            wide={isModalMode}
+            onQuickReply={onAssistantQuickReply}
+            onCreateEvent={onAssistantCreateEvent}
+            onCreateReminder={onAssistantCreateReminder}
+            onHide={onHideAssistant}
+          />
+        )}
 
         {/* Cartão Interativo de Convite de Reunião (.ics / RSVP) */}
         {email.calendarInvite && (

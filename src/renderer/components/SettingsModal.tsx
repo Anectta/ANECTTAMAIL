@@ -2133,6 +2133,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </button>
                 </div>
 
+                {/* Amoroso — Assistente Anectta */}
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">
+                  <div>
+                    <div className="text-xs font-semibold text-white">
+                      Mostrar o Amoroso (Assistente Anectta) nos e-mails
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Resumo rápido no topo do e-mail aberto (datas, valores, anexos e próximo passo) e ações de
+                      um clique. Feito no seu computador: o e-mail não é enviado para nenhum serviço externo.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={formData.appearance.showAssistant ?? true}
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        appearance: {
+                          ...formData.appearance,
+                          showAssistant: !(formData.appearance.showAssistant ?? true),
+                        },
+                      })
+                    }
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ${
+                      (formData.appearance.showAssistant ?? true) ? 'bg-brand-500' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition duration-200 ${
+                        (formData.appearance.showAssistant ?? true) ? 'translate-x-4' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+
                 <SkinGalleryPanel />
               </div>
             )}

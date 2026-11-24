@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * Mascote do Anectta (desenho original): robozinho segurando um envelope.
+ * Amoroso — mascote e assistente do Anectta (desenho original): robozinho segurando um envelope.
  * Usado no aviso de novo e-mail. Animações leves: flutua, a antena pisca e ele pisca os olhos.
  */
 export const NotifierMascot: React.FC<{ size?: number }> = ({ size = 76 }) => (
@@ -11,7 +11,7 @@ export const NotifierMascot: React.FC<{ size?: number }> = ({ size = 76 }) => (
     viewBox="0 0 120 120"
     className="anectta-mascot"
     role="img"
-    aria-label="Mascote do Anectta segurando um envelope"
+    aria-label="Amoroso, o assistente do Anectta, segurando um envelope"
   >
     <style>{`
       .anectta-mascot .m-float { animation: mFloat 2.6s ease-in-out infinite; transform-origin: 60px 60px; }

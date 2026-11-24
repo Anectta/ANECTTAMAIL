@@ -70,6 +70,8 @@ export interface AppearanceSettings {
   accentColor: string;
   minimizeToTray?: boolean;
   showUnifiedInbox?: boolean;
+  /** Amoroso — Assistente Anectta no topo do e-mail aberto (padrão: ligado). */
+  showAssistant?: boolean;
 }
 
 export interface SecuritySettings {
