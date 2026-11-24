@@ -1,5 +1,6 @@
 ﻿import { ImapFlow } from 'imapflow';
 import { isTlsHostTrusted } from './tlsTrust';
+import { implicitTls } from './mailSecurity';
 import type { MailServerConfig } from './mailService';
 
 interface IdleEntry {
@@ -67,7 +68,7 @@ export class ImapIdleService {
     const client = new ImapFlow({
       host: c.host,
       port: c.port || 993,
-      secure: c.secure !== false,
+      secure: implicitTls(c.port, c.secure),
       auth: c.accessToken ? { user: c.user, accessToken: c.accessToken } : { user: c.user, pass: c.pass },
       tls: { rejectUnauthorized: !isTlsHostTrusted(c.host) },
       logger: false,

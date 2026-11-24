@@ -10,11 +10,34 @@ import {
   Server, 
   Minus,
   X,
-  ShieldCheck
+  ShieldCheck,
+  Sparkles,
+  RotateCcw,
+  ExternalLink,
+  AlertTriangle,
+  Search,
 } from 'lucide-react';
 import { AccountSettings, AppSettings } from '@/types/settings';
 import { soundService } from '@/services/soundService';
 import { EmailProviderNotice, detectProviderType } from './EmailProviderNotice';
+import type { MailDiscoveryResult, MailTestStep } from '../../types/electron';
+import {
+  MailSecurity,
+  SECURITY_LABELS,
+  defaultPort,
+  portAfterProtocolChange,
+  portAfterSecurityChange,
+  securityPortWarning,
+} from '../utils/mailServerDefaults';
+
+const DISCOVERY_SOURCE_LABEL: Record<string, string> = {
+  'provedor-conhecido': 'provedor conhecido',
+  'base-publica': 'base pública de provedores',
+  dominio: 'configuração publicada pelo seu domínio',
+  'registro-mx': 'registro de e-mail (MX) do seu domínio',
+  'teste-de-portas': 'teste automático dos servidores do seu domínio',
+};
+const WIZARD_PROVIDER_IDS = ['gmail', 'outlook', 'm365', 'locaweb', 'terra', 'uol', 'icloud', 'yahoo', 'aol'];
 
 export type ProviderId = 
   | 'gmail' 
@@ -61,6 +84,13 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
   // Test and connection status
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  // Teste detalhado: entrada e saída separadamente
+  const [accountTest, setAccountTest] = useState<{ incoming: MailTestStep; outgoing: MailTestStep } | null>(null);
+
+  // Configuração automática pelo e-mail
+  const [autoEmail, setAutoEmail] = useState('');
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discovery, setDiscovery] = useState<MailDiscoveryResult | null>(null);
 
   // OAuth 2.0 states (Microsoft 365 / Outlook & Google Gmail)
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
@@ -72,6 +102,8 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
     soundService.play('click');
     setSelectedProvider(provider);
     setTestResult(null);
+    setAccountTest(null);
+    setDiscovery(null);
 
     // Apply default presets for the selected provider
     switch (provider) {
@@ -161,10 +193,69 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
 
   const handleProtocolChange = (newProto: 'imap' | 'pop3') => {
     setProtocol(newProto);
-    if (newProto === 'pop3') {
-      if (incomingPort === 993) setIncomingPort(995);
-    } else {
-      if (incomingPort === 995) setIncomingPort(993);
+    setIncomingPort((cur) => portAfterProtocolChange(newProto, incomingSecurity, cur));
+    setAccountTest(null);
+  };
+
+  /** Segurança de entrada/saída: ajusta a porta padrão correspondente. */
+  const handleIncomingSecurityChange = (sec: MailSecurity) => {
+    setIncomingSecurity(sec);
+    setIncomingPort((cur) => portAfterSecurityChange(protocol, sec, cur));
+    setAccountTest(null);
+  };
+  const handleOutgoingSecurityChange = (sec: MailSecurity) => {
+    setOutgoingSecurity(sec);
+    setOutgoingPort((cur) => portAfterSecurityChange('smtp', sec, cur));
+    setAccountTest(null);
+  };
+  /** "Usar padrões": portas padrão para a segurança escolhida. */
+  const handleUseDefaultPorts = () => {
+    soundService.play('click');
+    setIncomingPort(defaultPort(protocol, incomingSecurity));
+    setOutgoingPort(defaultPort('smtp', outgoingSecurity));
+    setAccountTest(null);
+  };
+
+  /** Configuração automática: descobre os servidores pelo e-mail e abre o formulário já preenchido. */
+  const handleAutoDiscover = async () => {
+    const addr = autoEmail.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) {
+      setTestResult({ success: false, message: 'Digite um endereço de e-mail válido, por exemplo voce@empresa.com.br.' });
+      return;
+    }
+    soundService.play('click');
+    setIsDiscovering(true);
+    setTestResult(null);
+    setAccountTest(null);
+    try {
+      const res: MailDiscoveryResult = window.electronAPI?.discoverMailSettings
+        ? await window.electronAPI.discoverMailSettings(addr)
+        : { found: false, trail: ['descoberta indisponível'] };
+      const knownId = res.providerId && WIZARD_PROVIDER_IDS.includes(res.providerId) ? (res.providerId as ProviderId) : null;
+      handleSelectProvider(knownId || 'manual');
+      setEmail(addr);
+      if (!knownId) {
+        // Provedor sem cartão próprio: preenche os servidores encontrados (ou o que der)
+        if (res.incoming) {
+          setProtocol(res.incoming.protocol === 'pop3' ? 'pop3' : 'imap');
+          setIncomingHost(res.incoming.host);
+          setIncomingPort(res.incoming.port);
+          setIncomingSecurity(res.incoming.security);
+        }
+        if (res.outgoing) {
+          setOutgoingHost(res.outgoing.host);
+          setOutgoingPort(res.outgoing.port);
+          setOutgoingSecurity(res.outgoing.security);
+        }
+      }
+      setDiscovery(res);
+      soundService.play(res.found ? 'pop' : 'error');
+    } catch {
+      handleSelectProvider('manual');
+      setEmail(addr);
+      setDiscovery({ found: false, trail: ['falha na descoberta'] });
+    } finally {
+      setIsDiscovering(false);
     }
   };
 
@@ -334,15 +425,47 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
 
     setIsTesting(true);
     setTestResult(null);
+    setAccountTest(null);
     soundService.play('click');
 
     try {
+      // Teste detalhado: entrada e saída separadamente, com login e explicação clara
+      if (window.electronAPI?.testMailAccount) {
+        const proto = selectedProvider === 'manual' ? protocol : 'imap';
+        const result = await window.electronAPI.testMailAccount({
+          incoming: {
+            protocol: proto,
+            host: incomingHost.trim(),
+            port: Number(incomingPort) || defaultPort(proto, incomingSecurity),
+            security: incomingSecurity,
+          },
+          outgoing: {
+            protocol: 'smtp',
+            host: outgoingHost.trim(),
+            port: Number(outgoingPort) || defaultPort('smtp', outgoingSecurity),
+            security: outgoingSecurity,
+          },
+          user: email.trim(),
+          pass: password,
+          email: email.trim(),
+        });
+        setAccountTest(result);
+        if (result.incoming.ok && result.outgoing.ok) {
+          soundService.play('pop');
+          setTestResult({ success: true, message: 'Recebimento e envio funcionando! Adicionando a conta...' });
+          setTimeout(() => onAccountConnected(buildAccountObject()), 900);
+        } else {
+          soundService.play('error');
+        }
+        return;
+      }
+
       if (window.electronAPI?.testImapConnection) {
         const res = await window.electronAPI.testImapConnection({
           protocol: selectedProvider === 'manual' ? protocol : 'imap',
           host: incomingHost.trim(),
           port: Number(incomingPort) || (protocol === 'imap' ? 993 : 995),
-          secure: incomingSecurity !== 'none',
+          secure: incomingSecurity === 'ssl',
           user: email.trim(),
           pass: password,
         });
@@ -444,6 +567,47 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
                 <p className="text-slate-500 text-xs sm:text-sm font-normal mt-1">
                   Não se preocupe, leva só um instante.
                 </p>
+              </div>
+
+              {/* Configuração automática: só o e-mail — o app descobre os servidores */}
+              <div className="mb-3 p-3 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Sparkles className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-bold text-slate-900">Configuração automática</span>
+                </div>
+                <p className="text-[11px] text-slate-600 mb-2">
+                  Digite seu e-mail e o Anectta encontra os servidores sozinho — inclusive de domínios próprios
+                  (ex.: voce@suaempresa.com.br).
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={autoEmail}
+                    onChange={(e) => setAutoEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void handleAutoDiscover();
+                    }}
+                    placeholder="voce@empresa.com.br"
+                    className="flex-1 min-w-0 px-3 py-2 text-xs sm:text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleAutoDiscover()}
+                    disabled={isDiscovering}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    {isDiscovering ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                    {isDiscovering ? 'Procurando...' : 'Continuar'}
+                  </button>
+                </div>
+                {testResult && !testResult.success && !selectedProvider && (
+                  <p className="mt-1.5 text-[11px] text-rose-700">{testResult.message}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">ou escolha o provedor</span>
+                <div className="flex-1 h-px bg-slate-200" />
               </div>
 
               {/* Provider List Container - Compact Borders and Item Heights */}
@@ -760,6 +924,51 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
                 </div>
               </div>
 
+              {/* Resultado da configuração automática */}
+              {discovery && (
+                <div
+                  className={`mb-3 p-2.5 rounded-xl text-[11px] flex items-start gap-2 border ${
+                    discovery.found
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                  }`}
+                >
+                  {discovery.found ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="space-y-0.5">
+                    {discovery.found ? (
+                      <>
+                        <span className="font-bold block">
+                          Configurações encontradas{discovery.providerName ? `: ${discovery.providerName}` : ''}
+                        </span>
+                        <span>
+                          Fonte: {DISCOVERY_SOURCE_LABEL[discovery.source || ''] || 'detecção automática'}.
+                          {discovery.oauth
+                            ? ' Recomendado: use o botão de login abaixo (sem senha de aplicativo).'
+                            : ' Agora digite sua senha e clique em "Testar e Conectar Conta".'}
+                        </span>
+                        {discovery.appPassword && !discovery.oauth && (
+                          <span className="block text-amber-800">
+                            Este provedor exige uma senha de aplicativo (a senha normal da conta não funciona).
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-bold block">Não foi possível descobrir os servidores automaticamente</span>
+                        <span>
+                          Preencha os servidores abaixo (seu provedor de e-mail ou o responsável pelo seu domínio informa
+                          esses dados).{discovery.incoming || discovery.outgoing ? ' Preenchemos o que conseguimos encontrar.' : ''}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* OAuth 2.0 Modern Auth Banner for Microsoft / Google */}
               {(selectedProvider === 'outlook' || selectedProvider === 'm365' || selectedProvider === 'gmail') && (
                 <div className="mb-3 p-3 rounded-xl bg-blue-50 border border-blue-200 space-y-2">
@@ -940,12 +1149,35 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
                         <input
                           type="text"
                           value={incomingPort}
-                          onChange={(e) => setIncomingPort(e.target.value)}
-                          placeholder={protocol === 'imap' ? '993' : '995'}
+                          onChange={(e) => {
+                            setIncomingPort(e.target.value);
+                            setAccountTest(null);
+                          }}
+                          placeholder={String(defaultPort(protocol, incomingSecurity))}
                           className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-md font-mono"
                         />
                       </div>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] font-semibold text-slate-600 shrink-0">Segurança (entrada)</label>
+                      <select
+                        value={incomingSecurity}
+                        onChange={(e) => handleIncomingSecurityChange(e.target.value as MailSecurity)}
+                        className="flex-1 px-2 py-1 text-xs bg-slate-50 border border-slate-300 rounded-md"
+                      >
+                        {(['ssl', 'starttls', 'none'] as MailSecurity[]).map((s) => (
+                          <option key={s} value={s}>
+                            {SECURITY_LABELS[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {securityPortWarning(protocol, incomingSecurity, incomingPort) && (
+                      <p className="text-[10.5px] text-amber-700 flex items-start gap-1">
+                        <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                        {securityPortWarning(protocol, incomingSecurity, incomingPort)}
+                      </p>
+                    )}
 
                     <div className="grid grid-cols-3 gap-2">
                       <div className="col-span-2">
@@ -967,18 +1199,104 @@ export const AccountSetupWizardView: React.FC<AccountSetupWizardViewProps> = ({
                         <input
                           type="text"
                           value={outgoingPort}
-                          onChange={(e) => setOutgoingPort(e.target.value)}
-                          placeholder="465 ou 587"
+                          onChange={(e) => {
+                            setOutgoingPort(e.target.value);
+                            setAccountTest(null);
+                          }}
+                          placeholder={String(defaultPort('smtp', outgoingSecurity))}
                           className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-md font-mono"
                         />
                       </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] font-semibold text-slate-600 shrink-0">Segurança (saída)</label>
+                      <select
+                        value={outgoingSecurity}
+                        onChange={(e) => handleOutgoingSecurityChange(e.target.value as MailSecurity)}
+                        className="flex-1 px-2 py-1 text-xs bg-slate-50 border border-slate-300 rounded-md"
+                      >
+                        {(['ssl', 'starttls', 'none'] as MailSecurity[]).map((s) => (
+                          <option key={s} value={s}>
+                            {SECURITY_LABELS[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {securityPortWarning('smtp', outgoingSecurity, outgoingPort) && (
+                      <p className="text-[10.5px] text-amber-700 flex items-start gap-1">
+                        <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                        {securityPortWarning('smtp', outgoingSecurity, outgoingPort)}
+                      </p>
+                    )}
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleUseDefaultPorts}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-colors cursor-pointer"
+                        title="Portas padrão para a segurança escolhida"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        Usar padrões
+                      </button>
                     </div>
                   </div>
                 )}
               </div>
 
+              {/* Resultado do teste detalhado: entrada e saída */}
+              {accountTest && (
+                <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
+                  {([
+                    ['Recebimento (entrada)', accountTest.incoming],
+                    ['Envio (saída)', accountTest.outgoing],
+                  ] as Array<[string, MailTestStep]>).map(([label, step]) => (
+                    <div key={label} className={`p-2.5 text-xs ${step.ok ? 'bg-emerald-50/60' : 'bg-rose-50/60'}`}>
+                      <div className="flex items-start gap-2">
+                        {step.ok ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        )}
+                        <div className="min-w-0 space-y-0.5">
+                          <span className="font-bold text-slate-800 block">{label}</span>
+                          <span className={step.ok ? 'text-emerald-800' : 'text-rose-800'}>{step.message}</span>
+                          {!step.ok && step.hint && <span className="block text-slate-600">{step.hint}</span>}
+                          {!step.ok && step.helpUrl && (
+                            <button
+                              type="button"
+                              onClick={() => void window.electronAPI?.openExternal?.(step.helpUrl!)}
+                              className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline cursor-pointer"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              {step.helpLabel || 'Abrir ajuda'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {accountTest.incoming.ok && !accountTest.outgoing.ok && (
+                    <div className="p-2.5 bg-white flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-600">
+                        O recebimento funciona. Você pode adicionar a conta agora e ajustar o envio depois em Contas.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          soundService.play('click');
+                          onAccountConnected(buildAccountObject());
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md shrink-0 cursor-pointer"
+                      >
+                        Adicionar mesmo assim
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Status or Error Banner */}
-              {testResult && (
+              {testResult && (selectedProvider || testResult.success) && (
                 <div
                   className={`mt-3 p-2.5 rounded-xl text-xs flex items-start space-x-2 ${
                     testResult.success

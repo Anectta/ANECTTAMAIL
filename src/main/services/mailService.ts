@@ -8,6 +8,7 @@ import crypto from 'crypto';
 import { simpleParser } from 'mailparser';
 import { SimplePop3Client } from './pop3Client';
 import { isTlsHostTrusted } from './tlsTrust';
+import { implicitTls } from './mailSecurity';
 import { getDataStorageDir } from './storagePath';
 
 export interface MailServerConfig {
@@ -422,7 +423,7 @@ export class MailService {
     const client = new ImapFlow({
       host: config.host,
       port: config.port || 993,
-      secure: config.secure !== false,
+      secure: implicitTls(config.port, config.secure),
       auth: config.accessToken
         ? { user: config.user, accessToken: config.accessToken }
         : { user: config.user, pass: config.pass },
@@ -508,7 +509,7 @@ export class MailService {
       pass: config.pass,
       host: config.host,
       port: config.port || 995,
-      tls: config.secure !== false,
+      tls: implicitTls(config.port, config.secure),
       rejectUnauthorized: !isTlsHostTrusted(config.host),
       timeout: 10000,
     });
@@ -683,7 +684,7 @@ export class MailService {
     const client = new ImapFlow({
       host: config.host,
       port: config.port || 993,
-      secure: config.secure !== false,
+      secure: implicitTls(config.port, config.secure),
       auth: config.accessToken
         ? { user: config.user, accessToken: config.accessToken }
         : { user: config.user, pass: config.pass },
@@ -956,7 +957,7 @@ export class MailService {
     const client = new ImapFlow({
       host: config.host,
       port: config.port || 993,
-      secure: config.secure !== false,
+      secure: implicitTls(config.port, config.secure),
       auth: config.accessToken
         ? { user: config.user, accessToken: config.accessToken }
         : { user: config.user, pass: config.pass },
@@ -1098,7 +1099,7 @@ export class MailService {
     const client = new ImapFlow({
       host: config.host,
       port: config.port || 993,
-      secure: config.secure !== false,
+      secure: implicitTls(config.port, config.secure),
       auth: config.accessToken
         ? { user: config.user, accessToken: config.accessToken }
         : { user: config.user, pass: config.pass },
@@ -1349,7 +1350,7 @@ export class MailService {
     const client = new ImapFlow({
       host: config.host,
       port: config.port || 993,
-      secure: config.secure !== false,
+      secure: implicitTls(config.port, config.secure),
       auth: config.accessToken
         ? { user: config.user, accessToken: config.accessToken }
         : { user: config.user, pass: config.pass },
@@ -1846,7 +1847,7 @@ export class MailService {
     const client = new ImapFlow({
       host: config.host,
       port: config.port || 993,
-      secure: config.secure !== false,
+      secure: implicitTls(config.port, config.secure),
       auth: config.accessToken
         ? { user: config.user, accessToken: config.accessToken }
         : { user: config.user, pass: config.pass },
@@ -2008,7 +2009,7 @@ export class MailService {
     const client = new ImapFlow({
       host: config.host,
       port: config.port || 993,
-      secure: config.secure !== false,
+      secure: implicitTls(config.port, config.secure),
       auth: config.accessToken
         ? { user: config.user, accessToken: config.accessToken }
         : { user: config.user, pass: config.pass },
@@ -2050,7 +2051,7 @@ export class MailService {
     const client = new ImapFlow({
       host: config.host,
       port: config.port || 993,
-      secure: config.secure !== false,
+      secure: implicitTls(config.port, config.secure),
       auth: config.accessToken
         ? { user: config.user, accessToken: config.accessToken }
         : { user: config.user, pass: config.pass },
@@ -2100,7 +2101,7 @@ export class MailService {
     const client = new ImapFlow({
       host: config.host,
       port: config.port || 993,
-      secure: config.secure !== false,
+      secure: implicitTls(config.port, config.secure),
       auth: config.accessToken
         ? { user: config.user, accessToken: config.accessToken }
         : { user: config.user, pass: config.pass },
@@ -2139,7 +2140,7 @@ export class MailService {
     const client = new ImapFlow({
       host: config.host,
       port: config.port || 993,
-      secure: config.secure !== false,
+      secure: implicitTls(config.port, config.secure),
       auth: config.accessToken
         ? { user: config.user, accessToken: config.accessToken }
         : { user: config.user, pass: config.pass },
@@ -2182,7 +2183,7 @@ export class MailService {
       pass: config.pass,
       host: config.host,
       port: config.port || 995,
-      tls: config.secure !== false,
+      tls: implicitTls(config.port, config.secure),
       rejectUnauthorized: !isTlsHostTrusted(config.host),
       timeout: 15000,
     });

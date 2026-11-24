@@ -12,6 +12,34 @@ export type MailFolder =
 
 export type TimePeriod = 'today' | 'yesterday' | 'last_week' | 'older';
 
+export interface MailServerSpec {
+  protocol: 'imap' | 'pop3' | 'smtp';
+  host: string;
+  port: number;
+  security: 'ssl' | 'starttls' | 'none';
+}
+
+export interface MailDiscoveryResult {
+  found: boolean;
+  source?: 'provedor-conhecido' | 'base-publica' | 'dominio' | 'registro-mx' | 'teste-de-portas';
+  providerId?: string;
+  providerName?: string;
+  incoming?: MailServerSpec;
+  outgoing?: MailServerSpec;
+  oauth?: 'google' | 'microsoft';
+  appPassword?: boolean;
+  trail: string[];
+}
+
+export interface MailTestStep {
+  ok: boolean;
+  message: string;
+  hint?: string;
+  helpUrl?: string;
+  helpLabel?: string;
+  code?: string;
+}
+
 export interface EmailItem {
   id: string;
   accountId?: string;
@@ -110,6 +138,16 @@ export interface ElectronAPI {
   summarizeEmailWithAI: (content: string, subject?: string) => Promise<AISummaryResult>;
   suggestRepliesWithAI: (emailContent: string) => Promise<string[]>;
   testImapConnection: (config: any) => Promise<{ success: boolean; message: string }>;
+  /** Descobre os servidores de e-mail a partir do endereço. */
+  discoverMailSettings?: (email: string) => Promise<MailDiscoveryResult>;
+  /** Testa entrada e saída separadamente, com mensagens claras. */
+  testMailAccount?: (payload: {
+    incoming: MailServerSpec;
+    outgoing: MailServerSpec;
+    user: string;
+    pass: string;
+    email?: string;
+  }) => Promise<{ incoming: MailTestStep; outgoing: MailTestStep }>;
   fetchRealInbox: (config: any) => Promise<{ success: boolean; emails?: EmailItem[]; error?: string; count?: number; serverTotal?: number; hasMore?: boolean; quota?: QuotaInfo }>;
   fetchRealFolder: (config: any, folder: string, limit?: number, imapPath?: string) => Promise<{ success: boolean; emails?: EmailItem[]; error?: string; count?: number; serverTotal?: number; quota?: QuotaInfo }>;
   loadMessageCache: () => Promise<any[] | null>;

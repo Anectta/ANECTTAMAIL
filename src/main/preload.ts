@@ -201,6 +201,9 @@ const electronAPI = {
 
   // Real IMAP / SMTP integration
   testImapConnection: (config: any) => ipcRenderer.invoke('mail:test-imap', config),
+  // Assistente de conta: descoberta automática e teste completo (entrada + saída)
+  discoverMailSettings: (email: string) => ipcRenderer.invoke('mail:autodiscover', email),
+  testMailAccount: (payload: any) => ipcRenderer.invoke('mail:test-account', payload),
   fetchRealInbox: (config: any) => ipcRenderer.invoke('mail:fetch-inbox', config),
   fetchRealFolder: (config: any, folder: string, limit?: number, imapPath?: string) =>
     ipcRenderer.invoke('mail:fetch-folder', { config, folder, limit, imapPath }),

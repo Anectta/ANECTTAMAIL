@@ -17,6 +17,9 @@ import { MailService, MailServerConfig, ImapServerAction } from './services/mail
 import { ImapIdleService } from './services/imapIdleService';
 import { SearchIndexService } from './services/searchIndexService';
 import { MailStore, StoreUpsertRecord } from './services/mailStore';
+import { discoverMailSettings } from './services/accountDiscovery';
+import { testAccount } from './services/connectionTest';
+import { implicitTls } from './services/mailSecurity';
 import { AIAssistantService } from './services/aiAssistantService';
 import { EmlExporterService } from './services/emlExporterService';
 import { OAuthService, OAuthProvider } from './services/oauthService';
@@ -974,6 +977,31 @@ async function tlsGate(config: any): Promise<{ success: false; error: string } |
 ipcMain.handle('mail:test-incoming', async (_event, config: MailServerConfig) => {
   { const g = await tlsGate(config); if (g) return g; }
   return await MailService.testIncomingConnection(config);
+});
+
+// Assistente de conta: descobre os servidores a partir do e-mail (só o domínio sai do computador)
+ipcMain.handle('mail:autodiscover', async (_event, email: string) => {
+  try {
+    return await discoverMailSettings(String(email || ''));
+  } catch (err: any) {
+    return { found: false, trail: [err?.message || 'falha na descoberta'] };
+  }
+});
+
+// Assistente de conta: testa entrada e saída separadamente, com mensagens claras
+ipcMain.handle('mail:test-account', async (_event, payload: any) => {
+  const incoming = payload?.incoming;
+  // Certificado não reconhecido no servidor de entrada: o app pergunta se deve confiar (mesmo fluxo da conexão normal)
+  const gate = incoming?.host
+    ? await tlsGate({ host: incoming.host, port: incoming.port, secure: implicitTls(incoming.port, incoming.security === 'ssl') })
+    : null;
+  if (gate) {
+    return {
+      incoming: { ok: false, code: 'certificate', message: gate.error || 'Certificado do servidor não confiável.' },
+      outgoing: { ok: false, code: 'unknown', message: 'Não testado (corrija o servidor de entrada primeiro).' },
+    };
+  }
+  return await testAccount(payload);
 });
 
 ipcMain.handle('mail:test-imap', async (_event, config: MailServerConfig) => {
