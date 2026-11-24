@@ -1611,6 +1611,8 @@ export class MailService {
 
   /** Acima disso, "removidas no servidor" numa única pasta/rodada é tratado como suspeito. */
   private static readonly MAX_VANISHED_PER_SYNC = 300;
+  /** Alguns provedores (ex.: Yahoo) mostram no máximo 10.000 mensagens por pasta via IMAP. */
+  private static readonly PROVIDER_FOLDER_VIEW_CAP = 10000;
 
   private static async fetchSyncCatchUp(
     client: ImapFlow,
@@ -1650,15 +1652,24 @@ export class MailService {
         }
         return `${lo}..${hi}`;
       };
+      // Provedores que mostram no máximo 10.000 mensagens por pasta via IMAP (ex.: Yahoo): o que
+      // está acima do maior UID visível não foi apagado — só não aparece. Nesses casos, só conta
+      // como removido o que estiver dentro da faixa visível.
+      let listedMax = 0;
+      for (const uid of listed.uids) if (uid > listedMax) listedMax = uid;
+      const truncatedView = listed.complete && exists >= this.PROVIDER_FOLDER_VIEW_CAP;
       if (listed.complete) {
-        vanished = Array.from(knownUids).filter((uid) => !serverUids.has(uid));
+        vanished = Array.from(knownUids).filter(
+          (uid) => !serverUids.has(uid) && (!truncatedView || uid <= listedMax)
+        );
       }
       if (!listed.complete || vanished.length > 0) {
         diag =
           `${folderKey}: servidor diz ${exists}, listou ${listed.uids.length} (UIDs ${span(listed.uids)}), ` +
           `app conhece ${knownUids.size} (UIDs ${span(Array.from(knownUids))}), ` +
           `"removidas" ${vanished.length} (UIDs ${span(vanished)})` +
-          (listed.complete ? '' : ' — lista incompleta: nada removido');
+          (listed.complete ? '' : ' — lista incompleta: nada removido') +
+          (truncatedView ? ` — servidor mostra só ${exists} mensagens nesta pasta (limite do provedor)` : '');
       }
       // Trava de segurança: remoção em massa numa única rodada não é aplicada (só registrada).
       // Evita o vai-e-vem com provedores que mostram conjuntos diferentes de mensagens.

@@ -17,6 +17,30 @@ import { removeServerDuplicates } from '../utils/emailDedupe';
  */
 
 const IMAP_BATCH = 100;
+
+// Pastas que o servidor recusa (ex.: pastas-mãe que não podem ser abertas): pausa por um tempo
+// em vez de tentar 3 vezes a cada sincronização
+const SKIP_KEY = 'anectta_backfill_skip_folders';
+const SKIP_MS = 2 * 60 * 60 * 1000;
+// Mensagens que o servidor lista mas não entrega: não insiste a cada sincronização
+const UNFETCHABLE_KEY = 'anectta_backfill_unfetchable';
+const MAX_UNFETCHABLE_PER_FOLDER = 2000;
+
+const readJson = <T,>(key: string, fallback: T): T => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+const writeJson = (key: string, value: unknown) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+};
+const isServerRefusal = (msg?: string) =>
+  /command failed|nonexistent|does not exist|doesn't exist|noselect|cannot select|not selectable/i.test(msg || '');
 const POP3_BATCH = 200;
 const MAX_CONSECUTIVE_ERRORS = 3;
 
@@ -107,8 +131,14 @@ export function useMailBackfill(opts: MailBackfillOptions) {
         })),
       ];
 
+      const skipMap = readJson<Record<string, number>>(SKIP_KEY, {});
+      const unfetchableMap = readJson<Record<string, number[]>>(UNFETCHABLE_KEY, {});
+
       for (const folder of folders) {
         if (cancelRef.current) return;
+        const folderKey = `${acc.id}:${folder.serverKey}`;
+        if ((skipMap[folderKey] || 0) > Date.now()) continue;
+        const unfetchable = new Set<number>(unfetchableMap[folderKey] || []);
 
         // UIDs que o app já tem nesta pasta do servidor (+ excluídos definitivamente)
         const localUids = new Set<number>();
@@ -117,7 +147,7 @@ export function useMailBackfill(opts: MailBackfillOptions) {
           const loc = getImapLocation(e);
           if (loc && loc.folderKey === folder.serverKey) localUids.add(loc.uid);
         }
-        const known = new Set<number>(localUids);
+        const known = new Set<number>([...localUids, ...unfetchable]);
         for (const id of optsRef.current.loadDeletedEmailIds()) {
           const loc = parseImapLocationFromId(id, acc.id);
           if (loc && loc.folderKey === folder.serverKey) known.add(loc.uid);
@@ -125,7 +155,7 @@ export function useMailBackfill(opts: MailBackfillOptions) {
 
         // Já tem tudo segundo a última sincronização → não precisa conectar
         const knownTotal = optsRef.current.serverFolderTotals[`${acc.id}:${folder.serverKey}`];
-        if (typeof knownTotal === 'number' && localUids.size >= knownTotal) continue;
+        if (typeof knownTotal === 'number' && localUids.size + unfetchable.size >= knownTotal) continue;
 
         const label = `${folder.label} · ${acc.email}`;
         let errors = 0;
@@ -145,6 +175,12 @@ export function useMailBackfill(opts: MailBackfillOptions) {
           }
 
           if (!res.success) {
+            if (isServerRefusal(res.error)) {
+              // Recusa do servidor: pausa esta pasta por um tempo (sem novas tentativas agora)
+              skipMap[folderKey] = Date.now() + SKIP_MS;
+              writeJson(SKIP_KEY, skipMap);
+              break;
+            }
             errors++;
             if (errors >= MAX_CONSECUTIVE_ERRORS) break; // tenta de novo na próxima sincronização
             await new Promise((r) => setTimeout(r, 2000 * errors));
@@ -162,6 +198,16 @@ export function useMailBackfill(opts: MailBackfillOptions) {
           }
 
           for (const uid of res.attemptedUids || []) known.add(uid);
+          // Pedidos que não voltaram: o servidor lista mas não entrega — não insistir depois
+          const returned = new Set<number>(
+            (res.emails || []).map((m: any) => Number(String(m.id).split('-').pop())).filter(Number.isFinite)
+          );
+          const notReturned = (res.attemptedUids || []).filter((uid: number) => !returned.has(uid));
+          if (notReturned.length > 0) {
+            for (const uid of notReturned) unfetchable.add(uid);
+            unfetchableMap[folderKey] = Array.from(unfetchable).slice(-MAX_UNFETCHABLE_PER_FOLDER);
+            writeJson(UNFETCHABLE_KEY, unfetchableMap);
+          }
           const batch = (res.emails || []).map((m: any) => ({
             ...m,
             id: m.id.startsWith(`${acc.id}-`) ? m.id : `${acc.id}-${m.id}`,

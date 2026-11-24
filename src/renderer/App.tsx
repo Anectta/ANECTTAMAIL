@@ -119,6 +119,17 @@ const rememberDeletedEmailIds = (ids: string[]): void => {
   } catch {}
 };
 
+/** Esquece IDs da lista de excluídos que o servidor já confirmou não ter mais (nada a evitar). */
+const forgetDeletedEmailIds = (ids: string[]): void => {
+  if (ids.length === 0) return;
+  try {
+    const drop = new Set(ids);
+    const current = loadDeletedEmailIds();
+    const next = current.filter((id) => !drop.has(id));
+    if (next.length !== current.length) localStorage.setItem(DELETED_EMAIL_IDS_KEY, JSON.stringify(next));
+  } catch {}
+};
+
 const INITIAL_EMAILS: EmailItem[] = [
   {
     id: 'msg-coworking-1',
@@ -2222,6 +2233,12 @@ export const App: React.FC = () => {
             for (const [folderKey, uids] of Object.entries(res.vanished)) {
               for (const uid of uids) vanishedKeys.add(`${folderKey}#${uid}`);
             }
+            // Excluídos no app que o servidor também já não tem: saem da lista de excluídos
+            forgetDeletedEmailIds(
+              Object.entries(res.vanished).flatMap(([folderKey, uids]) =>
+                uids.map((uid) => imapServerKey(acc.id, { folderKey, uid }))
+              )
+            );
             setEmails((prev) => {
               const next = prev.filter((e) => {
                 if (e.accountId !== acc.id) return true;
