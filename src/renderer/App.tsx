@@ -131,6 +131,9 @@ const forgetDeletedEmailIds = (ids: string[]): void => {
   } catch {}
 };
 
+/** Intervalo da sincronização completa automática (todas as pastas). */
+const FULL_SYNC_EVERY_MS = 15 * 60 * 1000;
+
 const INITIAL_EMAILS: EmailItem[] = [
   {
     id: 'msg-coworking-1',
@@ -835,6 +838,8 @@ export const App: React.FC = () => {
   const syncPromiseRef = useRef<Promise<void> | null>(null);
   const closingInProgressRef = useRef(false);
   const lastFocusSyncRef = useRef(0);
+  // Quando foi a última sincronização completa (todas as pastas)
+  const lastFullSyncAtRef = useRef(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [accountQuotas, setAccountQuotas] = useState<Record<string, { usedBytes: number; limitBytes: number }>>(() => {
     try {
@@ -2162,6 +2167,7 @@ export const App: React.FC = () => {
 
     syncInFlightRef.current = true;
     syncInFlightSilentRef.current = silent;
+    if (!silent) lastFullSyncAtRef.current = Date.now(); // completa = todas as pastas
     syncInFlightBackgroundRef.current = hideFeedback;
     if (!hideFeedback) {
       syncManualRequestedRef.current = false;
@@ -2660,8 +2666,16 @@ export const App: React.FC = () => {
       return Boolean(incoming?.host && (incoming?.password || currentAccount.password || incoming?.username));
     };
 
+    // A cada verificação: sincronização rápida (só Caixa de Entrada). A cada 15 minutos, uma
+    // sincronização completa em segundo plano (todas as pastas e a lista de pastas do servidor),
+    // para que pastas apagadas/criadas e mudanças em outras pastas cheguem sem clicar.
     const interval = setInterval(() => {
-      if (hasCreds()) handleSyncAll({ silent: true });
+      if (!hasCreds()) return;
+      if (Date.now() - lastFullSyncAtRef.current >= FULL_SYNC_EVERY_MS) {
+        handleSyncAll({ background: true });
+      } else {
+        handleSyncAll({ silent: true });
+      }
     }, intervalMs);
 
     // Sincroniza ao voltar o foco para a janela (throttle de 15s)

@@ -155,7 +155,12 @@ export function useMailBackfill(opts: MailBackfillOptions) {
 
         // Já tem tudo segundo a última sincronização → não precisa conectar
         const knownTotal = optsRef.current.serverFolderTotals[`${acc.id}:${folder.serverKey}`];
-        if (typeof knownTotal === 'number' && localUids.size + unfetchable.size >= knownTotal) continue;
+        // Total 0 com e-mails no app é contraditório (ex.: Yahoo mostra a pasta vazia numa conexão e
+        // cheia em outra): nesse caso confere na conexão própria do download em vez de confiar no 0.
+        const contradictoryZero = knownTotal === 0 && localUids.size > 0;
+        if (typeof knownTotal === 'number' && !contradictoryZero && localUids.size + unfetchable.size >= knownTotal) {
+          continue;
+        }
 
         const label = `${folder.label} · ${acc.email}`;
         let errors = 0;
