@@ -229,6 +229,8 @@ const electronAPI = {
     ipcRenderer.invoke('mail:delete-folder', { config, imapPath }),
   sendRealEmail: (config: any, emailData: any, sentCopyConfig?: any) =>
     ipcRenderer.invoke('mail:send-smtp', { config, emailData, sentCopyConfig }),
+  // Registro de diagnóstico da sincronização (imap-sync.log)
+  logImapSync: (message: string) => ipcRenderer.send('mail:imap-sync-log', String(message || '').slice(0, 2000)),
   applyImapServerActions: (config: any, actions: any[]) =>
     ipcRenderer.invoke('mail:imap-server-actions', { config, actions }),
 

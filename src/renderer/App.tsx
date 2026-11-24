@@ -17,6 +17,7 @@ import { ensureEmailBody, useHydratedEmails } from '@/services/emailBodyCache';
 import { isBodyStripped } from './utils/emailBodyStrip';
 import { removeServerDuplicates } from './utils/emailDedupe';
 import { pickNewArrivals, buildNewMailNotice } from './utils/newMailDetect';
+import { findFoldersDeletedOnServer } from './utils/serverFolderSync';
 import { getImapLocation, imapServerKey, parseImapLocationFromId } from './utils/imapLocation';
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount, PriorityLevel, TaskItem } from '@/types/email';
 import {
@@ -531,6 +532,10 @@ export const App: React.FC = () => {
       // ignore
     }
   }, [customFolders]);
+
+  // Versão sempre atual das pastas (para rotinas assíncronas como a sincronização)
+  const customFoldersRef = useRef(customFolders);
+  customFoldersRef.current = customFolders;
 
   const [favoriteFolders, setFavoriteFolders] = useState<FavoriteFolder[]>(() => {
     try {
@@ -2266,6 +2271,29 @@ export const App: React.FC = () => {
               }
               return next;
             });
+          }
+
+          // Servidor → app: pastas apagadas no webmail/celular saem do app, com os e-mails delas
+          if (res.success && Array.isArray(res.serverFolderPaths)) {
+            const deleted = findFoldersDeletedOnServer(customFoldersRef.current, acc.id, res.serverFolderPaths);
+            if (deleted.ids.size > 0) {
+              const ids = deleted.ids;
+              setCustomFolders((prev) => prev.filter((f) => !ids.has(f.id)));
+              setFavoriteFolders((prev) => prev.filter((fav) => !ids.has(fav.folderId)));
+              setEmails((prev) => {
+                const next = prev.filter((e) => !(e.accountId === acc.id && ids.has(e.folder)));
+                return next.length === prev.length ? prev : next;
+              });
+              setCurrentFolder((cur) => (ids.has(cur) ? 'inbox' : cur));
+              const names = customFoldersRef.current.filter((f) => ids.has(f.id)).map((f) => f.name);
+              void window.electronAPI?.logImapSync?.(
+                `servidor→app ${acc.email}: pasta(s) apagada(s) no servidor removida(s) do app: ${names.join(', ')}`
+              );
+            } else if (deleted.blocked) {
+              void window.electronAPI?.logImapSync?.(
+                `servidor→app ${acc.email}: lista de pastas do servidor parece incompleta — nenhuma pasta removida`
+              );
+            }
           }
 
           const imapFolderKeyToId = new Map<string, string>();

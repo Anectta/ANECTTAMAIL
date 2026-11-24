@@ -2008,7 +2008,7 @@ ipcMain.handle('mail:fetch-older-folder', async (_event, payload: any) => {
   if (payload?.missingOnly === true && (!res.success || (res.attemptedUids?.length ?? 0) > 0)) {
     const uids = res.attemptedUids || [];
     imapSyncLog(
-      `download automático ${config?.user || ''} ${folder}: ${res.success ? 'ok' : 'ERRO ' + res.error} | servidor diz ${res.serverTotal ?? '?'}` +
+      `download automático ${config?.user || ''} ${folder}${res.mailboxPath ? ` [pasta "${res.mailboxPath}"]` : ''}: ${res.success ? 'ok' : 'ERRO ' + res.error} | servidor diz ${res.serverTotal ?? '?'}` +
         `, app conhecia ${Array.isArray(payload?.knownUids) ? payload.knownUids.length : '?'}, baixou ${res.emails?.length ?? 0}` +
         (uids.length ? ` (UIDs ${Math.min(...uids)}..${Math.max(...uids)})` : '') +
         `, faltam ${res.remaining ?? '?'}`
@@ -2073,6 +2073,11 @@ function imapSyncLog(message: string): void {
     fs.appendFileSync(file, `[${new Date().toISOString()}] ${message}\n`);
   } catch {}
 }
+
+ipcMain.on('mail:imap-sync-log', (event, message: string) => {
+  if (!isTrustedRendererSender(event) || typeof message !== 'string') return;
+  imapSyncLog(message.slice(0, 2000));
+});
 
 // Reflete no servidor IMAP as ações feitas no app (lido/estrela, mover, excluir)
 ipcMain.handle('mail:imap-server-actions', async (_event, payload: any) => {

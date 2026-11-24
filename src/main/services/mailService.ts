@@ -76,8 +76,12 @@ export interface FetchResult {
   vanished?: Record<string, number[]>;
   /** Diagnóstico da comparação servidor × app (gravado no imap-sync.log). */
   diag?: string[];
+  /** Caminho da pasta aberta no servidor (diagnóstico). */
+  mailboxPath?: string;
   folderStats?: Record<string, number>;
   customFolders?: DiscoveredCustomFolder[];
+  /** Caminhos de todas as pastas existentes no servidor (sincronização completa). */
+  serverFolderPaths?: string[];
   quota?: QuotaInfo;
   flagUpdates?: Array<{ id: string; isRead: boolean; isStarred: boolean }>;
 }
@@ -1188,6 +1192,7 @@ export class MailService {
           hasMore: remaining > 0,
           attemptedUids,
           remaining,
+          mailboxPath,
         };
       }
 
@@ -1440,7 +1445,7 @@ export class MailService {
               // Pasta esvaziada no servidor: tudo o que o app tinha nela saiu do servidor
               const allKnown = [...(knownUidsByFolder[folder] || [])];
               if (allKnown.length <= this.MAX_VANISHED_PER_SYNC) vanishedByFolder[folder] = allKnown;
-              else syncDiag.push(`${folder}: servidor diz 0 mensagens, app conhece ${allKnown.length} — NADA removido nesta rodada`);
+              else syncDiag.push(`${folder} [pasta "${mailboxPath}"]: servidor diz 0 mensagens, app conhece ${allKnown.length} — NADA removido nesta rodada`);
             }
           } finally {
             lock.release();
@@ -1564,6 +1569,9 @@ export class MailService {
         folderStats: folderStats,
         serverTotals,
         customFolders: discoveredCustomFolders,
+        // Lista completa de pastas que existem no servidor (para o app saber quais foram apagadas).
+        // Ausente na sincronização rápida (só Caixa de Entrada).
+        serverFolderPaths: inboxOnly ? undefined : mailboxes.map((m: any) => m?.path).filter(Boolean),
         quota: quotaInfo,
         flagUpdates: flagUpdates.length > 0 ? flagUpdates : undefined,
         catchUpPending: Object.keys(catchUpPending).length > 0 ? catchUpPending : undefined,
@@ -1658,14 +1666,15 @@ export class MailService {
       let listedMax = 0;
       for (const uid of listed.uids) if (uid > listedMax) listedMax = uid;
       const truncatedView = listed.complete && exists >= this.PROVIDER_FOLDER_VIEW_CAP;
-      if (listed.complete) {
-        vanished = Array.from(knownUids).filter(
-          (uid) => !serverUids.has(uid) && (!truncatedView || uid <= listedMax)
-        );
+      // Pasta no limite do provedor: o provedor escolhe quais mensagens mostra, então não dá para
+      // distinguir "apagada" de "escondida" — nesse caso nada é tratado como removido.
+      if (listed.complete && !truncatedView) {
+        vanished = Array.from(knownUids).filter((uid) => !serverUids.has(uid));
       }
-      if (!listed.complete || vanished.length > 0) {
+      void listedMax;
+      if (!listed.complete || vanished.length > 0 || truncatedView) {
         diag =
-          `${folderKey}: servidor diz ${exists}, listou ${listed.uids.length} (UIDs ${span(listed.uids)}), ` +
+          `${folderKey} [pasta "${client.mailbox ? client.mailbox.path : '?'}"]: servidor diz ${exists}, listou ${listed.uids.length} (UIDs ${span(listed.uids)}), ` +
           `app conhece ${knownUids.size} (UIDs ${span(Array.from(knownUids))}), ` +
           `"removidas" ${vanished.length} (UIDs ${span(vanished)})` +
           (listed.complete ? '' : ' — lista incompleta: nada removido') +

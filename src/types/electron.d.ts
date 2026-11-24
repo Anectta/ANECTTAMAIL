@@ -115,7 +115,7 @@ export interface ElectronAPI {
   loadMessageCache: () => Promise<any[] | null>;
   startImapIdle: (config: any) => Promise<{ success: boolean }>;
   onNewMail: (callback: (accountKey: string) => void) => () => void;
-  syncAllRealFolders: (config: any, limitPerFolder?: number) => Promise<{ success: boolean; emails?: EmailItem[]; error?: string; count?: number; folderStats?: Record<string, number>; serverTotals?: Record<string, number>; customFolders?: Array<{ imapPath: string; name: string; parentImapPath?: string; parentSystemFolder?: string; delimiter?: string }>; quota?: QuotaInfo; flagUpdates?: Array<{ id: string; isRead: boolean; isStarred: boolean }>; catchUpPending?: Record<string, number>; vanished?: Record<string, number[]> }>;
+  syncAllRealFolders: (config: any, limitPerFolder?: number) => Promise<{ success: boolean; emails?: EmailItem[]; error?: string; count?: number; folderStats?: Record<string, number>; serverTotals?: Record<string, number>; customFolders?: Array<{ imapPath: string; name: string; parentImapPath?: string; parentSystemFolder?: string; delimiter?: string }>; quota?: QuotaInfo; flagUpdates?: Array<{ id: string; isRead: boolean; isStarred: boolean }>; catchUpPending?: Record<string, number>; vanished?: Record<string, number[]>; serverFolderPaths?: string[] }>;
   fetchOlderFolderMessages?: (payload: {
     config: any;
     folder: string;
@@ -147,6 +147,8 @@ export interface ElectronAPI {
     error?: string;
     sentCopy?: { saved: boolean; uid?: number; skipped?: 'provider'; error?: string };
   }>;
+  /** Grava uma linha no registro de diagnóstico da sincronização (imap-sync.log). */
+  logImapSync?: (message: string) => void;
   applyImapServerActions?: (
     config: any,
     actions: Array<{
