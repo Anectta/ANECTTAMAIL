@@ -1444,8 +1444,17 @@ export class MailService {
             } else if (total === 0 && (knownUidsByFolder[folder] || []).length > 0) {
               // Pasta esvaziada no servidor: tudo o que o app tinha nela saiu do servidor
               const allKnown = [...(knownUidsByFolder[folder] || [])];
-              if (allKnown.length <= this.MAX_VANISHED_PER_SYNC) vanishedByFolder[folder] = allKnown;
-              else syncDiag.push(`${folder} [pasta "${mailboxPath}"]: servidor diz 0 mensagens, app conhece ${allKnown.length} — NADA removido nesta rodada`);
+              if (allKnown.length <= this.MAX_VANISHED_PER_SYNC) {
+                vanishedByFolder[folder] = allKnown;
+              } else {
+                const decision = this.confirmMassRemoval(`${config.user}|${folder}`, allKnown);
+                if (decision.apply) {
+                  vanishedByFolder[folder] = allKnown;
+                  syncDiag.push(`${folder} [pasta "${mailboxPath}"]: servidor diz 0 mensagens — remoção de ${allKnown.length} CONFIRMADA em ${decision.count} sincronizações: aplicada`);
+                } else {
+                  syncDiag.push(`${folder} [pasta "${mailboxPath}"]: servidor diz 0 mensagens, app conhece ${allKnown.length} — aguardando confirmação (${decision.count}/${this.MASS_REMOVAL_CONFIRMATIONS}), nada removido`);
+                }
+              }
             }
           } finally {
             lock.release();
@@ -1533,8 +1542,17 @@ export class MailService {
               }
             } else if (total === 0 && (knownUidsByFolder[`imap:${m.path}`] || []).length > 0) {
               const allKnownCustom = [...(knownUidsByFolder[`imap:${m.path}`] || [])];
-              if (allKnownCustom.length <= this.MAX_VANISHED_PER_SYNC) vanishedByFolder[`imap:${m.path}`] = allKnownCustom;
-              else syncDiag.push(`imap:${m.path}: servidor diz 0 mensagens, app conhece ${allKnownCustom.length} — NADA removido nesta rodada`);
+              if (allKnownCustom.length <= this.MAX_VANISHED_PER_SYNC) {
+                vanishedByFolder[`imap:${m.path}`] = allKnownCustom;
+              } else {
+                const decision = this.confirmMassRemoval(`${config.user}|imap:${m.path}`, allKnownCustom);
+                if (decision.apply) {
+                  vanishedByFolder[`imap:${m.path}`] = allKnownCustom;
+                  syncDiag.push(`imap:${m.path}: servidor diz 0 mensagens — remoção de ${allKnownCustom.length} CONFIRMADA em ${decision.count} sincronizações: aplicada`);
+                } else {
+                  syncDiag.push(`imap:${m.path}: servidor diz 0 mensagens, app conhece ${allKnownCustom.length} — aguardando confirmação (${decision.count}/${this.MASS_REMOVAL_CONFIRMATIONS}), nada removido`);
+                }
+              }
             }
           } finally {
             lock.release();
@@ -1619,6 +1637,40 @@ export class MailService {
 
   /** Acima disso, "removidas no servidor" numa única pasta/rodada é tratado como suspeito. */
   private static readonly MAX_VANISHED_PER_SYNC = 300;
+  /** Remoção em massa: quantas sincronizações seguidas com o mesmo resultado e intervalo mínimo. */
+  private static readonly MASS_REMOVAL_CONFIRMATIONS = 3;
+  private static readonly MASS_REMOVAL_MIN_SPAN_MS = 20 * 60 * 1000;
+  private static massRemovalTracker = new Map<string, { sig: string; count: number; firstAt: number; lastAt: number }>();
+
+  /**
+   * Remoção em massa: só aplica quando o mesmo conjunto foi visto em várias sincronizações seguidas,
+   * espaçadas no tempo (rodadas muito próximas contam como uma só).
+   */
+  private static confirmMassRemoval(key: string, uids: number[]): { apply: boolean; count: number } {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const u of uids) {
+      if (u < lo) lo = u;
+      if (u > hi) hi = u;
+    }
+    const sig = `${uids.length}:${lo}:${hi}`;
+    const now = Date.now();
+    const prev = this.massRemovalTracker.get(key);
+    let entry: { sig: string; count: number; firstAt: number; lastAt: number };
+    if (!prev || prev.sig !== sig) {
+      entry = { sig, count: 1, firstAt: now, lastAt: now };
+    } else if (now - prev.lastAt >= 5 * 60 * 1000) {
+      entry = { ...prev, count: prev.count + 1, lastAt: now };
+    } else {
+      entry = prev;
+    }
+    const apply =
+      entry.count >= this.MASS_REMOVAL_CONFIRMATIONS && now - entry.firstAt >= this.MASS_REMOVAL_MIN_SPAN_MS;
+    if (apply) this.massRemovalTracker.delete(key);
+    else this.massRemovalTracker.set(key, entry);
+    return { apply, count: entry.count };
+  }
+
   /** Alguns provedores (ex.: Yahoo) mostram no máximo 10.000 mensagens por pasta via IMAP. */
   private static readonly PROVIDER_FOLDER_VIEW_CAP = 10000;
 
@@ -1680,11 +1732,19 @@ export class MailService {
           (listed.complete ? '' : ' — lista incompleta: nada removido') +
           (truncatedView ? ` — servidor mostra só ${exists} mensagens nesta pasta (limite do provedor)` : '');
       }
-      // Trava de segurança: remoção em massa numa única rodada não é aplicada (só registrada).
-      // Evita o vai-e-vem com provedores que mostram conjuntos diferentes de mensagens.
+      // Trava de segurança: remoção em massa só depois de confirmada em sincronizações seguidas
+      // (falha momentânea do provedor não se repete igual; limpeza real — ex.: Spam esvaziado
+      // automaticamente pelo provedor — é confirmada e aplicada).
       if (vanished.length > this.MAX_VANISHED_PER_SYNC) {
-        diag = `${diag} — acima de ${this.MAX_VANISHED_PER_SYNC}: NADA removido nesta rodada`;
-        vanished = [];
+        const decision = this.confirmMassRemoval(`${config.user}|${folderKey}`, vanished);
+        if (decision.apply) {
+          diag = `${diag} — remoção em massa CONFIRMADA em ${decision.count} sincronizações: aplicada`;
+        } else {
+          diag = `${diag} — acima de ${this.MAX_VANISHED_PER_SYNC}: aguardando confirmação (${decision.count}/${this.MASS_REMOVAL_CONFIRMATIONS}), nada removido`;
+          vanished = [];
+        }
+      } else {
+        this.massRemovalTracker.delete(`${config.user}|${folderKey}`);
       }
 
       const missing = Array.from(serverUids)
