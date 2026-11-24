@@ -212,7 +212,7 @@ export const CustomizeQuickRepliesModal: React.FC<CustomizeQuickRepliesModalProp
                         type="text"
                         value={snip.title}
                         onChange={(e) => handleUpdateTitle(idx, e.target.value)}
-                        placeholder="Título do snippet..."
+                        placeholder="Título da resposta rápida..."
                         className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-emerald-300 focus:outline-none focus:border-brand-500"
                       />
                     </div>

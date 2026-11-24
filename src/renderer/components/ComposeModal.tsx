@@ -1624,10 +1624,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
                     : 'bg-slate-900 text-slate-300 hover:text-white border-slate-800 hover:border-slate-700'
                 }`}
-                title="Inserir resposta rápida (Snippet) ou criar novo modelo de texto"
+                title="Inserir uma resposta rápida ou criar um novo modelo de texto"
               >
                 <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Snippets ({snippets.length})</span>
+                <span>Respostas rápidas ({snippets.length})</span>
               </button>
 
               {/* Solicitação de Confirmação de Leitura (desmarcado por padrão) */}

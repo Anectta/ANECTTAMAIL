@@ -1814,7 +1814,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span>Personalização de Respostas Rápidas</span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Defina e edite os Snippets e botões de resposta rápida (1 clique) sincronizados ao visualizar e compor e-mails.
+                    Defina e edite as respostas rápidas e os botões de 1 clique, sincronizados ao visualizar e compor e-mails.
                   </p>
                 </div>
 
