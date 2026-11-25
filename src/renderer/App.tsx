@@ -4532,10 +4532,20 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Bloqueia depois de X minutos parado e pelo atalho Ctrl+Shift+L
+  // Bloqueia depois de X minutos parado, ao minimizar (se escolhido) e pelo atalho Ctrl+Shift+L
   useEffect(() => {
     if (!appLock.enabled) return;
+    /** Passou do tempo parado? Confere ANTES de registrar a nova atividade. */
+    const idleExpired = () =>
+      appLock.idleMinutes > 0 &&
+      !isLockedRef.current &&
+      Date.now() - lastActivityRef.current >= appLock.idleMinutes * 60_000;
+    const checkIdle = () => {
+      if (idleExpired()) setIsLocked(true);
+    };
     const touch = () => {
+      // Quem volta depois do limite e mexe o mouse não pode "zerar" o tempo sem passar pelo bloqueio
+      if (idleExpired()) setIsLocked(true);
       lastActivityRef.current = Date.now();
     };
     const onKey = (e: KeyboardEvent) => {
@@ -4545,27 +4555,32 @@ export const App: React.FC = () => {
         setIsLocked(true);
       }
     };
+    // Janela minimizada/oculta e depois restaurada: o relógio interno pode ter atrasado,
+    // então confere na hora em que ela volta (e tranca ao minimizar, se escolhido).
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        if (appLock.lockOnMinimize) setIsLocked(true);
+      } else {
+        checkIdle();
+      }
+    };
     window.addEventListener('mousemove', touch, { passive: true });
     window.addEventListener('mousedown', touch, { passive: true });
     window.addEventListener('wheel', touch, { passive: true });
-    window.addEventListener('keydown', onKey);
-    const timer = setInterval(() => {
-      if (
-        appLock.idleMinutes > 0 &&
-        !isLockedRef.current &&
-        Date.now() - lastActivityRef.current >= appLock.idleMinutes * 60_000
-      ) {
-        setIsLocked(true);
-      }
-    }, 15_000);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('focus', checkIdle);
+    document.addEventListener('visibilitychange', onVisibility);
+    const timer = setInterval(checkIdle, 15_000);
     return () => {
       window.removeEventListener('mousemove', touch);
       window.removeEventListener('mousedown', touch);
       window.removeEventListener('wheel', touch);
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('focus', checkIdle);
+      document.removeEventListener('visibilitychange', onVisibility);
       clearInterval(timer);
     };
-  }, [appLock.enabled, appLock.idleMinutes]);
+  }, [appLock.enabled, appLock.idleMinutes, appLock.lockOnMinimize]);
 
   /** Saída 3: confere a senha de uma conta de e-mail direto no servidor. */
   const handleLockTestPassword = async (accountId: string, password: string) => {

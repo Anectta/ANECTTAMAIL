@@ -23,6 +23,8 @@ export interface AppLockConfig {
   pin?: SecretHash;
   /** Minutos parado até bloquear (0 = só ao abrir o app e no "Bloquear agora"). */
   idleMinutes: number;
+  /** Trancar na hora em que a janela é minimizada ou recolhida para a bandeja (padrão: não). */
+  lockOnMinimize?: boolean;
   recovery?: SecretHash;
   /** Segredo TOTP (base32) do celular vinculado. */
   totpSecret?: string;

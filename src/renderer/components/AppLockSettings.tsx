@@ -99,6 +99,7 @@ export const AppLockSettings: React.FC = () => {
   const [currentPin, setCurrentPin] = useState('');
   const [pinOk, setPinOk] = useState(false);
   const [idle, setIdle] = useState(cfg.idleMinutes);
+  const [lockMin, setLockMin] = useState(Boolean(cfg.lockOnMinimize));
   const [msg, setMsg] = useState<string | null>(null);
 
   const startSetup = () => {
@@ -126,6 +127,7 @@ export const AppLockSettings: React.FC = () => {
     setError(null);
     setMsg(null);
     setIdle(cfg.idleMinutes);
+    setLockMin(Boolean(cfg.lockOnMinimize));
     setPin1('');
     setPin2('');
     setManager(cfg.managerEmail || '');
@@ -249,6 +251,10 @@ export const AppLockSettings: React.FC = () => {
                 ))}
               </select>
             </label>
+            <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
+              <input type="checkbox" checked={Boolean(draft.lockOnMinimize)} onChange={(e) => setDraft({ ...draft, lockOnMinimize: e.target.checked })} />
+              Bloquear também ao minimizar ou recolher para a bandeja
+            </label>
             {error && <p className="text-[11px] text-rose-300">{error}</p>}
             <button
               type="button"
@@ -292,7 +298,10 @@ export const AppLockSettings: React.FC = () => {
       {cfg.enabled && (
         <>
           <div className="text-[11px] text-slate-400 space-y-0.5">
-            <p>Bloqueia: {IDLE_OPTIONS.find((o) => o.v === cfg.idleMinutes)?.l.toLowerCase() || `${cfg.idleMinutes} min`} · atalho Ctrl+Shift+L</p>
+            <p>
+              Bloqueia: {IDLE_OPTIONS.find((o) => o.v === cfg.idleMinutes)?.l.toLowerCase() || `${cfg.idleMinutes} min`}
+              {cfg.lockOnMinimize ? ' e ao minimizar' : ''} · atalho Ctrl+Shift+L
+            </p>
             <p>Celular vinculado: {cfg.totpSecret ? 'sim' : 'não'} · Gestor: {cfg.managerEmail || 'não informado'}</p>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -331,13 +340,19 @@ export const AppLockSettings: React.FC = () => {
           )}
 
           {action && pinOk && action === 'idle' && (
-            <div className="flex gap-2 items-center">
-              <select value={idle} onChange={(e) => setIdle(Number(e.target.value))} className={input}>
-                {IDLE_OPTIONS.map((o) => (
-                  <option key={o.v} value={o.v}>{o.l}</option>
-                ))}
-              </select>
-              <button type="button" onClick={() => save({ idleMinutes: idle }, 'Tempo de bloqueio atualizado.')} className={`${btn} bg-brand-600 text-white shrink-0`}>Salvar</button>
+            <div className="space-y-2">
+              <div className="flex gap-2 items-center">
+                <select value={idle} onChange={(e) => setIdle(Number(e.target.value))} className={input}>
+                  {IDLE_OPTIONS.map((o) => (
+                    <option key={o.v} value={o.v}>{o.l}</option>
+                  ))}
+                </select>
+                <button type="button" onClick={() => save({ idleMinutes: idle, lockOnMinimize: lockMin }, 'Tempo de bloqueio atualizado.')} className={`${btn} bg-brand-600 text-white shrink-0`}>Salvar</button>
+              </div>
+              <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
+                <input type="checkbox" checked={lockMin} onChange={(e) => setLockMin(e.target.checked)} />
+                Bloquear também ao minimizar ou recolher para a bandeja
+              </label>
             </div>
           )}
           {action && pinOk && action === 'pin' && (
