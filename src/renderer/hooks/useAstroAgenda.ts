@@ -9,6 +9,12 @@ import {
   type AstroAgenda,
 } from '../utils/astroAgenda';
 import { isBodyStripped } from '../utils/emailBodyStrip';
+import {
+  computeCleanupSuggestions,
+  loadKeptSenders,
+  saveKeptSenders,
+  type CleanupSuggestion,
+} from '../utils/astroCleanup';
 
 const EMPTY: AstroAgenda = { needsReply: [], awaitingAnswer: [] };
 /** Quantos candidatos têm o texto buscado por vez no banco local. */
@@ -23,10 +29,11 @@ const EXCERPT = 4000;
  */
 export function useAstroAgenda(
   emails: EmailItem[],
-  options: { enabled: boolean; myAddresses: string[]; followUpAfterDays: number }
+  options: { enabled: boolean; cleanupEnabled: boolean; myAddresses: string[]; followUpAfterDays: number }
 ) {
-  const { enabled, myAddresses, followUpAfterDays } = options;
+  const { enabled, cleanupEnabled, myAddresses, followUpAfterDays } = options;
   const [dismissed, setDismissed] = useState<Set<string>>(() => loadDismissed());
+  const [keptSenders, setKeptSenders] = useState<Set<string>>(() => loadKeptSenders());
   const [texts, setTexts] = useState<Map<string, string>>(() => new Map());
   const deferredEmails = useDeferredValue(emails);
   const addressesKey = myAddresses.join('|');
@@ -89,5 +96,22 @@ export function useAstroAgenda(
     });
   }, []);
 
-  return { agenda, dismiss };
+  // Sugestões de limpeza: só com o resumo dos e-mails (não precisa do texto).
+  const cleanup = useMemo<CleanupSuggestion[]>(
+    () => (cleanupEnabled ? computeCleanupSuggestions(deferredEmails, { myAddresses, keptSenders }) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cleanupEnabled, deferredEmails, addressesKey, keptSenders]
+  );
+
+  /** "Manter": o remetente não volta a ser sugerido para limpeza. */
+  const keepSender = useCallback((senderEmail: string) => {
+    setKeptSenders((prev) => {
+      const next = new Set(prev);
+      next.add(senderEmail.toLowerCase());
+      saveKeptSenders(next);
+      return next;
+    });
+  }, []);
+
+  return { agenda, dismiss, cleanup, keepSender };
 }

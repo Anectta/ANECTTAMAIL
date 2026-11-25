@@ -76,6 +76,8 @@ export interface AppearanceSettings {
   astroAgendaEnabled?: boolean;
   /** Astro: avisar de e-mails enviados sem resposta após N dias (padrão: 3). */
   astroFollowUpDays?: number;
+  /** Astro: sugestões de limpeza de remetentes que você não abre (padrão: ligado). */
+  astroCleanupEnabled?: boolean;
 }
 
 export interface SecuritySettings {

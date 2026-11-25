@@ -108,7 +108,7 @@ interface EmailListProps {
   isCancellingBackfill?: boolean;
   onCancelBackfill?: () => void;
   /** Astro: quantas pendências há (aguardando sua resposta / enviados sem resposta). */
-  astroSummary?: { needsReply: number; awaitingAnswer: number };
+  astroSummary?: { needsReply: number; awaitingAnswer: number; cleanup: number };
   onOpenAstro?: () => void;
 }
 
@@ -830,7 +830,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
           )}
 
           {/* Astro: pendências (aguardando sua resposta / enviados sem resposta) */}
-          {astroSummary && astroSummary.needsReply + astroSummary.awaitingAnswer > 0 && onOpenAstro && (
+          {astroSummary && astroSummary.needsReply + astroSummary.awaitingAnswer + astroSummary.cleanup > 0 && onOpenAstro && (
             <button
               type="button"
               onClick={() => {
@@ -847,6 +847,8 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   astroSummary.needsReply > 0 &&
                     `${astroSummary.needsReply} ${astroSummary.needsReply === 1 ? 'aguarda' : 'aguardam'} sua resposta`,
                   astroSummary.awaitingAnswer > 0 && `${astroSummary.awaitingAnswer} sem resposta`,
+                  astroSummary.cleanup > 0 &&
+                    `${astroSummary.cleanup} ${astroSummary.cleanup === 1 ? 'sugestão' : 'sugestões'} de limpeza`,
                 ]
                   .filter(Boolean)
                   .join(' · ')}

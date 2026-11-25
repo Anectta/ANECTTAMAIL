@@ -1,18 +1,36 @@
 import React from 'react';
-import { BellRing, CheckCircle2, Eye, MessageCircleQuestion, Reply, Send, X } from 'lucide-react';
+import {
+  Archive,
+  BellRing,
+  CheckCircle2,
+  Eye,
+  Filter,
+  MailX,
+  MessageCircleQuestion,
+  Reply,
+  Send,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import { NotifierMascot } from './NotifierMascot';
 import { soundService } from '@/services/soundService';
 import type { EmailItem } from '@/types/email';
 import { ageLabel, type AgendaItem, type AstroAgenda } from '../utils/astroAgenda';
+import type { CleanupSuggestion } from '../utils/astroCleanup';
 
 interface Props {
   agenda: AstroAgenda;
   followUpAfterDays: number;
+  cleanup: CleanupSuggestion[];
   onClose: () => void;
   onOpen: (email: EmailItem) => void;
   onReply: (email: EmailItem) => void;
   onFollowUp: (email: EmailItem) => void;
   onDismiss: (id: string) => void;
+  onArchiveSender: (s: CleanupSuggestion) => void;
+  onUnsubscribeSender: (s: CleanupSuggestion) => void;
+  onRuleForSender: (s: CleanupSuggestion) => void;
+  onKeepSender: (s: CleanupSuggestion) => void;
 }
 
 const recipientLabel = (raw: string) => {
@@ -29,13 +47,20 @@ const recipientLabel = (raw: string) => {
 export const AstroAgendaPanel: React.FC<Props> = ({
   agenda,
   followUpAfterDays,
+  cleanup,
   onClose,
   onOpen,
   onReply,
   onFollowUp,
   onDismiss,
+  onArchiveSender,
+  onUnsubscribeSender,
+  onRuleForSender,
+  onKeepSender,
 }) => {
-  const total = agenda.needsReply.length + agenda.awaitingAnswer.length;
+  const total = agenda.needsReply.length + agenda.awaitingAnswer.length + cleanup.length;
+  const smallBtn =
+    'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors';
 
   const row = (item: AgendaItem, kind: 'needsReply' | 'awaitingAnswer') => {
     const e = item.email;
@@ -151,6 +176,72 @@ export const AstroAgendaPanel: React.FC<Props> = ({
                 Sem resposta há {followUpAfterDays}+ dias ({agenda.awaitingAnswer.length})
               </h3>
               <ul className="space-y-2">{agenda.awaitingAnswer.map((i) => row(i, 'awaitingAnswer'))}</ul>
+            </section>
+          )}
+
+          {cleanup.length > 0 && (
+            <section className="space-y-2">
+              <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-teal-300">
+                <Sparkles className="w-3.5 h-3.5" />
+                Sugestões de limpeza ({cleanup.length})
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Remetentes que mandam vários e-mails que você não abre. Nada é feito sem a sua confirmação.
+              </p>
+              <ul className="space-y-2">
+                {cleanup.map((s) => (
+                  <li key={s.senderEmail} className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-100 truncate">{s.senderName}</p>
+                      <p className="text-[11px] text-slate-500 truncate">{s.senderEmail}</p>
+                      <p className="text-[11px] text-slate-300 mt-0.5">
+                        {s.count} e-mails nos últimos 30 dias, {s.opened === 0 ? 'nenhum aberto' : `só ${s.opened} aberto`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => onArchiveSender(s)}
+                        className={`${smallBtn} bg-teal-600/90 hover:bg-teal-500 text-white border-teal-500/40`}
+                      >
+                        <Archive className="w-3.5 h-3.5" />
+                        Arquivar todos ({s.inboxIds.length})
+                      </button>
+                      {s.canUnsubscribe && (
+                        <button
+                          type="button"
+                          onClick={() => onUnsubscribeSender(s)}
+                          className={`${smallBtn} bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700`}
+                        >
+                          <MailX className="w-3.5 h-3.5" />
+                          Cancelar inscrição
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onRuleForSender(s)}
+                        className={`${smallBtn} bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700`}
+                        title="Os próximos e-mails deste remetente vão direto para o Arquivo"
+                      >
+                        <Filter className="w-3.5 h-3.5" />
+                        Criar regra
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          soundService.play('click');
+                          onKeepSender(s);
+                        }}
+                        className={`${smallBtn} text-slate-400 hover:text-slate-200 border-transparent`}
+                        title="Não sugerir mais este remetente"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Manter
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
         </div>

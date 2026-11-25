@@ -17,6 +17,7 @@ import { ensureEmailBody, useHydratedEmails } from '@/services/emailBodyCache';
 import { isBodyStripped } from './utils/emailBodyStrip';
 import { quickReplyText, type DateMention } from './utils/assistantInsights';
 import { followUpText } from './utils/astroAgenda';
+import type { CleanupSuggestion } from './utils/astroCleanup';
 import { useAstroAgenda } from './hooks/useAstroAgenda';
 import { AstroAgendaPanel } from './components/AstroAgendaPanel';
 import { removeServerDuplicates } from './utils/emailDedupe';
@@ -3778,12 +3779,59 @@ export const App: React.FC = () => {
     [settings.accounts, settings.account?.email]
   );
   const astroFollowUpDays = settings.appearance?.astroFollowUpDays ?? 3;
-  const { agenda: astroAgenda, dismiss: dismissAstroItem } = useAstroAgenda(emails, {
+  const {
+    agenda: astroAgenda,
+    dismiss: dismissAstroItem,
+    cleanup: astroCleanup,
+    keepSender: keepAstroSender,
+  } = useAstroAgenda(emails, {
     enabled: settings.appearance?.astroAgendaEnabled ?? true,
+    cleanupEnabled: settings.appearance?.astroCleanupEnabled ?? true,
     myAddresses: astroMyAddresses,
     followUpAfterDays: astroFollowUpDays,
   });
   const [isAstroPanelOpen, setIsAstroPanelOpen] = useState(false);
+
+  // Astro — sugestões de limpeza (sempre com confirmação)
+  const handleAstroArchiveSender = (s: CleanupSuggestion) => {
+    const n = s.inboxIds.length;
+    if (!window.confirm(`Arquivar ${n === 1 ? 'o e-mail' : `os ${n} e-mails`} de ${s.senderName} (${s.senderEmail})?\n\nEles saem da Caixa de Entrada e ficam em Arquivados.`)) return;
+    handleMoveSelectedToFolder(s.inboxIds, 'archive');
+  };
+
+  const handleAstroUnsubscribeSender = async (s: CleanupSuggestion) => {
+    if (!window.confirm(`Cancelar a inscrição de ${s.senderName}?\n\nO Anectta envia o pedido de descadastro ao remetente (${s.senderEmail}).`)) return;
+    const full = await ensureEmailBody(s.latest);
+    await handleUnsubscribeEmail(full);
+  };
+
+  const handleAstroRuleForSender = (s: CleanupSuggestion) => {
+    const n = s.inboxIds.length;
+    if (
+      !window.confirm(
+        `Criar uma regra para mandar os e-mails de ${s.senderEmail} direto para Arquivados?\n\n` +
+          `${n === 1 ? 'O e-mail que já está' : `Os ${n} e-mails que já estão`} na Caixa de Entrada também ${n === 1 ? 'será arquivado' : 'serão arquivados'}. ` +
+          'Você pode editar ou apagar a regra em "Regras de e-mails".'
+      )
+    )
+      return;
+    const rule: MailRule = {
+      id: `rule-astro-${Date.now()}`,
+      name: `Astro: arquivar e-mails de ${s.senderName}`,
+      enabled: true,
+      matchMode: 'all',
+      conditions: [{ id: `cond-${Date.now()}`, field: 'sender', operator: 'equals', value: s.senderEmail }],
+      actions: { moveToFolder: 'archive' },
+      createdAt: new Date().toISOString(),
+    };
+    setRules((prev) => {
+      const next = [...prev, rule];
+      saveMailRules(next);
+      return next;
+    });
+    handleMoveSelectedToFolder(s.inboxIds, 'archive');
+    showToast(`✓ Regra criada: os próximos e-mails de ${s.senderName} vão direto para Arquivados.`);
+  };
 
   /** Astro: "Cobrar resposta" de um e-mail enviado — abre a resposta pronta para revisar. */
   const handleAstroFollowUp = (sentEmail: EmailItem) => {
@@ -5084,6 +5132,7 @@ export const App: React.FC = () => {
                   astroSummary={{
                     needsReply: astroAgenda.needsReply.length,
                     awaitingAnswer: astroAgenda.awaitingAnswer.length,
+                    cleanup: astroCleanup.length,
                   }}
                   onOpenAstro={() => setIsAstroPanelOpen(true)}
                 />
@@ -5330,6 +5379,11 @@ export const App: React.FC = () => {
         <AstroAgendaPanel
           agenda={astroAgenda}
           followUpAfterDays={astroFollowUpDays}
+          cleanup={astroCleanup}
+          onArchiveSender={handleAstroArchiveSender}
+          onUnsubscribeSender={(s) => void handleAstroUnsubscribeSender(s)}
+          onRuleForSender={handleAstroRuleForSender}
+          onKeepSender={(s) => keepAstroSender(s.senderEmail)}
           onClose={() => setIsAstroPanelOpen(false)}
           onOpen={(e) => {
             setIsAstroPanelOpen(false);

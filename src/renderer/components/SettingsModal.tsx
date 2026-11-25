@@ -2224,6 +2224,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </select>
                     </label>
                   )}
+                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-800">
+                    <div>
+                      <div className="text-xs font-semibold text-white">Sugestões de limpeza</div>
+                      <div className="text-[11px] text-slate-400">
+                        Remetentes com 5 ou mais e-mails em 30 dias que você nunca abriu. O Astro sugere arquivar,
+                        cancelar a inscrição ou criar uma regra, sempre com a sua confirmação.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={formData.appearance.astroCleanupEnabled ?? true}
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          appearance: {
+                            ...formData.appearance,
+                            astroCleanupEnabled: !(formData.appearance.astroCleanupEnabled ?? true),
+                          },
+                        })
+                      }
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ${
+                        (formData.appearance.astroCleanupEnabled ?? true) ? 'bg-brand-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition duration-200 ${
+                          (formData.appearance.astroCleanupEnabled ?? true) ? 'translate-x-4' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
 
                 <SkinGalleryPanel />
