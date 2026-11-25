@@ -165,6 +165,9 @@ interface EmailViewProps {
   onArchive: (id: string) => void;
   onSnooze: (id: string) => void;
   onDelete: (id: string) => void;
+  /** Quantos e-mails estão marcados na lista; com mais de 1, a lixeira exclui todos eles. */
+  bulkSelectedCount?: number;
+  onDeleteBulk?: () => void;
   onReply: (email: EmailItem) => void;
   onReplyAll?: (email: EmailItem) => void;
   onForward?: (email: EmailItem) => void;
@@ -217,6 +220,8 @@ export const EmailView: React.FC<EmailViewProps> = ({
   onArchive,
   onSnooze,
   onDelete,
+  bulkSelectedCount = 0,
+  onDeleteBulk,
   onReply,
   onReplyAll,
   onForward,
@@ -665,9 +670,15 @@ export const EmailView: React.FC<EmailViewProps> = ({
 
           <button
             type="button"
-            onClick={() => onDelete(email.id)}
+            onClick={() =>
+              bulkSelectedCount > 1 && onDeleteBulk ? onDeleteBulk() : onDelete(email.id)
+            }
             {...actionTile('rose')}
-            title="Excluir"
+            title={
+              bulkSelectedCount > 1 && onDeleteBulk
+                ? `Excluir os ${bulkSelectedCount} e-mails selecionados`
+                : 'Excluir'
+            }
             aria-label="Excluir"
           >
             <Trash2 className={ACTION_ICON} />

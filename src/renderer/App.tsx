@@ -5057,6 +5057,8 @@ export const App: React.FC = () => {
                   onArchive={handleArchive}
                   onSnooze={handleSnooze}
                   onDelete={handleDelete}
+                  bulkSelectedCount={selectedEmailIds.length}
+                  onDeleteBulk={() => handleDelete()}
                   onReply={handleReply}
                   onReplyAll={handleReplyAll}
                   onForward={handleForward}

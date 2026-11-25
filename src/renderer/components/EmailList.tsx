@@ -1364,6 +1364,59 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
               </div>
             );
           })()}
+
+          {/* Barra de seleção (fora da busca): vários e-mails marcados → Desmarcar / Excluir */}
+          {!isDeletingBulk &&
+            !(searchQuery.trim() || activeAdvFilterCount > 0) &&
+            selectedIds.length > 0 && (
+              <div className="px-2 py-1.5 bg-brand-500/10 border border-brand-500/20 rounded-md flex items-center justify-between gap-2 text-[11px] text-brand-300">
+                <div className="flex items-center space-x-1.5 truncate">
+                  <CheckSquare className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+                  <span className="truncate">
+                    <strong>{selectedIds.length}</strong>{' '}
+                    {selectedIds.length === 1 ? 'selecionado' : 'selecionados'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {onClearSelection && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        soundService.play('click');
+                        onClearSelection();
+                      }}
+                      className="px-2 py-1 rounded bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 text-slate-200 font-semibold transition-colors"
+                      title="Desmarcar todos (Esc)"
+                    >
+                      Desmarcar
+                    </button>
+                  )}
+                  {onDeleteSelected && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ids = [...selectedIds];
+                        if (ids.length === 0 || isDeletingBulk) return;
+                        setDeletingBulkCount(ids.length);
+                        setIsDeletingBulk(true);
+                        try {
+                          const deleted = await onDeleteSelected(ids);
+                          if (deleted !== false) onClearSelection?.();
+                        } finally {
+                          setIsDeletingBulk(false);
+                          setDeletingBulkCount(0);
+                        }
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-600/90 hover:bg-rose-500 text-white font-semibold transition-colors"
+                      title="Excluir os e-mails selecionados"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Excluir ({selectedIds.length})</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
         </div>
 
         {/* Grouped Email Cards by Date Period */}
