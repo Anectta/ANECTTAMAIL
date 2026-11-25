@@ -2277,8 +2277,10 @@ export const EmailView: React.FC<EmailViewProps> = ({
                 <div className={`flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200 ${isModalMode ? 'max-w-none' : 'max-w-3xl'}`}>
                   <div className="flex items-center space-x-2">
                     <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>
-                      {blockedImagesCount} {blockedImagesCount === 1 ? 'imagem externa bloqueada' : 'imagens externas bloqueadas'} para sua privacidade.
+                    <span
+                      title={`${blockedImagesCount} ${blockedImagesCount === 1 ? 'imagem externa bloqueada' : 'imagens externas bloqueadas'} para sua privacidade`}
+                    >
+                      <strong>Escudo Anectta:</strong> Proteção Ativa (Exibição de imagens bloqueada)
                     </span>
                   </div>
                   <button
