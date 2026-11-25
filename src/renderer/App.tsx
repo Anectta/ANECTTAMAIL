@@ -3449,6 +3449,10 @@ export const App: React.FC = () => {
           ? 'Arquivados'
           : targetFolder === 'junk'
           ? 'Spam / Lixo'
+          : targetFolder === 'trash'
+          ? 'Itens Excluídos'
+          : targetFolder === 'sent'
+          ? 'Itens Enviados'
           : customFolders.find((f) => f.id === targetFolder)?.name || targetFolder;
       soundService.play('click');
       showToast(
@@ -3461,6 +3465,29 @@ export const App: React.FC = () => {
       }
     },
     [customFolders, currentFolderEmails, selectedEmailId]
+  );
+
+  // E-mails arrastados da lista e soltos numa pasta da barra lateral (só dentro da mesma conta).
+  const handleDropEmailsOnFolder = useCallback(
+    (ids: string[], accountId: string, folder: MailFolder) => {
+      // Sem contas cadastradas, a barra lateral mostra só a conta ativa.
+      const acc =
+        settings.accounts.find((a) => a.id === accountId) ||
+        (settings.accounts.length === 0 ? currentAccount : undefined);
+      if (!acc) return;
+      const idSet = new Set(ids);
+      const items = emails.filter((e) => idSet.has(e.id));
+      if (items.length === 0) return;
+      if (items.some((e) => !isEmailForAccount(e, acc))) {
+        soundService.play('error');
+        showToast('Mover e-mails para outra conta ainda não é possível. Solte numa pasta da mesma conta.');
+        return;
+      }
+      const toMove = items.filter((e) => e.folder !== folder).map((e) => e.id);
+      if (toMove.length === 0) return;
+      handleMoveSelectedToFolder(toMove, folder);
+    },
+    [settings.accounts, currentAccount, emails, isEmailForAccount, handleMoveSelectedToFolder]
   );
 
   const handleDelete = useCallback(
@@ -4717,6 +4744,7 @@ export const App: React.FC = () => {
         customFolders={customFolders}
         favoriteFolders={favoriteFolders}
         onCreateFolder={handleCreateFolder}
+        onDropEmails={handleDropEmailsOnFolder}
         onRenameFolder={handleRenameFolder}
         onCopyFolder={handleCopyFolder}
         onMoveFolder={handleMoveFolder}

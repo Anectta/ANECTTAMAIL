@@ -45,6 +45,7 @@ import {
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount } from '@/types/email';
 import { AccountSettings, AppsSettings } from '@/types/settings';
 import logoImg from '../assets/logo.png';
+import { EMAIL_DRAG_MIME } from '../utils/emailDrag';
 
 const QUICK_NAV_COLLAPSED_KEY = 'anectta_sidebar_quicknav_collapsed';
 const MORE_FOLDERS_KEY = 'anectta_sidebar_more_folders';
@@ -79,6 +80,8 @@ interface SidebarProps {
   customFolders?: CustomFolder[];
   favoriteFolders?: FavoriteFolder[];
   onCreateFolder?: (name: string, accountId: string, parentFolder?: MailFolder) => void;
+  /** E-mails arrastados da lista e soltos numa pasta desta conta. */
+  onDropEmails?: (emailIds: string[], accountId: string, folder: MailFolder) => void;
   onRenameFolder?: (folderId: string, newName: string) => void;
   onCopyFolder?: (folderId: string) => void;
   onMoveFolder?: (folderId: string, newParentFolder?: MailFolder) => void;
@@ -119,6 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   customFolders = [],
   favoriteFolders = [],
   onCreateFolder,
+  onDropEmails,
   onRenameFolder,
   onCopyFolder,
   onMoveFolder,
@@ -162,6 +166,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return next;
     });
   };
+
+  // Arrastar e-mails da lista para uma pasta: destaca a pasta sob o mouse e move ao soltar.
+  const [emailDropKey, setEmailDropKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!emailDropKey) return;
+    const clear = () => setEmailDropKey(null);
+    window.addEventListener('dragend', clear);
+    window.addEventListener('drop', clear);
+    return () => {
+      window.removeEventListener('dragend', clear);
+      window.removeEventListener('drop', clear);
+    };
+  }, [emailDropKey]);
+  const isEmailDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes(EMAIL_DRAG_MIME);
+  const emailDropProps = (accId: string, folder: MailFolder) => {
+    if (!onDropEmails) return {};
+    const key = `${accId}::${folder}`;
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        if (!isEmailDrag(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (emailDropKey !== key) setEmailDropKey(key);
+      },
+      onDragLeave: (e: React.DragEvent) => {
+        if ((e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) return;
+        setEmailDropKey((k) => (k === key ? null : k));
+      },
+      onDrop: (e: React.DragEvent) => {
+        if (!isEmailDrag(e)) return;
+        e.preventDefault();
+        setEmailDropKey(null);
+        try {
+          const ids = JSON.parse(e.dataTransfer.getData(EMAIL_DRAG_MIME));
+          if (Array.isArray(ids) && ids.length > 0) onDropEmails(ids.map(String), accId, folder);
+        } catch {}
+      },
+    };
+  };
+  const emailDropRing = (accId: string, folder: MailFolder) =>
+    emailDropKey === `${accId}::${folder}` ? ' ring-2 ring-sky-400 !bg-sky-500/20 !text-white' : '';
   // Pastas além das principais (Entrada, Enviados, Saída, Excluídos, Lixo): recolhíveis.
   const [showMoreFolders, setShowMoreFolders] = useState<boolean>(() => {
     try {
@@ -1110,7 +1155,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 }
                                 handleFolderClick(accId, cf.id);
                               }}
-                              className={`flex-1 flex items-center justify-between px-1.5 py-[3px] rounded-md transition-colors min-w-0 ${
+                              {...emailDropProps(accId, cf.id)}
+                              className={`flex-1 flex items-center justify-between px-1.5 py-[3px] rounded-md transition-colors min-w-0${emailDropRing(accId, cf.id)} ${
                                 isFolderActive(cf.id)
                                   ? 'bg-slate-800 text-white font-bold'
                                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1256,7 +1302,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           }
                           handleFolderClick(accId, 'inbox');
                         }}
-                        className={`flex-1 flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
+                        {...emailDropProps(accId, 'inbox')}
+                        className={`flex-1 flex items-center justify-between px-2 py-[3px] rounded-md transition-colors${emailDropRing(accId, 'inbox')} ${
                           isFolderActive('inbox')
                             ? 'bg-slate-800 text-white font-bold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1297,7 +1344,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onContextMenu={(e) =>
                         openFolderContextMenu(e, accId, 'sent', 'Itens Enviados', false)
                       }
-                      className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
+                      {...emailDropProps(accId, 'sent')}
+                      className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors${emailDropRing(accId, 'sent')} ${
                         isFolderActive('sent')
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1357,7 +1405,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onContextMenu={(e) =>
                         openFolderContextMenu(e, accId, 'trash', 'Itens Excluídos', false)
                       }
-                      className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
+                      {...emailDropProps(accId, 'trash')}
+                      className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors${emailDropRing(accId, 'trash')} ${
                         isFolderActive('trash')
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1387,7 +1436,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onContextMenu={(e) =>
                         openFolderContextMenu(e, accId, 'junk', 'Lixo eletrônico', false)
                       }
-                      className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
+                      {...emailDropProps(accId, 'junk')}
+                      className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors${emailDropRing(accId, 'junk')} ${
                         isFolderActive('junk')
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -1547,7 +1597,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onContextMenu={(e) =>
                           openFolderContextMenu(e, accId, 'archive', 'Arquivados', false)
                         }
-                        className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors ${
+                        {...emailDropProps(accId, 'archive')}
+                        className={`w-full flex items-center justify-between px-2 py-[3px] rounded-md transition-colors${emailDropRing(accId, 'archive')} ${
                           isFolderActive('archive')
                             ? 'bg-slate-800 text-white font-bold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'

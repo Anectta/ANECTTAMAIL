@@ -57,6 +57,7 @@ import {
 import { EmailThread, groupEmailsIntoThreads } from '../utils/threadUtils';
 import type { BackfillProgress } from '../hooks/useMailBackfill';
 import { classifyEmailTriage } from '../utils/triageAndTemplates';
+import { EMAIL_DRAG_MIME } from '../utils/emailDrag';
 
 export type EmailLayoutMode = 'compact' | 'horizontal' | 'fullscreen';
 
@@ -579,6 +580,19 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
         .filter((group) => group.items.length > 0);
     }, [filteredEmails, sortOrder, sortField, dateOrder, groupByThread]);
 
+    // Arrastar para pasta: um id marcado que é o último de uma conversa leva a conversa inteira.
+    const threadIdsByLatest = useMemo(() => {
+      const map = new Map<string, string[]>();
+      for (const g of groupedEmails) {
+        for (const it of g.items) {
+          if (it.thread && it.thread.count > 1) map.set(it.email.id, it.thread.messages.map((m) => m.id));
+        }
+      }
+      return map;
+    }, [groupedEmails]);
+    const expandThreadIds = (ids: string[]) =>
+      Array.from(new Set(ids.flatMap((id) => threadIdsByLatest.get(id) || [id])));
+
     // Desenho progressivo: só os primeiros itens são desenhados; os demais entram conforme a
     // rolagem. Evita travar com caixas grandes (ex.: Caixa Unificada com várias contas).
     // O limite volta ao início quando muda a pasta, a conta, a busca, o filtro ou a ordenação.
@@ -643,6 +657,19 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedEmailId, groupedEmails]);
+
+    // Mantém o e-mail selecionado visível (ex.: descendo com a seta, a lista rola junto).
+    useEffect(() => {
+      if (!selectedEmailId) return;
+      const root = listScrollRef.current;
+      if (!root) return;
+      const raf = requestAnimationFrame(() => {
+        const esc = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(selectedEmailId) : selectedEmailId;
+        const el = root.querySelector<HTMLElement>(`[data-email-ids~="${esc}"]`);
+        el?.scrollIntoView({ block: 'nearest' });
+      });
+      return () => cancelAnimationFrame(raf);
+    }, [selectedEmailId, renderLimit]);
 
     // Ao chegar perto do fim do trecho desenhado, desenha o próximo bloco.
     const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -1489,6 +1516,28 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                         return (
                           <div
                             key={email.id}
+                            data-email-ids={isThread ? thread!.messages.map((m) => m.id).join(' ') : email.id}
+                            draggable
+                            onDragStart={(e) => {
+                              // Arrastar para uma pasta: leva os marcados (se este estiver marcado)
+                              // ou só este e-mail / esta conversa inteira.
+                              const ids =
+                                isChecked && selectedIds.length > 0
+                                  ? expandThreadIds(selectedIds)
+                                  : isThread
+                                  ? thread!.messages.map((m) => m.id)
+                                  : [email.id];
+                              e.dataTransfer.setData(EMAIL_DRAG_MIME, JSON.stringify(ids));
+                              e.dataTransfer.effectAllowed = 'move';
+                              const ghost = document.createElement('div');
+                              ghost.textContent =
+                                ids.length === 1 ? 'Movendo 1 e-mail' : `Movendo ${ids.length} e-mails`;
+                              ghost.style.cssText =
+                                'position:fixed;top:-1000px;left:-1000px;padding:6px 12px;border-radius:9999px;background:#0ea5e9;color:#fff;font:600 12px system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.35);';
+                              document.body.appendChild(ghost);
+                              e.dataTransfer.setDragImage(ghost, 12, 12);
+                              setTimeout(() => ghost.remove(), 0);
+                            }}
                             onClick={(e) => {
                               if ((e.ctrlKey || e.metaKey) && onToggleSelectId) {
                                 e.stopPropagation();
@@ -1509,7 +1558,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                                 onOpenInNewTab(email.id);
                               }
                             }}
-                            className={`group/card p-3 cursor-pointer transition-all relative rounded-xl border flex items-start space-x-2.5 ${
+                            className={`group/card p-3 cursor-pointer transition-all relative rounded-xl border flex items-start space-x-2.5 scroll-mt-10 scroll-mb-2 ${
                               isChecked
                                 ? 'bg-brand-600/10 border-brand-500/50 shadow-md'
                                 : isSelected
