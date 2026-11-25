@@ -358,7 +358,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {[
               {
                 key: 'appearance',
-                label: 'Aparência & Sons',
+                label: 'Temas & Assistente',
                 icon: <Palette className="w-4 h-4" />,
                 isActive: activeTab === 'appearance',
                 activeClass: 'bg-brand-600/20 text-brand-400 font-semibold border border-brand-500/30',
