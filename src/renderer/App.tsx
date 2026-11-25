@@ -17,6 +17,8 @@ import { ensureEmailBody, useHydratedEmails } from '@/services/emailBodyCache';
 import { isBodyStripped } from './utils/emailBodyStrip';
 import { quickReplyText, type DateMention } from './utils/assistantInsights';
 import { followUpText } from './utils/astroAgenda';
+import { APP_LOCK_EVENT, loadAppLock, type AppLockConfig } from './utils/appLock';
+import { LockScreen } from './components/LockScreen';
 import {
   expiredForPurge,
   isQuietNow,
@@ -4505,6 +4507,135 @@ export const App: React.FC = () => {
   handleSyncAllRef.current = handleSyncAll;
 
   // ==========================================
+  // Bloqueio do Anectta com PIN (opcional — desligado por padrão)
+  // ==========================================
+  const [appLock, setAppLock] = useState<AppLockConfig>(() => loadAppLock());
+  const [isLocked, setIsLocked] = useState<boolean>(() => loadAppLock().enabled);
+  const isLockedRef = useRef(isLocked);
+  isLockedRef.current = isLocked;
+  const lastActivityRef = useRef(Date.now());
+
+  useEffect(() => {
+    const reload = () => {
+      const cfg = loadAppLock();
+      setAppLock(cfg);
+      if (!cfg.enabled) setIsLocked(false);
+    };
+    const lockNow = () => {
+      if (loadAppLock().enabled) setIsLocked(true);
+    };
+    window.addEventListener(APP_LOCK_EVENT, reload);
+    window.addEventListener('anectta:lock-now', lockNow);
+    return () => {
+      window.removeEventListener(APP_LOCK_EVENT, reload);
+      window.removeEventListener('anectta:lock-now', lockNow);
+    };
+  }, []);
+
+  // Bloqueia depois de X minutos parado e pelo atalho Ctrl+Shift+L
+  useEffect(() => {
+    if (!appLock.enabled) return;
+    const touch = () => {
+      lastActivityRef.current = Date.now();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      touch();
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        setIsLocked(true);
+      }
+    };
+    window.addEventListener('mousemove', touch, { passive: true });
+    window.addEventListener('mousedown', touch, { passive: true });
+    window.addEventListener('wheel', touch, { passive: true });
+    window.addEventListener('keydown', onKey);
+    const timer = setInterval(() => {
+      if (
+        appLock.idleMinutes > 0 &&
+        !isLockedRef.current &&
+        Date.now() - lastActivityRef.current >= appLock.idleMinutes * 60_000
+      ) {
+        setIsLocked(true);
+      }
+    }, 15_000);
+    return () => {
+      window.removeEventListener('mousemove', touch);
+      window.removeEventListener('mousedown', touch);
+      window.removeEventListener('wheel', touch);
+      window.removeEventListener('keydown', onKey);
+      clearInterval(timer);
+    };
+  }, [appLock.enabled, appLock.idleMinutes]);
+
+  /** Saída 3: confere a senha de uma conta de e-mail direto no servidor. */
+  const handleLockTestPassword = async (accountId: string, password: string) => {
+    const acc =
+      (settings.accounts || []).find((a) => a.id === accountId) ||
+      (settings.account?.id === accountId ? settings.account : undefined);
+    if (!acc) return { ok: false, message: 'Conta não encontrada.' };
+    if (!window.electronAPI?.testImapConnection) {
+      return { ok: false, message: 'Disponível no aplicativo instalado (no navegador não há conexão com o servidor).' };
+    }
+    const inc = acc.incomingServer;
+    try {
+      const res = await window.electronAPI.testImapConnection({
+        protocol: inc.protocol || 'imap',
+        host: inc.host,
+        port: inc.port,
+        secure: inc.security !== 'none',
+        user: inc.username || acc.email,
+        pass: password,
+      });
+      return res.success ? { ok: true } : { ok: false, message: 'Senha incorreta ou servidor indisponível.' };
+    } catch {
+      return { ok: false, message: 'Não foi possível falar com o servidor de e-mail. Verifique a internet.' };
+    }
+  };
+
+  /** Saída 4: envia o código de liberação ao gestor (pela conta do próprio usuário) e avisa o usuário. */
+  const handleLockSendManagerCode = async (code: string) => {
+    const managerEmail = loadAppLock().managerEmail;
+    if (!managerEmail) return { ok: false, message: 'Nenhum e-mail de gestor configurado.' };
+    const me = currentAccount?.email || settings.account?.email || '';
+    const when = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    try {
+      await dispatchEmailNowRef.current(
+        {
+          recipient: managerEmail,
+          subject: 'Anectta MAIL: pedido de liberação do bloqueio',
+          body:
+            `Olá,\n\n${me || 'Um colaborador'} pediu um código para liberar o bloqueio do Anectta MAIL em ${when}.\n\n` +
+            `Código de liberação: ${code}\n(válido por 15 minutos, uso único)\n\n` +
+            `IMPORTANTE: só repasse este código se você confirmou com ${me || 'o colaborador'} que foi realmente essa pessoa ` +
+            'quem pediu (por telefone, Teams ou pessoalmente). Se não foi, ignore este e-mail e avise o TI.\n\nAnectta MAIL',
+          priority: 'high',
+          signature: '',
+        },
+        { skipOfflineQueue: true }
+      );
+      if (me) {
+        void dispatchEmailNowRef
+          .current(
+            {
+              recipient: me,
+              subject: 'Anectta MAIL: pedido de liberação enviado ao gestor',
+              body:
+                `Foi pedido ao gestor (${managerEmail}) um código para liberar o bloqueio do Anectta MAIL em ${when}.\n\n` +
+                'Se não foi você, avise o seu gestor e o TI.',
+              priority: 'medium',
+              signature: '',
+            },
+            { skipOfflineQueue: true }
+          )
+          .catch(() => {});
+      }
+      return { ok: true };
+    } catch {
+      return { ok: false, message: 'Não foi possível enviar o pedido ao gestor. Verifique a internet e tente de novo.' };
+    }
+  };
+
+  // ==========================================
   // Aviso de novo e-mail (janela no canto da tela + som escolhido nas Configurações)
   // ==========================================
   const settingsRef = useRef(settings);
@@ -4518,8 +4649,12 @@ export const App: React.FC = () => {
     // e o usuário pode já ter lido
     const ids = new Set(list.map((e) => e.id));
     const still = emailsRef.current.filter((e) => ids.has(e.id) && e.folder === 'inbox' && !e.isRead);
-    const notice = buildNewMailNotice(still);
-    if (!notice) return;
+    const built = buildNewMailNotice(still);
+    if (!built) return;
+    // App bloqueado: o aviso não mostra remetente, assunto nem trecho
+    const notice = isLockedRef.current
+      ? { ...built, sender: 'Anectta MAIL', senderEmail: undefined, avatar: undefined, subject: built.count > 1 ? `${built.count} novos e-mails` : 'Novo e-mail', snippet: undefined }
+      : built;
     // "Silencioso" não toca nada; "Padrão do Tema" usa o som do tema
     soundService.playNotificationPreset(conf?.notificationSound || 'theme');
     void window.electronAPI?.showNotifier?.(notice);
@@ -4816,7 +4951,7 @@ export const App: React.FC = () => {
   }, [currentFolderEmails, selectedEmailId]);
 
   useKeyboardShortcuts({
-    disabled: isSettingsOpen || isComposeOpen,
+    disabled: isSettingsOpen || isComposeOpen || isLocked,
     onOpenCommandPalette: () => {
       emailListRef.current?.focusSearch();
     },
@@ -5456,6 +5591,22 @@ export const App: React.FC = () => {
             getSenderBlockRule={getSenderBlockRule}
           />
         </Suspense>
+      )}
+
+      {/* Bloqueio do Anectta (PIN) */}
+      {isLocked && appLock.enabled && (
+        <LockScreen
+          config={appLock}
+          accounts={(settings.accounts?.length ? settings.accounts : [settings.account])
+            .filter((a) => a && a.email)
+            .map((a) => ({ id: a.id, email: a.email }))}
+          onUnlock={() => {
+            lastActivityRef.current = Date.now();
+            setIsLocked(false);
+          }}
+          testAccountPassword={handleLockTestPassword}
+          sendManagerCode={handleLockSendManagerCode}
+        />
       )}
 
       {/* Astro — pendências */}

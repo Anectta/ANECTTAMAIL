@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { SecuritySettings } from '@/types/settings';
 import { normalizeSenderEntry } from '../utils/mailHygiene';
+import { AppLockSettings } from './AppLockSettings';
 import {
   ContactPgpKey,
   loadPgpKeyring,
@@ -1074,6 +1075,9 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
           </div>
         )}
       </div>
+
+      {/* Bloqueio do Anectta com PIN (desligado por padrão) */}
+      <AppLockSettings />
 
       {/* Remetentes confiáveis */}
       <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">

@@ -1,6 +1,6 @@
 {
   "name": "anectta-mail",
-  "version": "1.0.288",
+  "version": "1.0.289",
   "description": "Anectta MAIL - High Performance Corporate Desktop Email Client",
   "main": "dist-electron/main/main.js",
   "author": "Anectta Enterprise",
@@ -30,6 +30,7 @@
     "nodemailer": "^10.4.0",
     "openpgp": "^6.3.3",
     "pst-extractor": "^1.12.0",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwind-merge": "^2.6.0"
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@types/node": "^22.10.1",
     "@types/node-forge": "^1.3.14",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
