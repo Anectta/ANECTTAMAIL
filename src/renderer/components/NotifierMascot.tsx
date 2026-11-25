@@ -35,7 +35,7 @@ export const NotifierMascot: React.FC<{ size?: number }> = ({ size = 76 }) => (
     viewBox="0 0 120 120"
     className="anectta-mascot"
     role="img"
-    aria-label="Astro, o assistente do Anectta, segurando um envelope"
+    aria-label="Astro, o assistente virtual do Anectta, segurando um envelope"
   >
     <style>{`
       .anectta-mascot .m-float { animation: mFloat 2.6s ease-in-out infinite; transform-origin: 60px 60px; }

@@ -116,13 +116,13 @@ export const AssistantCard: React.FC<AssistantCardProps> = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-extrabold text-sky-200 tracking-tight">Astro</span>
-            <span className="text-[10px] font-medium text-slate-400">Assistente Anectta · Resumo rápido</span>
             {!collapsed && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800/80 text-slate-300 border border-slate-700/80">
                 {insights.kindLabel}
               </span>
             )}
           </div>
+          <span className="block text-[10px] font-medium text-slate-400 leading-tight">Assistente Virtual · Resumo rápido</span>
           {collapsed && (
             <p className="text-[11px] text-slate-300 truncate">
               <ArrowRight className="w-3 h-3 inline -mt-0.5 mr-1 text-sky-400" />
