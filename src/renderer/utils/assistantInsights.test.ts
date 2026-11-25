@@ -1,8 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { buildInsights, extractAmounts, extractCode, extractDates, quickReplyText } from './assistantInsights';
+import { buildInsights, extractAmounts, extractCode, extractDates, quickReplyText, stripCss } from './assistantInsights';
 
 // Segunda-feira, 23/11/2026, 10h
 const REF = new Date(2026, 10, 23, 10, 0, 0);
+
+describe('CSS vazado no texto do e-mail', () => {
+  it('não mostra regras de estilo nos pontos-chave', () => {
+    const body =
+      'Notificação - ReclameAQUI * { box-sizing: border-box; margin: 0; padding: 0; } body { font-family: Arial, sans-serif; background-color: #f5f5f5; color: #333; line-height: 1.5 } .card td, a:hover { color: #00f; }\nSua reclamação recebeu uma nova resposta da empresa.';
+    const r = buildInsights({ subject: 'Nova resposta na sua reclamação', body, senderEmail: 'nao-responda@exemplo.com' }, REF);
+    expect(r.keyPoint).not.toMatch(/box-sizing|font-family|\{|\}/);
+    expect(r.keyPoint).toMatch(/ReclameAQUI|nova resposta/);
+  });
+
+  it('usa o HTML quando a versão texto vem com CSS', () => {
+    const r = buildInsights(
+      {
+        subject: 'Aviso',
+        body: 'body { color: #333; } Olá',
+        bodyHtml: '<html><head><style>body { color: #333; }</style></head><body><p>Seu pedido foi enviado.</p></body></html>',
+      },
+      REF
+    );
+    expect(r.keyPoint).toContain('Seu pedido foi enviado');
+  });
+
+  it('mantém texto comum com chaves e dois-pontos fora de CSS', () => {
+    const txt = 'Horário: 14h. Use o campo {nome} no modelo. Obs: confirme a presença.';
+    expect(stripCss(txt)).toBe(txt);
+  });
+});
 
 describe('extractDates', () => {
   it('lê dd/mm com horário e marca prazo', () => {

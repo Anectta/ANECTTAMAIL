@@ -68,7 +68,9 @@ const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.ge
 /** Converte HTML em texto simples (sem scripts/estilos). */
 export function htmlToText(html: string): string {
   return html
-    .replace(/<(script|style|head)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(script|style|head|title)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<(script|style)\b[\s\S]*$/gi, ' ')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|tr|li|h[1-6]|table|blockquote)>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
@@ -79,6 +81,30 @@ export function htmlToText(html: string): string {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/[ \t]+/g, ' ');
+}
+
+// Seletor CSS curto (uma "palavra", sem espaços, ou lista separada por vírgulas): body, *, .x, a:hover, td.y
+const CSS_SEL = String.raw`(?:\*|[#.]?[A-Za-z_][\w-]*(?:[.#:]{1,2}[\w-]+)*)`;
+const CSS_RULE_RE = new RegExp(
+  String.raw`${CSS_SEL}(?:\s*,\s*${CSS_SEL})*\s*\{\s*(?:[\w-]+\s*:[^{};]*;?\s*)+\}`,
+  'g'
+);
+
+/**
+ * Remove regras CSS que vazaram para o texto do e-mail (ex.: versão texto gerada a partir
+ * do HTML sem tirar o <style>): "* { box-sizing: border-box; } body { font-family: Arial }".
+ */
+export function stripCss(text: string): string {
+  if (!/\{[^{}]*:[^{}]*\}/.test(text)) return text;
+  let t = text;
+  for (let i = 0; i < 3; i++) {
+    const next = t
+      .replace(CSS_RULE_RE, ' ')
+      .replace(/@[\w-]+[^{}]{0,200}\{\s*\}/g, ' ');
+    if (next === t) break;
+    t = next;
+  }
+  return t.replace(/[ \t]{2,}/g, ' ');
 }
 
 /** Remove o histórico citado ("Em ... escreveu:", "> ...", "-----Original Message-----"). */
@@ -256,7 +282,19 @@ const clip = (s: string, n = 170) => (s.length > n ? `${s.slice(0, n - 1).trimEn
 
 export function buildInsights(src: InsightSource, now: Date = new Date()): AssistantInsights {
   const subject = (src.subject || '').trim();
-  const rawText = src.body?.trim() ? src.body : src.bodyHtml ? htmlToText(src.bodyHtml) : src.snippet || '';
+  // Usa a versão texto; se ela vier "suja" (HTML ou CSS vazado do <style>), usa o HTML limpo.
+  const body = src.body?.trim() ? src.body : '';
+  const bodyIsDirty = /<\/?(html|body|div|p|table|span|br|style)\b/i.test(body) || stripCss(body) !== body;
+  const htmlText = src.bodyHtml?.trim() ? htmlToText(src.bodyHtml) : '';
+  const rawText = stripCss(
+    body && !bodyIsDirty
+      ? body
+      : htmlText.trim()
+      ? htmlText
+      : body
+      ? htmlToText(body)
+      : src.snippet || ''
+  );
   const text = stripQuoted(rawText).slice(0, 12000);
   const plain = stripAccents(`${subject}\n${text}`).toLowerCase();
 
