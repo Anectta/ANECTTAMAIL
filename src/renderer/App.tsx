@@ -5197,6 +5197,8 @@ export const App: React.FC = () => {
                   blockExternalImages={settings.security.blockExternalImages}
                   blockTrackingPixels={settings.security.blockTrackingPixels ?? true}
                   blockBlockedSenders={settings.security.blockBlockedSenders ?? true}
+                  phishingProtection={settings.security.phishingProtection ?? true}
+                  confirmExternalLinks={settings.security.confirmExternalLinks ?? true}
                   onChangePrivacySetting={handleQuickPrivacyChange}
                   getSenderBlockRule={getSenderBlockRule}
                   onSendReadReceipt={handleSendReadReceipt}
@@ -5368,6 +5370,8 @@ export const App: React.FC = () => {
             blockExternalImages={settings.security.blockExternalImages}
             blockTrackingPixels={settings.security.blockTrackingPixels ?? true}
             blockBlockedSenders={settings.security.blockBlockedSenders ?? true}
+                  phishingProtection={settings.security.phishingProtection ?? true}
+                  confirmExternalLinks={settings.security.confirmExternalLinks ?? true}
             onChangePrivacySetting={handleQuickPrivacyChange}
             getSenderBlockRule={getSenderBlockRule}
           />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Archive,
   Trash2,
@@ -28,6 +28,7 @@ import {
   CheckCheck,
   Shield,
   ShieldCheck,
+  ShieldAlert,
   EyeOff,
   UserX,
   ImageOff,
@@ -61,6 +62,15 @@ import { filterRealAttachments } from '../utils/attachmentUtils';
 import DOMPurify from 'dompurify';
 import { formatReceivedLabel } from '../utils/dateSortUtils';
 import { linkifyHtml, splitLinks } from '../utils/linkify';
+import {
+  analyzePhishing,
+  hostOf,
+  linkWarnings,
+  loadPhishingTrusted,
+  loadTrustedHosts,
+  savePhishingTrusted,
+  saveTrustedHosts,
+} from '../utils/phishingDetector';
 import { parseUnsubscribeInfo } from '../utils/triageAndTemplates';
 import { getPrivateNoteForEmail } from './ContactContextSidebar';
 import {
@@ -187,6 +197,10 @@ interface EmailViewProps {
   blockExternalImages?: boolean;
   blockTrackingPixels?: boolean;
   blockBlockedSenders?: boolean;
+  /** Escudo Anectta: aviso de golpe (padrão: ligado). */
+  phishingProtection?: boolean;
+  /** Confirmar antes de abrir links do e-mail (padrão: ligado). */
+  confirmExternalLinks?: boolean;
   onChangePrivacySetting?: (
     key: 'blockExternalImages' | 'blockTrackingPixels' | 'blockBlockedSenders',
     value: boolean
@@ -241,6 +255,8 @@ export const EmailView: React.FC<EmailViewProps> = ({
   blockExternalImages = false,
   blockTrackingPixels = true,
   blockBlockedSenders = true,
+  phishingProtection = true,
+  confirmExternalLinks = true,
   onChangePrivacySetting,
   getSenderBlockRule,
   onSendReadReceipt,
@@ -262,6 +278,54 @@ export const EmailView: React.FC<EmailViewProps> = ({
   onHideAssistant,
 }) => {
   const [revealedImagesEmailIds, setRevealedImagesEmailIds] = useState<Record<string, boolean>>({});
+
+  // Escudo Anectta — golpes (phishing) e confirmação ao abrir links
+  const [phishingTrusted, setPhishingTrusted] = useState<Set<string>>(() => loadPhishingTrusted());
+  const [trustedHosts, setTrustedHosts] = useState<Set<string>>(() => loadTrustedHosts());
+  const [pendingLink, setPendingLink] = useState<{ href: string; warnings: string[] } | null>(null);
+  const [dontAskHost, setDontAskHost] = useState(false);
+
+  const phishingReport = useMemo(() => {
+    if (!email || !phishingProtection || email.folder === 'sent' || email.folder === 'drafts') {
+      return { level: 'none' as const, reasons: [] as string[] };
+    }
+    return analyzePhishing(
+      {
+        sender: email.sender,
+        senderEmail: email.senderEmail,
+        subject: email.subject,
+        body: email.body,
+        bodyHtml: email.bodyHtml,
+        attachments: email.attachments,
+      },
+      phishingTrusted
+    );
+  }, [email, phishingProtection, phishingTrusted]);
+
+  const openUrlNow = (href: string) => {
+    if (window.electronAPI?.openExternal) {
+      void window.electronAPI.openExternal(href);
+    } else {
+      window.open(href, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  /** Clique em link do e-mail: mostra o endereço real antes de abrir (e alerta se for suspeito). */
+  const requestOpenLink = (href: string, shownText?: string) => {
+    if (/^mailto:/i.test(href)) {
+      openUrlNow(href);
+      return;
+    }
+    const warnings = linkWarnings(href, shownText);
+    if (phishingReport.level === 'danger') warnings.push('Este e-mail tem sinais de golpe.');
+    const host = hostOf(href);
+    if (warnings.length === 0 && (!confirmExternalLinks || trustedHosts.has(host))) {
+      openUrlNow(href);
+      return;
+    }
+    setDontAskHost(false);
+    setPendingLink({ href, warnings });
+  };
   const [expandedThreadIds, setExpandedThreadIds] = useState<Record<string, boolean>>({});
   const [isRespondingRsvp, setIsRespondingRsvp] = useState(false);
   const [isSnoozeMenuOpen, setIsSnoozeMenuOpen] = useState(false);
@@ -1830,6 +1894,57 @@ export const EmailView: React.FC<EmailViewProps> = ({
           </div>
         </div>
 
+        {/* Escudo Anectta: possível golpe (phishing) */}
+        {phishingReport.level !== 'none' && (
+          <div
+            role="alert"
+            className={`px-3.5 py-3 rounded-xl border text-xs space-y-2 ${isModalMode ? 'max-w-none' : 'max-w-3xl'} ${
+              phishingReport.level === 'danger'
+                ? 'border-rose-500/50 bg-rose-500/15 text-rose-100'
+                : 'border-amber-500/40 bg-amber-500/10 text-amber-100'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <ShieldAlert className={`w-4 h-4 shrink-0 ${phishingReport.level === 'danger' ? 'text-rose-400' : 'text-amber-400'}`} />
+              <span className="flex-1">
+                <strong>Escudo Anectta:</strong>{' '}
+                {phishingReport.level === 'danger'
+                  ? 'Possível golpe. Não clique em links, não abra anexos e não informe senhas ou dados.'
+                  : 'E-mail suspeito. Tenha cuidado com links e pedidos de dados.'}
+              </span>
+            </div>
+            <ul className="list-disc pl-8 space-y-0.5 opacity-90">
+              {phishingReport.reasons.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+            <div className="flex items-center gap-2 pl-6">
+              {onMarkSpam && email.folder !== 'junk' && (
+                <button
+                  type="button"
+                  onClick={() => onMarkSpam(email.id)}
+                  className="px-2.5 py-1 rounded-lg bg-rose-600/90 hover:bg-rose-500 text-white font-semibold"
+                >
+                  Mover para o Lixo eletrônico
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  const next = new Set(phishingTrusted);
+                  next.add((email.senderEmail || '').toLowerCase());
+                  savePhishingTrusted(next);
+                  setPhishingTrusted(next);
+                }}
+                className="px-2.5 py-1 rounded-lg border border-white/20 hover:bg-white/10 font-semibold"
+                title="Não mostrar este aviso para mensagens deste remetente"
+              >
+                Não é golpe
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Amoroso — Assistente Anectta (resumo rápido local + ações) */}
         {showAssistant && !['drafts', 'sent', 'outbox'].includes(String(email.folder)) && (
           <AssistantCard
@@ -2267,6 +2382,91 @@ export const EmailView: React.FC<EmailViewProps> = ({
           </div>
         )}
 
+        {/* Confirmação ao abrir link: mostra o endereço real antes de sair do Anectta */}
+        {pendingLink && (
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(2, 6, 23, 0.6)' }}
+            onClick={() => setPendingLink(null)}
+          >
+            <div
+              role="dialog"
+              aria-label="Abrir link"
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-md rounded-2xl border shadow-2xl bg-slate-950 p-5 space-y-3 ${
+                pendingLink.warnings.length > 0 ? 'border-rose-500/50' : 'border-slate-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {pendingLink.warnings.length > 0 ? (
+                  <ShieldAlert className="w-5 h-5 text-rose-400" />
+                ) : (
+                  <ExternalLink className="w-5 h-5 text-sky-400" />
+                )}
+                <h3 className="text-sm font-bold text-white">
+                  {pendingLink.warnings.length > 0 ? 'Cuidado: link suspeito' : 'Abrir link no navegador?'}
+                </h3>
+              </div>
+              <div className="rounded-xl bg-slate-900 border border-slate-800 p-3 space-y-1">
+                <p className="text-[11px] text-slate-500">Você vai para:</p>
+                <p className="text-sm font-bold text-sky-300 break-all">{hostOf(pendingLink.href) || pendingLink.href}</p>
+                <p className="text-[11px] text-slate-400 break-all">{pendingLink.href}</p>
+              </div>
+              {pendingLink.warnings.length > 0 && (
+                <ul className="list-disc pl-5 text-xs text-rose-200 space-y-0.5">
+                  {pendingLink.warnings.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              )}
+              {pendingLink.warnings.length === 0 && (
+                <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer">
+                  <input type="checkbox" checked={dontAskHost} onChange={(e) => setDontAskHost(e.target.checked)} />
+                  Não perguntar de novo para {hostOf(pendingLink.href)}
+                </label>
+              )}
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(pendingLink.href);
+                    setPendingLink(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800"
+                >
+                  Copiar endereço
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingLink(null)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white"
+                  autoFocus
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (dontAskHost) {
+                      const next = new Set(trustedHosts);
+                      next.add(hostOf(pendingLink.href));
+                      saveTrustedHosts(next);
+                      setTrustedHosts(next);
+                    }
+                    openUrlNow(pendingLink.href);
+                    setPendingLink(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-white ${
+                    pendingLink.warnings.length > 0 ? 'bg-rose-600 hover:bg-rose-500' : 'bg-brand-600 hover:bg-brand-500'
+                  }`}
+                >
+                  {pendingLink.warnings.length > 0 ? 'Abrir mesmo assim' : 'Abrir no navegador'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Escudo Anectta: remetente bloqueado (segue o interruptor "Bloquear remetentes" do Escudo) */}
         {(() => {
           const rule = blockBlockedSenders ? getSenderBlockRule?.(email.senderEmail) : null;
@@ -2343,11 +2543,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                     return;
                   }
                   if (/^(https?:|mailto:)/i.test(rawHref)) {
-                    if (window.electronAPI?.openExternal) {
-                      void window.electronAPI.openExternal(rawHref);
-                    } else {
-                      window.open(rawHref, '_blank', 'noopener,noreferrer');
-                    }
+                    requestOpenLink(rawHref, (anchor.textContent || '').trim());
                   }
                 }}
                 style={{
@@ -2369,11 +2565,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
               if (!anchor || !/^(https?:|mailto:)/i.test(href)) return;
               e.preventDefault();
               e.stopPropagation();
-              if (window.electronAPI?.openExternal) {
-                void window.electronAPI.openExternal(href);
-              } else {
-                window.open(href, '_blank', 'noopener,noreferrer');
-              }
+              requestOpenLink(href, (anchor.textContent || '').trim());
             }}
             style={{
               backgroundColor: '#FFFFFF',

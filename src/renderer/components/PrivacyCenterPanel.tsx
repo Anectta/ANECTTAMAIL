@@ -21,6 +21,8 @@ import {
   Download,
   Upload,
   Award,
+  ShieldAlert,
+  ExternalLink,
 } from 'lucide-react';
 import { SecuritySettings } from '@/types/settings';
 import {
@@ -446,6 +448,41 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
             <ToggleSwitch
               checked={blockBlockedSenders}
               onChange={(next) => updateField('blockBlockedSenders', next)}
+              activeColor="bg-brand-600"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start space-x-2.5">
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-400 mt-0.5 shrink-0" />
+              <div>
+                <span className="text-xs text-slate-200 block font-medium">Proteção contra golpes</span>
+                <span className="text-[10px] text-slate-500">
+                  Avisa quando o e-mail parece golpe: banco ou empresa falsa, link disfarçado, pressão para agir ou
+                  anexo executável. Tudo analisado no seu computador.
+                </span>
+              </div>
+            </div>
+            <ToggleSwitch
+              checked={security.phishingProtection ?? true}
+              onChange={(next) => updateField('phishingProtection', next)}
+              activeColor="bg-brand-600"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start space-x-2.5">
+              <ExternalLink className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+              <div>
+                <span className="text-xs text-slate-200 block font-medium">Confirmar antes de abrir links</span>
+                <span className="text-[10px] text-slate-500">
+                  Mostra o endereço real do link antes de abrir no navegador. Links suspeitos sempre pedem confirmação.
+                </span>
+              </div>
+            </div>
+            <ToggleSwitch
+              checked={security.confirmExternalLinks ?? true}
+              onChange={(next) => updateField('confirmExternalLinks', next)}
               activeColor="bg-brand-600"
             />
           </div>

@@ -89,6 +89,10 @@ export interface SecuritySettings {
   privacyMode?: boolean;
   blockTrackingPixels?: boolean;
   blockBlockedSenders?: boolean;
+  /** Escudo Anectta: avisar quando o e-mail parece golpe (padrão: ligado). */
+  phishingProtection?: boolean;
+  /** Mostrar o endereço real e confirmar antes de abrir links do e-mail (padrão: ligado). */
+  confirmExternalLinks?: boolean;
   trackSentEmails?: boolean;
   shareDiagnostics?: boolean;
   downloadExternalAvatars?: boolean;
