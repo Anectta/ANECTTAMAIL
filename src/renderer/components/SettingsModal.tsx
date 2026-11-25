@@ -2097,7 +2097,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     Aparência, Temas & Skins
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Escolha uma skin para aplicar instantaneamente em toda a interface do Anectta MAIL.
+                    Escolha um tema para aplicar instantaneamente em toda a interface do Anectta MAIL.
                   </p>
                 </div>
 
