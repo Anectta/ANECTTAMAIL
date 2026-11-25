@@ -80,7 +80,7 @@ export const MotivationalBanner: React.FC = () => {
       title={`${quote}\n\nClique para ver a próxima mensagem`}
     >
       {prefs.showAmoroso ? (
-        <span className="-my-1 -ml-1.5 flex items-center" title="Amoroso — Assistente Anectta">
+        <span className="-my-1 -ml-1.5 flex items-center" title="Astro — Assistente Anectta">
           <AmorosoFace size={prefs.fontSize === 'large' ? 24 : 22} />
         </span>
       ) : (

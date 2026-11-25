@@ -115,7 +115,7 @@ export const AssistantCard: React.FC<AssistantCardProps> = ({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-extrabold text-sky-200 tracking-tight">Amoroso</span>
+            <span className="text-sm font-extrabold text-sky-200 tracking-tight">Astro</span>
             <span className="text-[10px] font-medium text-slate-400">Assistente Anectta · Resumo rápido</span>
             {!collapsed && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800/80 text-slate-300 border border-slate-700/80">
@@ -138,7 +138,7 @@ export const AssistantCard: React.FC<AssistantCardProps> = ({
                 soundService.play('click');
                 onHide();
               }}
-              title="Ocultar o Amoroso (religue em Configurações → Aparência)"
+              title="Ocultar o Astro (religue em Configurações → Aparência)"
               className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-slate-800/70 transition-colors cursor-pointer"
             >
               <EyeOff className="w-3.5 h-3.5" />

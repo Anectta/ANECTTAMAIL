@@ -2137,7 +2137,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">
                   <div>
                     <div className="text-xs font-semibold text-white">
-                      Mostrar o Amoroso (Assistente Anectta) nos e-mails
+                      Mostrar o Astro (Assistente Anectta) nos e-mails
                     </div>
                     <div className="text-[11px] text-slate-400">
                       Resumo rápido no topo do e-mail aberto (datas, valores, anexos e próximo passo) e ações de

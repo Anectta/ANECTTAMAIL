@@ -2045,7 +2045,7 @@ export const App: React.FC = () => {
         calendarId: 'default',
         color: 'blue',
         reminderMinutes: 30,
-        description: `Criado pelo Amoroso a partir do e-mail de ${email.sender} (${email.senderEmail}).`,
+        description: `Criado pelo Astro a partir do e-mail de ${email.sender} (${email.senderEmail}).`,
       };
       localStorage.setItem(key, JSON.stringify([...existing, calEvent]));
       window.dispatchEvent(new Event('anectta:calendar-updated'));
@@ -3759,7 +3759,7 @@ export const App: React.FC = () => {
     };
     setSettings(updated);
     persistSettings(updated);
-    showToast('Amoroso ocultado. Para mostrar de novo: Configurações → Aparência.');
+    showToast('Astro ocultado. Para mostrar de novo: Configurações → Aparência.');
   };
 
   const handleReplyAll = (targetEmail?: EmailItem) => {

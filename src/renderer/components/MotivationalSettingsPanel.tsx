@@ -215,7 +215,7 @@ export const MotivationalSettingsPanel: React.FC = () => {
             <div className="flex items-center space-x-2.5">
               <AmorosoFace size={26} />
               <div>
-                <span className="text-xs text-slate-100 block font-semibold">Mostrar o Amoroso ao lado da frase</span>
+                <span className="text-xs text-slate-100 block font-semibold">Mostrar o Astro ao lado da frase</span>
                 <span className="text-[11px] text-slate-400">
                   O robozinho do Anectta fica parado ao lado da mensagem e só pisca de vez em quando.
                 </span>

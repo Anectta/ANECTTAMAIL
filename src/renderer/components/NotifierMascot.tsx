@@ -5,7 +5,7 @@ import React from 'react';
  * Parado; só pisca os olhos de vez em quando (animação leve).
  */
 export const AmorosoFace: React.FC<{ size?: number }> = ({ size = 22 }) => (
-  <svg width={size} height={size} viewBox="16 4 88 74" className="amoroso-face shrink-0" role="img" aria-label="Amoroso">
+  <svg width={size} height={size} viewBox="16 4 88 74" className="amoroso-face shrink-0" role="img" aria-label="Astro">
     <style>{`
       .amoroso-face .af-eyes { animation: afBlink 5.5s ease-in-out infinite; transform-origin: 60px 48px; }
       @keyframes afBlink { 0%,94%,100% { transform: scaleY(1); } 96.5% { transform: scaleY(.15); } }
@@ -35,7 +35,7 @@ export const NotifierMascot: React.FC<{ size?: number }> = ({ size = 76 }) => (
     viewBox="0 0 120 120"
     className="anectta-mascot"
     role="img"
-    aria-label="Amoroso, o assistente do Anectta, segurando um envelope"
+    aria-label="Astro, o assistente do Anectta, segurando um envelope"
   >
     <style>{`
       .anectta-mascot .m-float { animation: mFloat 2.6s ease-in-out infinite; transform-origin: 60px 60px; }
