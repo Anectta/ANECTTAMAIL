@@ -72,6 +72,10 @@ export interface AppearanceSettings {
   showUnifiedInbox?: boolean;
   /** Amoroso — Assistente Anectta no topo do e-mail aberto (padrão: ligado). */
   showAssistant?: boolean;
+  /** Astro: pendências "Aguardando sua resposta" / "Sem resposta" (padrão: ligado). */
+  astroAgendaEnabled?: boolean;
+  /** Astro: avisar de e-mails enviados sem resposta após N dias (padrão: 3). */
+  astroFollowUpDays?: number;
 }
 
 export interface SecuritySettings {

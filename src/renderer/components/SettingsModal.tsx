@@ -2169,6 +2169,63 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </button>
                 </div>
 
+                {/* Astro — pendências (aguardando sua resposta / enviados sem resposta) */}
+                <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold text-white">Pendências do Astro</div>
+                      <div className="text-[11px] text-slate-400">
+                        Avisa no topo da lista os e-mails que aguardam sua resposta e os que você enviou e ninguém
+                        respondeu.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={formData.appearance.astroAgendaEnabled ?? true}
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          appearance: {
+                            ...formData.appearance,
+                            astroAgendaEnabled: !(formData.appearance.astroAgendaEnabled ?? true),
+                          },
+                        })
+                      }
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ${
+                        (formData.appearance.astroAgendaEnabled ?? true) ? 'bg-brand-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition duration-200 ${
+                          (formData.appearance.astroAgendaEnabled ?? true) ? 'translate-x-4' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {(formData.appearance.astroAgendaEnabled ?? true) && (
+                    <label className="flex items-center justify-between gap-3 text-[11px] text-slate-300">
+                      <span>Avisar de e-mails enviados sem resposta após</span>
+                      <select
+                        value={formData.appearance.astroFollowUpDays ?? 3}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            appearance: { ...formData.appearance, astroFollowUpDays: Number(e.target.value) },
+                          })
+                        }
+                        className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-xs text-slate-100"
+                      >
+                        {[2, 3, 5, 7].map((d) => (
+                          <option key={d} value={d}>
+                            {d} dias
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
+
                 <SkinGalleryPanel />
               </div>
             )}

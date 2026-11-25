@@ -16,6 +16,9 @@ import { useMailPersistence, isMailStoreAvailable } from '@/hooks/useMailPersist
 import { ensureEmailBody, useHydratedEmails } from '@/services/emailBodyCache';
 import { isBodyStripped } from './utils/emailBodyStrip';
 import { quickReplyText, type DateMention } from './utils/assistantInsights';
+import { followUpText } from './utils/astroAgenda';
+import { useAstroAgenda } from './hooks/useAstroAgenda';
+import { AstroAgendaPanel } from './components/AstroAgendaPanel';
 import { removeServerDuplicates } from './utils/emailDedupe';
 import { pickNewArrivals, buildNewMailNotice } from './utils/newMailDetect';
 import { findFoldersDeletedOnServer } from './utils/serverFolderSync';
@@ -3762,6 +3765,41 @@ export const App: React.FC = () => {
     showToast('Astro ocultado. Para mostrar de novo: Configurações → Aparência.');
   };
 
+  // Astro — pendências: e-mails aguardando sua resposta e enviados sem resposta
+  const astroMyAddresses = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [...(settings.accounts || []).map((a) => a.email), settings.account?.email]
+            .filter(Boolean)
+            .map((a) => String(a).toLowerCase())
+        )
+      ),
+    [settings.accounts, settings.account?.email]
+  );
+  const astroFollowUpDays = settings.appearance?.astroFollowUpDays ?? 3;
+  const { agenda: astroAgenda, dismiss: dismissAstroItem } = useAstroAgenda(emails, {
+    enabled: settings.appearance?.astroAgendaEnabled ?? true,
+    myAddresses: astroMyAddresses,
+    followUpAfterDays: astroFollowUpDays,
+  });
+  const [isAstroPanelOpen, setIsAstroPanelOpen] = useState(false);
+
+  /** Astro: "Cobrar resposta" de um e-mail enviado — abre a resposta pronta para revisar. */
+  const handleAstroFollowUp = (sentEmail: EmailItem) => {
+    soundService.play('click');
+    const { inReplyTo, references } = buildReplyThreadingHeaders(sentEmail);
+    const firstRecipient = (sentEmail.recipient || '').split(/[,;]/)[0].replace(/<[^>]*>/, '').replace(/"/g, '').trim();
+    setComposeDefaults({
+      recipient: sentEmail.recipient || '',
+      subject: /^re:/i.test(sentEmail.subject) ? sentEmail.subject : `Re: ${sentEmail.subject}`,
+      body: followUpText(firstRecipient),
+      inReplyTo,
+      references,
+    });
+    setIsComposeOpen(true);
+  };
+
   const handleReplyAll = (targetEmail?: EmailItem) => {
     const baseEmail = targetEmail || selectedEmail;
     if (!baseEmail) return;
@@ -5043,6 +5081,11 @@ export const App: React.FC = () => {
                   backfillProgress={mailBackfill.isRunning ? mailBackfill.progress : null}
                   isCancellingBackfill={mailBackfill.isCancelling}
                   onCancelBackfill={mailBackfill.cancel}
+                  astroSummary={{
+                    needsReply: astroAgenda.needsReply.length,
+                    awaitingAnswer: astroAgenda.awaitingAnswer.length,
+                  }}
+                  onOpenAstro={() => setIsAstroPanelOpen(true)}
                 />
               )}
 
@@ -5280,6 +5323,28 @@ export const App: React.FC = () => {
             getSenderBlockRule={getSenderBlockRule}
           />
         </Suspense>
+      )}
+
+      {/* Astro — pendências */}
+      {isAstroPanelOpen && (
+        <AstroAgendaPanel
+          agenda={astroAgenda}
+          followUpAfterDays={astroFollowUpDays}
+          onClose={() => setIsAstroPanelOpen(false)}
+          onOpen={(e) => {
+            setIsAstroPanelOpen(false);
+            handleOpenEmailInTab(e.id);
+          }}
+          onReply={(e) => {
+            setIsAstroPanelOpen(false);
+            void handleReply(e);
+          }}
+          onFollowUp={(e) => {
+            setIsAstroPanelOpen(false);
+            handleAstroFollowUp(e);
+          }}
+          onDismiss={dismissAstroItem}
+        />
       )}
 
       {/* Productivity Command Palette (Ctrl+K) */}

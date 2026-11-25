@@ -36,6 +36,7 @@ import {
 import { CustomFolder, EmailItem, MailFolder, TimePeriod, TriageCategory } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
 import { soundService } from '../services/soundService';
+import { AmorosoFace } from './NotifierMascot';
 import { filterRealAttachments } from '../utils/attachmentUtils';
 import { getEmailTimestampMs, formatReceivedLabel } from '../utils/dateSortUtils';
 import {
@@ -106,6 +107,9 @@ interface EmailListProps {
   backfillProgress?: BackfillProgress | null;
   isCancellingBackfill?: boolean;
   onCancelBackfill?: () => void;
+  /** Astro: quantas pendências há (aguardando sua resposta / enviados sem resposta). */
+  astroSummary?: { needsReply: number; awaitingAnswer: number };
+  onOpenAstro?: () => void;
 }
 
 const AUTOMATED_SENDER_REGEX =
@@ -160,6 +164,8 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       backfillProgress = null,
       isCancellingBackfill = false,
       onCancelBackfill,
+      astroSummary,
+      onOpenAstro,
     },
     ref
   ) => {
@@ -821,6 +827,32 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                 </label>
               </div>
             </div>
+          )}
+
+          {/* Astro: pendências (aguardando sua resposta / enviados sem resposta) */}
+          {astroSummary && astroSummary.needsReply + astroSummary.awaitingAnswer > 0 && onOpenAstro && (
+            <button
+              type="button"
+              onClick={() => {
+                soundService.play('click');
+                onOpenAstro();
+              }}
+              className="assistant-card w-full flex items-center gap-2 px-2 py-1 rounded-lg bg-sky-500/10 border border-sky-500/30 hover:bg-sky-500/15 text-left transition-colors"
+              title="Ver pendências do Astro"
+            >
+              <AmorosoFace size={20} />
+              <span className="flex-1 min-w-0 truncate text-[11px] text-sky-100">
+                <strong className="text-sky-200">Astro:</strong>{' '}
+                {[
+                  astroSummary.needsReply > 0 &&
+                    `${astroSummary.needsReply} ${astroSummary.needsReply === 1 ? 'aguarda' : 'aguardam'} sua resposta`,
+                  astroSummary.awaitingAnswer > 0 && `${astroSummary.awaitingAnswer} sem resposta`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-sky-300 shrink-0" />
+            </button>
           )}
 
           {/* Triagem Inteligente (Prioritários / Newsletters / Notificações) */}
