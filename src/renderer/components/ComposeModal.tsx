@@ -938,6 +938,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
     document.execCommand('insertText', false, emoji);
     saveSelection();
     syncEditorFromDom();
+    // Um emoji por vez: fecha o painel (para outro, é só abrir de novo)
+    setIsEmojiPickerOpen(false);
   };
 
   const executeSend = async (scheduledAt?: number) => {
