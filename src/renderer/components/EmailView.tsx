@@ -2265,8 +2265,10 @@ export const EmailView: React.FC<EmailViewProps> = ({
                 <div className={`flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-200 ${isModalMode ? 'max-w-none' : 'max-w-3xl'}`}>
                   <div className="flex items-center space-x-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>
-                      <strong>Escudo Anectta:</strong> {blockedPixelsCount} {blockedPixelsCount === 1 ? 'pixel espião de rastreamento neutralizado' : 'pixels espiões de rastreamento neutralizados'} nesta mensagem.
+                    <span
+                      title={`${blockedPixelsCount} ${blockedPixelsCount === 1 ? 'rastreador de leitura bloqueado' : 'rastreadores de leitura bloqueados'} nesta mensagem`}
+                    >
+                      <strong>Escudo Anectta:</strong> Proteção Ativa (Rastreamento de leitura bloqueado)
                     </span>
                   </div>
                 </div>
