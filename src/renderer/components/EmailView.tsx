@@ -191,6 +191,9 @@ interface EmailViewProps {
   onUnmarkSpam?: (id: string) => void;
   onAddContact?: (contact: { name: string; email: string }) => void;
   isSenderSaved?: boolean;
+  /** Contatos VIP */
+  isVipSender?: boolean;
+  onToggleVip?: (senderEmail: string) => void;
   onBackToList?: () => void;
   onToggleTask?: (id: string) => void;
   onToggleReadingList?: (id: string) => void;
@@ -252,6 +255,8 @@ export const EmailView: React.FC<EmailViewProps> = ({
   onUnmarkSpam,
   onAddContact,
   isSenderSaved = false,
+  isVipSender = false,
+  onToggleVip,
   onBackToList,
   onToggleTask,
   onToggleReadingList,
@@ -1870,6 +1875,28 @@ export const EmailView: React.FC<EmailViewProps> = ({
                 )}
               </div>
             </div>
+
+            {email.senderEmail && onToggleVip && !['sent', 'drafts', 'outbox'].includes(String(email.folder)) && (
+              <button
+                type="button"
+                onClick={() => {
+                  soundService.play('click');
+                  onToggleVip(email.senderEmail);
+                }}
+                title={
+                  isVipSender
+                    ? `Tirar ${email.senderEmail} dos contatos VIP`
+                    : `Marcar ${email.senderEmail} como VIP: os e-mails vão para o topo dos Prioritários`
+                }
+                className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer shrink-0 ${
+                  isVipSender
+                    ? 'bg-amber-400/20 text-amber-300 border-amber-400/40 hover:bg-amber-400/30'
+                    : 'bg-slate-800/60 text-slate-300 border-slate-700 hover:text-amber-300 hover:border-amber-400/40'
+                }`}
+              >
+                <span>{isVipSender ? '⭐ VIP' : '☆ Marcar VIP'}</span>
+              </button>
+            )}
 
             {email.senderEmail && onAddContact && (
               isSenderSaved ? (

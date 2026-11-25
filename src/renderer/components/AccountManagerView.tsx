@@ -47,6 +47,9 @@ type SubSection =
   | 'encryption'
   | 'outgoing_smtp';
 
+/** Pareamento com o Anectta MAIL Mobile (volta quando migrar para QR Code, sem servidor). */
+const MOBILE_PAIRING_ENABLED = false;
+
 export const AccountManagerView: React.FC<AccountManagerViewProps> = ({
   settings,
   onUpdateSettings,
@@ -526,19 +529,23 @@ export const AccountManagerView: React.FC<AccountManagerViewProps> = ({
               <span>Adicionar conta</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setPairingCodeResult(null);
-                setPairingError(null);
-                setPairingCopied(false);
-                setIsPairMobileOpen(true);
-              }}
-              className="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 text-xs font-semibold rounded-xl transition-all cursor-pointer"
-            >
-              <Smartphone className="w-4 h-4 text-brand-400" />
-              <span>Parear Mobile</span>
-            </button>
+            {/* Pareamento com o celular: oculto enquanto não migra para QR Code (o app mobile
+                passou a conectar direto no IMAP e o gateway que gerava o código foi removido). */}
+            {MOBILE_PAIRING_ENABLED && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPairingCodeResult(null);
+                  setPairingError(null);
+                  setPairingCopied(false);
+                  setIsPairMobileOpen(true);
+                }}
+                className="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+              >
+                <Smartphone className="w-4 h-4 text-brand-400" />
+                <span>Parear Mobile</span>
+              </button>
+            )}
 
             {/* List of Accounts with Sub-items */}
             <div className="space-y-2 pt-1">

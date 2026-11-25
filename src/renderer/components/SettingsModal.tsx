@@ -2256,6 +2256,64 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       />
                     </button>
                   </div>
+                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-800">
+                    <div>
+                      <div className="text-xs font-semibold text-white">Sugestões de VIP</div>
+                      <div className="text-[11px] text-slate-400">
+                        O Astro sugere como VIP as pessoas com quem você mais troca mensagens. Os e-mails dos VIPs vão
+                        para o topo dos Prioritários, com selo ⭐ e aviso especial.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={formData.appearance.astroVipEnabled ?? true}
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          appearance: { ...formData.appearance, astroVipEnabled: !(formData.appearance.astroVipEnabled ?? true) },
+                        })
+                      }
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ${
+                        (formData.appearance.astroVipEnabled ?? true) ? 'bg-brand-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition duration-200 ${
+                          (formData.appearance.astroVipEnabled ?? true) ? 'translate-x-4' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-800">
+                    <div>
+                      <div className="text-xs font-semibold text-white">Resumo do dia</div>
+                      <div className="text-[11px] text-slate-400">
+                        Ao abrir o app (uma vez por dia), o Astro mostra o que precisa de atenção: respostas pendentes,
+                        pagamentos e prazos, reuniões de hoje e amanhã, VIPs não lidos e newsletters acumuladas.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={formData.appearance.astroDailyEnabled ?? true}
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          appearance: { ...formData.appearance, astroDailyEnabled: !(formData.appearance.astroDailyEnabled ?? true) },
+                        })
+                      }
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ${
+                        (formData.appearance.astroDailyEnabled ?? true) ? 'bg-brand-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition duration-200 ${
+                          (formData.appearance.astroDailyEnabled ?? true) ? 'translate-x-4' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
 
                 <SkinGalleryPanel />

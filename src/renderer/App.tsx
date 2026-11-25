@@ -19,6 +19,8 @@ import { quickReplyText, type DateMention } from './utils/assistantInsights';
 import { followUpText } from './utils/astroAgenda';
 import { APP_LOCK_EVENT, loadAppLock, type AppLockConfig } from './utils/appLock';
 import { LockScreen } from './components/LockScreen';
+import { AstroDailyPanel } from './components/AstroDailyPanel';
+import { dailyShownToday, markDailyShown } from './utils/astroDaily';
 import {
   expiredForPurge,
   isQuietNow,
@@ -29,6 +31,14 @@ import {
   updatePurgeClock,
 } from './utils/mailHygiene';
 import type { CleanupSuggestion } from './utils/astroCleanup';
+import {
+  computeVipSuggestions,
+  loadVipDismissed,
+  loadVips,
+  saveVipDismissed,
+  saveVips,
+  VIP_EVENT,
+} from './utils/vipContacts';
 import { useAstroAgenda } from './hooks/useAstroAgenda';
 import { AstroAgendaPanel } from './components/AstroAgendaPanel';
 import { removeServerDuplicates } from './utils/emailDedupe';
@@ -3808,18 +3818,58 @@ export const App: React.FC = () => {
     [settings.accounts, settings.account?.email]
   );
   const astroFollowUpDays = settings.appearance?.astroFollowUpDays ?? 3;
+  // Contatos VIP: e-mails vão para o topo dos Prioritários, com selo ⭐ e aviso especial
+  const [vips, setVips] = useState<Set<string>>(() => loadVips());
+  const [vipDismissed, setVipDismissed] = useState<Set<string>>(() => loadVipDismissed());
+  useEffect(() => {
+    const reload = () => setVips(loadVips());
+    window.addEventListener(VIP_EVENT, reload);
+    return () => window.removeEventListener(VIP_EVENT, reload);
+  }, []);
+  const vipsRef = useRef(vips);
+  vipsRef.current = vips;
+
   const {
     agenda: astroAgenda,
     dismiss: dismissAstroItem,
     cleanup: astroCleanup,
     keepSender: keepAstroSender,
+    daily: astroDaily,
   } = useAstroAgenda(emails, {
     enabled: settings.appearance?.astroAgendaEnabled ?? true,
     cleanupEnabled: settings.appearance?.astroCleanupEnabled ?? true,
     myAddresses: astroMyAddresses,
     followUpAfterDays: astroFollowUpDays,
+    dailyEnabled: settings.appearance?.astroDailyEnabled ?? true,
+    vips,
   });
   const [isAstroPanelOpen, setIsAstroPanelOpen] = useState(false);
+  const [isAstroDailyOpen, setIsAstroDailyOpen] = useState(false);
+
+  const handleToggleVip = (senderEmail: string) => {
+    const key = (senderEmail || '').trim().toLowerCase();
+    if (!key) return;
+    const next = new Set(vips);
+    const adding = !next.has(key);
+    if (adding) next.add(key);
+    else next.delete(key);
+    saveVips(next);
+    setVips(next);
+    showToast(adding ? `⭐ ${key} agora é VIP: os e-mails vão para o topo dos Prioritários.` : `${key} não é mais VIP.`);
+  };
+  const handleDismissVipSuggestion = (email: string) => {
+    const next = new Set(vipDismissed);
+    next.add(email.toLowerCase());
+    saveVipDismissed(next);
+    setVipDismissed(next);
+  };
+  const vipSuggestions = useMemo(
+    () =>
+      (settings.appearance?.astroVipEnabled ?? true)
+        ? computeVipSuggestions(emails, { myAddresses: astroMyAddresses, vips, dismissed: vipDismissed })
+        : [],
+    [emails, astroMyAddresses, vips, vipDismissed, settings.appearance?.astroVipEnabled]
+  );
 
   // Astro — sugestões de limpeza (sempre com confirmação)
   const handleAstroArchiveSender = (s: CleanupSuggestion) => {
@@ -4650,6 +4700,25 @@ export const App: React.FC = () => {
     }
   };
 
+  // Astro — Resumo do dia: abre sozinho uma vez por dia, se houver algo (e o app não estiver bloqueado)
+  const astroDailyHasContent =
+    astroAgenda.needsReply.length +
+      astroAgenda.awaitingAnswer.length +
+      astroDaily.payments.length +
+      astroDaily.meetings.length +
+      astroDaily.vipUnread.length >
+    0;
+  useEffect(() => {
+    if (!(settings.appearance?.astroDailyEnabled ?? true) || isLocked || dailyShownToday()) return;
+    if (!astroDailyHasContent) return;
+    const t = setTimeout(() => {
+      if (dailyShownToday()) return;
+      markDailyShown();
+      setIsAstroDailyOpen(true);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [astroDailyHasContent, isLocked, settings.appearance?.astroDailyEnabled]);
+
   // ==========================================
   // Aviso de novo e-mail (janela no canto da tela + som escolhido nas Configurações)
   // ==========================================
@@ -4669,6 +4738,8 @@ export const App: React.FC = () => {
     // App bloqueado: o aviso não mostra remetente, assunto nem trecho
     const notice = isLockedRef.current
       ? { ...built, sender: 'Anectta MAIL', senderEmail: undefined, avatar: undefined, subject: built.count > 1 ? `${built.count} novos e-mails` : 'Novo e-mail', snippet: undefined }
+      : built.count === 1 && built.senderEmail && vipsRef.current.has(built.senderEmail.trim().toLowerCase())
+      ? { ...built, sender: `⭐ VIP · ${built.sender}` }
       : built;
     // "Silencioso" não toca nada; "Padrão do Tema" usa o som do tema
     soundService.playNotificationPreset(conf?.notificationSound || 'theme');
@@ -5359,7 +5430,9 @@ export const App: React.FC = () => {
                     needsReply: astroAgenda.needsReply.length,
                     awaitingAnswer: astroAgenda.awaitingAnswer.length,
                     cleanup: astroCleanup.length,
+                    vip: vipSuggestions.length,
                   }}
+                  vipEmails={vips}
                   onOpenAstro={() => setIsAstroPanelOpen(true)}
                 />
               )}
@@ -5417,6 +5490,8 @@ export const App: React.FC = () => {
                   onUnmarkSpam={handleUnmarkSpam}
                   onAddContact={handleAddContact}
                   isSenderSaved={isEmailSavedAsContact(displayedEmail?.senderEmail)}
+                  isVipSender={vips.has((displayedEmail?.senderEmail || '').trim().toLowerCase())}
+                  onToggleVip={handleToggleVip}
                   onToggleTask={handleToggleTask}
                   onToggleReadingList={handleToggleReadingList}
                   onToggleImportant={handleToggleImportant}
@@ -5624,12 +5699,38 @@ export const App: React.FC = () => {
         />
       )}
 
+      {/* Astro — Resumo do dia */}
+      {isAstroDailyOpen && !isLocked && (
+        <AstroDailyPanel
+          digest={astroDaily}
+          needsReply={astroAgenda.needsReply.length}
+          awaitingAnswer={astroAgenda.awaitingAnswer.length}
+          onClose={() => setIsAstroDailyOpen(false)}
+          onOpenEmail={(e) => {
+            setIsAstroDailyOpen(false);
+            handleOpenEmailInTab(e.id);
+          }}
+          onOpenPending={() => {
+            setIsAstroDailyOpen(false);
+            setIsAstroPanelOpen(true);
+          }}
+        />
+      )}
+
       {/* Astro — pendências */}
       {isAstroPanelOpen && (
         <AstroAgendaPanel
           agenda={astroAgenda}
           followUpAfterDays={astroFollowUpDays}
           cleanup={astroCleanup}
+          vipSuggestions={vipSuggestions}
+          onOpenDaily={() => {
+            setIsAstroPanelOpen(false);
+            setIsAstroDailyOpen(true);
+          }}
+          vipList={[...vips]}
+          onMakeVip={handleToggleVip}
+          onDismissVip={handleDismissVipSuggestion}
           onArchiveSender={handleAstroArchiveSender}
           onUnsubscribeSender={(s) => void handleAstroUnsubscribeSender(s)}
           onRuleForSender={handleAstroRuleForSender}

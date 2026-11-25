@@ -108,7 +108,9 @@ interface EmailListProps {
   isCancellingBackfill?: boolean;
   onCancelBackfill?: () => void;
   /** Astro: quantas pendências há (aguardando sua resposta / enviados sem resposta). */
-  astroSummary?: { needsReply: number; awaitingAnswer: number; cleanup: number };
+  astroSummary?: { needsReply: number; awaitingAnswer: number; cleanup: number; vip?: number };
+  /** Contatos VIP (e-mails em minúsculas): selo ⭐ e grupo no topo dos Prioritários. */
+  vipEmails?: Set<string>;
   onOpenAstro?: () => void;
 }
 
@@ -166,6 +168,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       onCancelBackfill,
       astroSummary,
       onOpenAstro,
+      vipEmails,
     },
     ref
   ) => {
@@ -195,13 +198,13 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       let newsletters = 0;
       let notifications = 0;
       for (const e of emails) {
-        const cat = classifyEmailTriage(e);
+        const cat = classifyEmailTriage(e, vipEmails);
         if (cat === 'priority') priority++;
         else if (cat === 'newsletters') newsletters++;
         else if (cat === 'notifications') notifications++;
       }
       return { priority, newsletters, notifications };
-    }, [emails]);
+    }, [emails, vipEmails]);
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>(() => {
       try {
         const saved = localStorage.getItem('anectta_email_sort_order');
@@ -408,7 +411,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
 
         // Triagem Inteligente
         if (triageFilter !== 'all') {
-          const cat = classifyEmailTriage(item);
+          const cat = classifyEmailTriage(item, vipEmails);
           if (cat !== triageFilter) return false;
         }
 
@@ -574,17 +577,32 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
         }
       }
 
-      return periodsOrder
+      const byDate = (a: ListEntry, b: ListEntry) => (sortOrder === 'desc' ? b.ts - a.ts : a.ts - b.ts);
+      // Na aba Prioritários, os contatos VIP ficam num grupo próprio, no topo
+      const vipItems: ListEntry[] = [];
+      if (triageFilter === 'priority' && vipEmails && vipEmails.size > 0) {
+        for (const p of periodsOrder) {
+          buckets[p.id] = buckets[p.id].filter((it) => {
+            const isVip = vipEmails.has((it.email.senderEmail || '').trim().toLowerCase());
+            if (isVip) vipItems.push(it);
+            return !isVip;
+          });
+        }
+      }
+      const periodGroups = periodsOrder
         .map((period) => {
           const items = buckets[period.id];
-          items.sort((a, b) => (sortOrder === 'desc' ? b.ts - a.ts : a.ts - b.ts));
+          items.sort(byDate);
           return {
             ...period,
             items,
           };
         })
         .filter((group) => group.items.length > 0);
-    }, [filteredEmails, sortOrder, sortField, dateOrder, groupByThread]);
+      return vipItems.length > 0
+        ? [{ id: 'vip', label: '⭐ VIP', items: vipItems.sort(byDate) }, ...periodGroups]
+        : periodGroups;
+    }, [filteredEmails, sortOrder, sortField, dateOrder, groupByThread, triageFilter, vipEmails]);
 
     // Arrastar para pasta: um id marcado que é o último de uma conversa leva a conversa inteira.
     const threadIdsByLatest = useMemo(() => {
@@ -830,7 +848,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
           )}
 
           {/* Astro: pendências (aguardando sua resposta / enviados sem resposta) */}
-          {astroSummary && astroSummary.needsReply + astroSummary.awaitingAnswer + astroSummary.cleanup > 0 && onOpenAstro && (
+          {astroSummary && astroSummary.needsReply + astroSummary.awaitingAnswer + astroSummary.cleanup + (astroSummary.vip || 0) > 0 && onOpenAstro && (
             <button
               type="button"
               onClick={() => {
@@ -847,6 +865,8 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                   astroSummary.needsReply > 0 &&
                     `${astroSummary.needsReply} ${astroSummary.needsReply === 1 ? 'aguarda' : 'aguardam'} sua resposta`,
                   astroSummary.awaitingAnswer > 0 && `${astroSummary.awaitingAnswer} sem resposta`,
+                  (astroSummary.vip || 0) > 0 &&
+                    `${astroSummary.vip} ${astroSummary.vip === 1 ? 'sugestão' : 'sugestões'} de VIP`,
                   astroSummary.cleanup > 0 &&
                     `${astroSummary.cleanup} ${astroSummary.cleanup === 1 ? 'sugestão' : 'sugestões'} de limpeza`,
                 ]
@@ -1650,6 +1670,14 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                                 >
                                   {senderDisplay}
                                 </span>
+                                {vipEmails?.has((email.senderEmail || '').trim().toLowerCase()) && (
+                                  <span
+                                    className="px-1 py-0 rounded text-[9px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/40 shrink-0"
+                                    title="Contato VIP"
+                                  >
+                                    ⭐ VIP
+                                  </span>
+                                )}
                                 {isThread && thread && (
                                   <span
                                     className="inline-flex items-center space-x-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-brand-500/20 text-brand-300 border border-brand-500/30 shrink-0"

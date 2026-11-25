@@ -26,6 +26,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { AccountSettings, CalendarSettings } from '@/types/settings';
+import { parseQuickEvent } from '../utils/quickEvent';
 import {
   addDaysIso,
   addMinutesToTime,
@@ -199,6 +200,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedColorFilter, setSelectedColorFilter] = useState<CalendarColorKey | 'all'>('all');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  // Criar compromisso escrevendo
+  const [quickText, setQuickText] = useState('');
+  const quickPreview = useMemo(() => (quickText.trim() ? parseQuickEvent(quickText) : null), [quickText]);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
 
   useEffect(() => {
@@ -921,6 +925,47 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <Download className="w-3.5 h-3.5" />
             <span className="hidden lg:inline">Exportar</span>
           </button>
+
+          {/* Criar compromisso escrevendo: "Reunião com Ana sexta 15h" */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const parsed = parseQuickEvent(quickText);
+              if (!parsed) {
+                showToast('Não entendi a data. Exemplos: "Reunião com Ana sexta 15h", "Dentista 28/11 às 9h30".');
+                return;
+              }
+              openNewEventModal(parsed.date, parsed.startTime);
+              setTitle(parsed.title);
+              setAllDay(parsed.allDay);
+              if (parsed.endTime) setEndTime(parsed.endTime);
+              setQuickText('');
+            }}
+            className="relative"
+          >
+            <input
+              type="text"
+              value={quickText}
+              onChange={(e) => setQuickText(e.target.value)}
+              placeholder='Criar escrevendo: "Reunião com Ana sexta 15h"'
+              className="w-64 lg:w-80 px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+              aria-label="Criar compromisso escrevendo"
+              title="Escreva o compromisso com data e horário e tecle Enter para revisar antes de salvar"
+            />
+            {quickText.trim() && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded-lg text-[11px] shadow-lg border bg-white border-slate-200 text-slate-700">
+                {quickPreview ? (
+                  <span>
+                    📅 <strong>{quickPreview.title}</strong> — {quickPreview.label}
+                    {quickPreview.allDay ? ' (dia inteiro)' : quickPreview.endTime ? ` até ${quickPreview.endTime}` : ''}
+                    <span className="text-slate-400"> · Enter para revisar</span>
+                  </span>
+                ) : (
+                  <span className="text-slate-500">Inclua a data ou o horário (ex.: sexta 15h, amanhã, 28/11)</span>
+                )}
+              </div>
+            )}
+          </form>
 
           <button
             type="button"

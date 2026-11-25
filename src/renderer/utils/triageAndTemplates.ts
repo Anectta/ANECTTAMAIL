@@ -118,9 +118,13 @@ const NEWSLETTER_PATTERNS = [
  * - 'notifications' if automated/no-reply/transactional alerts
  * - 'priority' otherwise (human / direct / important / starred / calendar invite)
  */
-export function classifyEmailTriage(email: EmailItem): Exclude<TriageCategory, 'all'> {
+export function classifyEmailTriage(email: EmailItem, vips?: Set<string>): Exclude<TriageCategory, 'all'> {
   if (email.snoozedUntil && email.snoozedUntil > Date.now()) {
     return 'snoozed';
+  }
+  // Contatos VIP sempre entram nos Prioritários
+  if (vips && vips.size > 0 && vips.has((email.senderEmail || '').trim().toLowerCase())) {
+    return 'priority';
   }
   if (email.isImportant || email.isStarred || email.priority === 'high' || email.calendarInvite) {
     return 'priority';

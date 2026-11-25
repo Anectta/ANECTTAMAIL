@@ -78,6 +78,10 @@ export interface AppearanceSettings {
   astroFollowUpDays?: number;
   /** Astro: sugestões de limpeza de remetentes que você não abre (padrão: ligado). */
   astroCleanupEnabled?: boolean;
+  /** Astro: sugerir contatos VIP (padrão: ligado). */
+  astroVipEnabled?: boolean;
+  /** Astro: Resumo do dia ao abrir o app (padrão: ligado). */
+  astroDailyEnabled?: boolean;
 }
 
 export interface SecuritySettings {
