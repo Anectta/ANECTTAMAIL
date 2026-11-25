@@ -60,6 +60,7 @@ import { soundService } from '../services/soundService';
 import { filterRealAttachments } from '../utils/attachmentUtils';
 import DOMPurify from 'dompurify';
 import { formatReceivedLabel } from '../utils/dateSortUtils';
+import { linkifyHtml, splitLinks } from '../utils/linkify';
 import { parseUnsubscribeInfo } from '../utils/triageAndTemplates';
 import { getPrivateNoteForEmail } from './ContactContextSidebar';
 import {
@@ -2289,10 +2290,12 @@ export const EmailView: React.FC<EmailViewProps> = ({
         {/* Email Body (Renderiza HTML sanitizado com CSS inline ou texto plano) */}
         {email.bodyHtml ? (() => {
           const allowImages = Boolean(revealedImagesEmailIds[email.id]);
-          const { html: sanitizedHtml, blockedImagesCount, blockedPixelsCount } = sanitizeEmailHtml(email.bodyHtml, {
+          const { html: rawSanitizedHtml, blockedImagesCount, blockedPixelsCount } = sanitizeEmailHtml(email.bodyHtml, {
             blockTrackingPixels,
             blockExternalImages: blockExternalImages && !allowImages,
           });
+          // Endereços escritos como texto (sem link) também ficam clicáveis
+          const sanitizedHtml = linkifyHtml(rawSanitizedHtml);
           return (
             <div className="space-y-2">
               {blockedPixelsCount > 0 && (
@@ -2359,6 +2362,19 @@ export const EmailView: React.FC<EmailViewProps> = ({
           );
         })() : (
           <div
+            onClick={(e) => {
+              // E-mail só de texto: endereços viram links e abrem no navegador
+              const anchor = (e.target as HTMLElement | null)?.closest('a');
+              const href = (anchor?.getAttribute('href') || '').trim();
+              if (!anchor || !/^(https?:|mailto:)/i.test(href)) return;
+              e.preventDefault();
+              e.stopPropagation();
+              if (window.electronAPI?.openExternal) {
+                void window.electronAPI.openExternal(href);
+              } else {
+                window.open(href, '_blank', 'noopener,noreferrer');
+              }
+            }}
             style={{
               backgroundColor: '#FFFFFF',
               color: '#111827',
@@ -2366,7 +2382,20 @@ export const EmailView: React.FC<EmailViewProps> = ({
             }}
             className={`email-body-sanitized text-sm leading-relaxed whitespace-pre-wrap font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'} rounded-xl border p-4`}
           >
-            {email.body}
+            {splitLinks(email.body || '').map((part, i) =>
+              part.type === 'link' ? (
+                <a
+                  key={i}
+                  href={part.href}
+                  className="text-blue-600 underline break-all"
+                  title={part.href}
+                >
+                  {part.value}
+                </a>
+              ) : (
+                <React.Fragment key={i}>{part.value}</React.Fragment>
+              )
+            )}
           </div>
         )}
       </div>
