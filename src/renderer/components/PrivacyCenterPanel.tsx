@@ -25,6 +25,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { SecuritySettings } from '@/types/settings';
+import { normalizeSenderEntry } from '../utils/mailHygiene';
 import {
   ContactPgpKey,
   loadPgpKeyring,
@@ -322,6 +323,15 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
       blockTrackingPixels: enabled ? true : security.blockTrackingPixels,
       blockBlockedSenders: enabled ? true : security.blockBlockedSenders,
     });
+  };
+
+  const trustedSenders = security.trustedSenders ?? [];
+  const [newTrustedInput, setNewTrustedInput] = useState('');
+  const handleAddTrustedSender = () => {
+    const clean = normalizeSenderEntry(newTrustedInput);
+    if (!clean) return;
+    if (!trustedSenders.includes(clean)) updateField('trustedSenders', [...trustedSenders, clean]);
+    setNewTrustedInput('');
   };
 
   const handleAddBlockedSender = () => {
@@ -1062,6 +1072,96 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
           <div className="text-[11px] text-slate-500 italic">
             Nenhum remetente bloqueado no momento.
           </div>
+        )}
+      </div>
+
+      {/* Remetentes confiáveis */}
+      <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
+        <div>
+          <div className="text-xs font-semibold text-slate-200">Remetentes Confiáveis ({trustedSenders.length})</div>
+          <p className="text-[11px] text-slate-500">
+            O contrário do bloqueio: e-mails destes endereços (ex: contato@cliente.com) ou domínios (ex: @empresa.com)
+            nunca vão para o Lixo eletrônico, sempre mostram imagens e não recebem aviso de golpe.
+          </p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <input
+            type="text"
+            value={newTrustedInput}
+            onChange={(e) => setNewTrustedInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddTrustedSender();
+              }
+            }}
+            placeholder="Ex: contato@cliente.com ou @empresa.com"
+            className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500"
+          />
+          <button
+            type="button"
+            onClick={handleAddTrustedSender}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Confiar</span>
+          </button>
+        </div>
+        {trustedSenders.length > 0 ? (
+          <div className="max-h-32 overflow-y-auto space-y-1.5 pt-1">
+            {trustedSenders.map((entry) => (
+              <div
+                key={entry}
+                className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-900/90 border border-emerald-500/20 text-xs text-slate-300"
+              >
+                <span className="truncate font-mono text-[11px]">{entry}</span>
+                <button
+                  type="button"
+                  onClick={() => updateField('trustedSenders', trustedSenders.filter((s) => s !== entry))}
+                  title="Remover dos confiáveis"
+                  className="text-slate-500 hover:text-rose-400 transition-colors p-0.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-[11px] text-slate-500 italic">Nenhum remetente confiável ainda.</div>
+        )}
+      </div>
+
+      {/* Limpeza automática da Lixeira e do Lixo eletrônico */}
+      <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold text-slate-200">Limpeza automática da Lixeira e do Lixo eletrônico</div>
+            <p className="text-[11px] text-slate-500">
+              Apaga de vez (também no servidor) o que está lá há mais tempo que o escolhido. O tempo conta a partir de
+              quando a mensagem entrou na Lixeira ou no Lixo eletrônico.
+            </p>
+          </div>
+          <ToggleSwitch
+            checked={security.autoPurgeEnabled ?? false}
+            onChange={(next) => updateField('autoPurgeEnabled', next)}
+            activeColor="bg-brand-600"
+          />
+        </div>
+        {(security.autoPurgeEnabled ?? false) && (
+          <label className="flex items-center justify-between gap-3 text-[11px] text-slate-300">
+            <span>Apagar o que estiver lá há mais de</span>
+            <select
+              value={security.autoPurgeDays ?? 30}
+              onChange={(e) => updateField('autoPurgeDays', Number(e.target.value))}
+              className="px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100"
+            >
+              {[7, 15, 30, 60].map((d) => (
+                <option key={d} value={d}>
+                  {d} dias
+                </option>
+              ))}
+            </select>
+          </label>
         )}
       </div>
 

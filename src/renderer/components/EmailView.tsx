@@ -62,6 +62,7 @@ import { filterRealAttachments } from '../utils/attachmentUtils';
 import DOMPurify from 'dompurify';
 import { formatReceivedLabel } from '../utils/dateSortUtils';
 import { linkifyHtml, splitLinks } from '../utils/linkify';
+import { senderInList } from '../utils/mailHygiene';
 import {
   analyzePhishing,
   hostOf,
@@ -201,6 +202,9 @@ interface EmailViewProps {
   phishingProtection?: boolean;
   /** Confirmar antes de abrir links do e-mail (padrão: ligado). */
   confirmExternalLinks?: boolean;
+  /** Remetentes confiáveis: imagens sempre visíveis e sem aviso de golpe. */
+  trustedSenders?: string[];
+  onTrustSender?: (senderEmail: string) => void;
   onChangePrivacySetting?: (
     key: 'blockExternalImages' | 'blockTrackingPixels' | 'blockBlockedSenders',
     value: boolean
@@ -257,6 +261,8 @@ export const EmailView: React.FC<EmailViewProps> = ({
   blockBlockedSenders = true,
   phishingProtection = true,
   confirmExternalLinks = true,
+  trustedSenders,
+  onTrustSender,
   onChangePrivacySetting,
   getSenderBlockRule,
   onSendReadReceipt,
@@ -286,7 +292,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
   const [dontAskHost, setDontAskHost] = useState(false);
 
   const phishingReport = useMemo(() => {
-    if (!email || !phishingProtection || email.folder === 'sent' || email.folder === 'drafts') {
+    if (!email || !phishingProtection || email.folder === 'sent' || email.folder === 'drafts' || senderInList(email.senderEmail, trustedSenders)) {
       return { level: 'none' as const, reasons: [] as string[] };
     }
     return analyzePhishing(
@@ -300,7 +306,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
       },
       phishingTrusted
     );
-  }, [email, phishingProtection, phishingTrusted]);
+  }, [email, phishingProtection, phishingTrusted, trustedSenders]);
 
   const openUrlNow = (href: string) => {
     if (window.electronAPI?.openExternal) {
@@ -489,7 +495,8 @@ export const EmailView: React.FC<EmailViewProps> = ({
       const sanitized = email.bodyHtml
         ? sanitizeEmailHtml(email.bodyHtml, {
             blockTrackingPixels,
-            blockExternalImages: blockExternalImages && !revealedImagesEmailIds[email.id],
+            blockExternalImages:
+              blockExternalImages && !revealedImagesEmailIds[email.id] && !senderInList(email.senderEmail, trustedSenders),
           }).html
         : undefined;
       const attachments = filterRealAttachments(email.attachments).map((a) => a.name);
@@ -2489,7 +2496,8 @@ export const EmailView: React.FC<EmailViewProps> = ({
 
         {/* Email Body (Renderiza HTML sanitizado com CSS inline ou texto plano) */}
         {email.bodyHtml ? (() => {
-          const allowImages = Boolean(revealedImagesEmailIds[email.id]);
+          const allowImages =
+            Boolean(revealedImagesEmailIds[email.id]) || senderInList(email.senderEmail, trustedSenders);
           const { html: rawSanitizedHtml, blockedImagesCount, blockedPixelsCount } = sanitizeEmailHtml(email.bodyHtml, {
             blockTrackingPixels,
             blockExternalImages: blockExternalImages && !allowImages,
@@ -2529,6 +2537,16 @@ export const EmailView: React.FC<EmailViewProps> = ({
                   >
                     Exibir imagens
                   </button>
+                  {onTrustSender && email.senderEmail && phishingReport.level === 'none' && (
+                    <button
+                      type="button"
+                      onClick={() => onTrustSender(email.senderEmail)}
+                      className="px-2.5 py-1 rounded-lg border border-amber-500/30 hover:bg-amber-500/15 text-amber-100/90 font-medium shrink-0 transition-colors"
+                      title="Adicionar aos remetentes confiáveis: imagens sempre visíveis e nunca vai para o Lixo eletrônico"
+                    >
+                      Sempre exibir deste remetente
+                    </button>
+                  )}
                 </div>
               )}
               <div

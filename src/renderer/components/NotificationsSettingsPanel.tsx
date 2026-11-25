@@ -21,6 +21,7 @@ import {
   RecipientVariableSubstitutionMode,
 } from '@/types/settings';
 import { soundService } from '../services/soundService';
+import { DEFAULT_QUIET_HOURS, isQuietNow } from '../utils/mailHygiene';
 
 interface NotificationsSettingsPanelProps {
   notifications: NotificationSettings;
@@ -228,6 +229,65 @@ export const NotificationsSettingsPanel: React.FC<NotificationsSettingsPanelProp
           />
         </label>
       </div>
+
+      {/* Horário silencioso */}
+      {(() => {
+        const qh = notifications.quietHours || DEFAULT_QUIET_HOURS;
+        const setQh = (patch: Partial<typeof qh>) => updateField('quietHours', { ...qh, ...patch });
+        return (
+          <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
+            <label className="flex items-center justify-between gap-3 cursor-pointer">
+              <div>
+                <span className="text-xs font-semibold text-slate-200 block">Horário silencioso</span>
+                <span className="text-[11px] text-slate-500">
+                  Nesse período o Anectta não toca som nem mostra aviso de e-mail novo. Os e-mails continuam chegando
+                  normalmente.
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={qh.enabled}
+                onChange={(e) => setQh({ enabled: e.target.checked })}
+                className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 bg-slate-900 border-slate-700 shrink-0"
+              />
+            </label>
+            {qh.enabled && (
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
+                <label className="flex items-center gap-2">
+                  <span>Das</span>
+                  <input
+                    type="time"
+                    value={qh.start}
+                    onChange={(e) => setQh({ start: e.target.value })}
+                    className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100"
+                  />
+                </label>
+                <label className="flex items-center gap-2">
+                  <span>às</span>
+                  <input
+                    type="time"
+                    value={qh.end}
+                    onChange={(e) => setQh({ end: e.target.value })}
+                    className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100"
+                  />
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={qh.weekends}
+                    onChange={(e) => setQh({ weekends: e.target.checked })}
+                    className="w-4 h-4 rounded text-brand-600 bg-slate-900 border-slate-700"
+                  />
+                  <span>Sábado e domingo inteiros</span>
+                </label>
+                <span className="text-[11px] text-slate-500 w-full">
+                  {isQuietNow(qh) ? '🔕 Agora está no horário silencioso.' : '🔔 Agora as notificações estão ativas.'}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Card 3: Sistema Operacional */}
       <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2.5">

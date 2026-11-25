@@ -22,6 +22,8 @@ interface EmailReaderModalProps {
   blockBlockedSenders?: boolean;
   phishingProtection?: boolean;
   confirmExternalLinks?: boolean;
+  trustedSenders?: string[];
+  onTrustSender?: (senderEmail: string) => void;
   onChangePrivacySetting?: (
     key: 'blockExternalImages' | 'blockTrackingPixels' | 'blockBlockedSenders',
     value: boolean
@@ -52,6 +54,8 @@ export const EmailReaderModal: React.FC<EmailReaderModalProps> = ({
   blockBlockedSenders = true,
   phishingProtection = true,
   confirmExternalLinks = true,
+  trustedSenders,
+  onTrustSender,
   onChangePrivacySetting,
   getSenderBlockRule,
   threadMessages,
@@ -143,6 +147,8 @@ export const EmailReaderModal: React.FC<EmailReaderModalProps> = ({
             blockBlockedSenders={blockBlockedSenders}
             phishingProtection={phishingProtection}
             confirmExternalLinks={confirmExternalLinks}
+            trustedSenders={trustedSenders}
+            onTrustSender={onTrustSender}
             onChangePrivacySetting={onChangePrivacySetting}
             getSenderBlockRule={getSenderBlockRule}
             onArchive={(id) => {

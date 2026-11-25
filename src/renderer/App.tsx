@@ -17,6 +17,15 @@ import { ensureEmailBody, useHydratedEmails } from '@/services/emailBodyCache';
 import { isBodyStripped } from './utils/emailBodyStrip';
 import { quickReplyText, type DateMention } from './utils/assistantInsights';
 import { followUpText } from './utils/astroAgenda';
+import {
+  expiredForPurge,
+  isQuietNow,
+  loadPurgeClock,
+  normalizeSenderEntry,
+  savePurgeClock,
+  senderInList,
+  updatePurgeClock,
+} from './utils/mailHygiene';
 import type { CleanupSuggestion } from './utils/astroCleanup';
 import { useAstroAgenda } from './hooks/useAstroAgenda';
 import { AstroAgendaPanel } from './components/AstroAgendaPanel';
@@ -585,25 +594,31 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (spamSenders.length === 0) return;
     const spamSet = new Set(spamSenders);
-    const hasMatch = emails.some(
-      (e) =>
-        e.folder !== 'junk' &&
-        e.folder !== 'trash' &&
-        e.senderEmail &&
-        spamSet.has(e.senderEmail.trim().toLowerCase())
+    const trusted = settings.security.trustedSenders || [];
+    const isSpam = (e: EmailItem) =>
+      e.folder !== 'junk' &&
+      e.folder !== 'trash' &&
+      Boolean(e.senderEmail) &&
+      spamSet.has(e.senderEmail.trim().toLowerCase()) &&
+      !senderInList(e.senderEmail, trusted);
+    if (!emails.some(isSpam)) return;
+    setEmails((prev) => prev.map((e) => (isSpam(e) ? { ...e, folder: 'junk' } : e)));
+  }, [emails, spamSenders, settings.security.trustedSenders]);
+
+  // Remetentes confiáveis nunca ficam no Lixo eletrônico: o que o servidor (ou um filtro) mandar
+  // para lá volta para a Caixa de Entrada — uma vez por mensagem, para respeitar quem mover de novo.
+  const rescuedFromJunkRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const trusted = settings.security.trustedSenders || [];
+    if (trusted.length === 0) return;
+    const toRescue = emails.filter(
+      (e) => e.folder === 'junk' && !rescuedFromJunkRef.current.has(e.id) && senderInList(e.senderEmail, trusted)
     );
-    if (!hasMatch) return;
-    setEmails((prev) =>
-      prev.map((e) =>
-        e.folder !== 'junk' &&
-        e.folder !== 'trash' &&
-        e.senderEmail &&
-        spamSet.has(e.senderEmail.trim().toLowerCase())
-          ? { ...e, folder: 'junk' }
-          : e
-      )
-    );
-  }, [emails, spamSenders]);
+    if (toRescue.length === 0) return;
+    const ids = new Set(toRescue.map((e) => e.id));
+    ids.forEach((id) => rescuedFromJunkRef.current.add(id));
+    setEmails((prev) => prev.map((e) => (ids.has(e.id) ? { ...e, folder: 'inbox' } : e)));
+  }, [emails, settings.security.trustedSenders]);
 
   const [contacts, setContacts] = useState<CorporateContact[]>(() => {
     try {
@@ -3073,6 +3088,7 @@ export const App: React.FC = () => {
           return item;
         }
         const sender = (item.senderEmail || '').trim().toLowerCase();
+        if (senderInList(sender, settings.security.trustedSenders)) return item;
         const isBlocked = blocked.some((rule) =>
           rule.startsWith('@') ? sender.endsWith(rule) : sender === rule
         );
@@ -3084,7 +3100,7 @@ export const App: React.FC = () => {
       });
       return changed ? next : prev;
     });
-  }, [settings.security.blockBlockedSenders, settings.security.blockedSenders, emails.length]);
+  }, [settings.security.blockBlockedSenders, settings.security.blockedSenders, settings.security.trustedSenders, emails.length]);
 
   // Active email (estritamente pertencente à conta ativa ou unificada)
   const selectedEmail = useMemo(() => {
@@ -3571,6 +3587,17 @@ export const App: React.FC = () => {
         })
       );
 
+      // Marcou como spam: o remetente deixa de ser confiável (senão voltaria para a Caixa de Entrada)
+      const spamSendersNow = emails.filter((e) => idSet.has(e.id)).map((e) => e.senderEmail);
+      setSettings((prev) => {
+        const list = prev.security.trustedSenders || [];
+        const next = list.filter((entry) => !spamSendersNow.some((s) => senderInList(s, [entry])));
+        if (next.length === list.length) return prev;
+        const updated: AppSettings = { ...prev, security: { ...prev.security, trustedSenders: next } };
+        persistSettings(updated);
+        return updated;
+      });
+
       soundService.play('click');
       showToast(
         shouldBlacklistEmail || shouldBlacklistDomain
@@ -3832,6 +3859,54 @@ export const App: React.FC = () => {
     handleMoveSelectedToFolder(s.inboxIds, 'archive');
     showToast(`✓ Regra criada: os próximos e-mails de ${s.senderName} vão direto para Arquivados.`);
   };
+
+  /** Remetentes confiáveis: adiciona a partir do e-mail aberto ("Sempre exibir deste remetente"). */
+  const handleTrustSender = (senderEmail: string) => {
+    const entry = normalizeSenderEntry(senderEmail);
+    if (!entry) return;
+    setSettings((prev) => {
+      const list = prev.security.trustedSenders || [];
+      if (list.includes(entry)) return prev;
+      const updated: AppSettings = { ...prev, security: { ...prev.security, trustedSenders: [...list, entry] } };
+      persistSettings(updated);
+      return updated;
+    });
+    showToast(`✓ ${entry} agora é um remetente confiável: imagens sempre visíveis e nunca vai para o Lixo eletrônico.`);
+  };
+
+  // Limpeza automática: apaga de vez o que está há mais de N dias na Lixeira e no Lixo eletrônico.
+  // O tempo conta a partir de quando o e-mail ENTROU lá (não pela data do e-mail).
+  const purgeClockRef = useRef(loadPurgeClock());
+  useEffect(() => {
+    const next = updatePurgeClock(purgeClockRef.current, emails, Date.now());
+    if (next !== purgeClockRef.current) {
+      purgeClockRef.current = next;
+      savePurgeClock(next);
+    }
+  }, [emails]);
+  const autoPurgeEnabled = settings.security.autoPurgeEnabled ?? false;
+  const autoPurgeDays = settings.security.autoPurgeDays ?? 30;
+  useEffect(() => {
+    if (!autoPurgeEnabled) return;
+    const run = () => {
+      const ids = expiredForPurge(purgeClockRef.current, emailsRef.current, autoPurgeDays, Date.now());
+      if (ids.length === 0) return;
+      const idSet = new Set(ids);
+      rememberDeletedEmailIds(ids);
+      // IMAP: exclusão definitiva também no servidor
+      imapServerSyncRef.current?.queueServerDeletes(emailsRef.current.filter((e) => idSet.has(e.id)));
+      setEmails((prev) => prev.filter((e) => !idSet.has(e.id)));
+      showToast(
+        `🧹 Limpeza automática: ${ids.length} ${ids.length === 1 ? 'e-mail apagado' : 'e-mails apagados'} da Lixeira e do Lixo eletrônico (mais de ${autoPurgeDays} dias lá).`
+      );
+    };
+    const first = setTimeout(run, 60_000);
+    const timer = setInterval(run, 60 * 60_000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+    };
+  }, [autoPurgeEnabled, autoPurgeDays]);
 
   /** Astro: "Cobrar resposta" de um e-mail enviado — abre a resposta pronta para revisar. */
   const handleAstroFollowUp = (sentEmail: EmailItem) => {
@@ -4438,6 +4513,7 @@ export const App: React.FC = () => {
   notifyNewMailRef.current = (list: EmailItem[]) => {
     const conf = settings.notifications;
     if (conf && conf.notificationsEnabled === false) return;
+    if (isQuietNow(conf?.quietHours)) return;
     // Confere de novo no estado atual: regras/filtro de spam podem ter tirado da Entrada,
     // e o usuário pode já ter lido
     const ids = new Set(list.map((e) => e.id));
@@ -5199,6 +5275,8 @@ export const App: React.FC = () => {
                   blockBlockedSenders={settings.security.blockBlockedSenders ?? true}
                   phishingProtection={settings.security.phishingProtection ?? true}
                   confirmExternalLinks={settings.security.confirmExternalLinks ?? true}
+                  trustedSenders={settings.security.trustedSenders}
+                  onTrustSender={handleTrustSender}
                   onChangePrivacySetting={handleQuickPrivacyChange}
                   getSenderBlockRule={getSenderBlockRule}
                   onSendReadReceipt={handleSendReadReceipt}
@@ -5372,6 +5450,8 @@ export const App: React.FC = () => {
             blockBlockedSenders={settings.security.blockBlockedSenders ?? true}
                   phishingProtection={settings.security.phishingProtection ?? true}
                   confirmExternalLinks={settings.security.confirmExternalLinks ?? true}
+                  trustedSenders={settings.security.trustedSenders}
+                  onTrustSender={handleTrustSender}
             onChangePrivacySetting={handleQuickPrivacyChange}
             getSenderBlockRule={getSenderBlockRule}
           />

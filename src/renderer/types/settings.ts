@@ -93,6 +93,11 @@ export interface SecuritySettings {
   phishingProtection?: boolean;
   /** Mostrar o endereço real e confirmar antes de abrir links do e-mail (padrão: ligado). */
   confirmExternalLinks?: boolean;
+  /** Remetentes confiáveis (e-mail ou @domínio): nunca vão ao Lixo eletrônico e sempre mostram imagens. */
+  trustedSenders?: string[];
+  /** Apagar de vez o que está há mais de N dias na Lixeira e no Lixo eletrônico (padrão: desligado). */
+  autoPurgeEnabled?: boolean;
+  autoPurgeDays?: number;
   trackSentEmails?: boolean;
   shareDiagnostics?: boolean;
   downloadExternalAvatars?: boolean;
@@ -215,6 +220,8 @@ export interface NotificationSettings {
   notificationSound: NotificationSoundPreset;
   unreadBadgeEnabled: boolean;
   confirmations?: ConfirmationSettings;
+  /** Horário silencioso: sem som nem aviso de e-mail novo nesse período. */
+  quietHours?: { enabled: boolean; start: string; end: string; weekends: boolean };
 }
 
 export interface DavSyncSource {
