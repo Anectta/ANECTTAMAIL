@@ -3561,9 +3561,19 @@ export const App: React.FC = () => {
     (id: string) => {
       const target = emails.find((e) => e.id === id);
       if (!target) return;
-      const senderNorm = (target.senderEmail || '').trim().toLowerCase();
-      if (senderNorm) {
-        setSpamSenders((prev) => prev.filter((s) => s !== senderNorm));
+      // Desbloqueia o remetente em todas as regras que o atingem (e-mail ou @domínio),
+      // tanto na lista de Lixo quanto na do Escudo Anectta.
+      const sender = target.senderEmail;
+      if ((sender || '').trim()) {
+        setSpamSenders((prev) => prev.filter((r) => !senderMatchesRule(sender, r)));
+        setSettings((prev) => {
+          const list = prev.security.blockedSenders || [];
+          const next = list.filter((r) => !senderMatchesRule(sender, r));
+          if (next.length === list.length) return prev;
+          const updated: AppSettings = { ...prev, security: { ...prev.security, blockedSenders: next } };
+          persistSettings(updated);
+          return updated;
+        });
       }
       setEmails((prev) =>
         prev.map((e) => (e.id === id ? { ...e, folder: 'inbox' } : e))
@@ -3574,6 +3584,22 @@ export const App: React.FC = () => {
       setSelectedEmailId(remaining.length > 0 ? remaining[0].id : null);
     },
     [emails, currentFolderEmails]
+  );
+
+  // Escudo Anectta: regra de bloqueio (e-mail exato ou @domínio) que atinge o remetente, se houver.
+  // Considera a lista do Escudo (Configurações) e a de "mover para Lixo e bloquear".
+  const senderMatchesRule = (senderEmail: string | undefined, rule: string) => {
+    const s = (senderEmail || '').trim().toLowerCase();
+    const r = rule.trim().toLowerCase();
+    if (!s || !r) return false;
+    return r.startsWith('@') ? s.endsWith(r) : s === r;
+  };
+  const getSenderBlockRule = useCallback(
+    (senderEmail?: string): string | null =>
+      [...(settings.security.blockedSenders || []), ...spamSenders].find((r) =>
+        senderMatchesRule(senderEmail, r)
+      ) || null,
+    [settings.security.blockedSenders, spamSenders]
   );
 
   const handleSaveDraft = (d: {
@@ -5050,6 +5076,7 @@ export const App: React.FC = () => {
                   blockTrackingPixels={settings.security.blockTrackingPixels ?? true}
                   blockBlockedSenders={settings.security.blockBlockedSenders ?? true}
                   onChangePrivacySetting={handleQuickPrivacyChange}
+                  getSenderBlockRule={getSenderBlockRule}
                   onSendReadReceipt={handleSendReadReceipt}
                   onRespondCalendarInvite={handleRespondCalendarInvite}
                   onSnoozeWithTime={handleSnoozeWithTime}
@@ -5220,6 +5247,7 @@ export const App: React.FC = () => {
             blockTrackingPixels={settings.security.blockTrackingPixels ?? true}
             blockBlockedSenders={settings.security.blockBlockedSenders ?? true}
             onChangePrivacySetting={handleQuickPrivacyChange}
+            getSenderBlockRule={getSenderBlockRule}
           />
         </Suspense>
       )}

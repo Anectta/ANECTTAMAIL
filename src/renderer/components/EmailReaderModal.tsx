@@ -24,6 +24,7 @@ interface EmailReaderModalProps {
     key: 'blockExternalImages' | 'blockTrackingPixels' | 'blockBlockedSenders',
     value: boolean
   ) => void;
+  getSenderBlockRule?: (senderEmail?: string) => string | null;
   threadMessages?: EmailItem[];
   onRespondCalendarInvite?: (
     email: EmailItem,
@@ -48,6 +49,7 @@ export const EmailReaderModal: React.FC<EmailReaderModalProps> = ({
   blockTrackingPixels = true,
   blockBlockedSenders = true,
   onChangePrivacySetting,
+  getSenderBlockRule,
   threadMessages,
   onRespondCalendarInvite,
 }) => {
@@ -136,6 +138,7 @@ export const EmailReaderModal: React.FC<EmailReaderModalProps> = ({
             blockTrackingPixels={blockTrackingPixels}
             blockBlockedSenders={blockBlockedSenders}
             onChangePrivacySetting={onChangePrivacySetting}
+            getSenderBlockRule={getSenderBlockRule}
             onArchive={(id) => {
               onArchive(id);
               onClose();

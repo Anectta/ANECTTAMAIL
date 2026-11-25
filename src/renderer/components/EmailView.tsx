@@ -187,6 +187,8 @@ interface EmailViewProps {
     key: 'blockExternalImages' | 'blockTrackingPixels' | 'blockBlockedSenders',
     value: boolean
   ) => void;
+  /** Regra de bloqueio (e-mail ou @domínio) que atinge o remetente, ou null. */
+  getSenderBlockRule?: (senderEmail?: string) => string | null;
   onSendReadReceipt?: (email: EmailItem) => Promise<void> | void;
   onComposeNewEmail?: () => void;
   threadMessages?: EmailItem[];
@@ -234,6 +236,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
   blockTrackingPixels = true,
   blockBlockedSenders = true,
   onChangePrivacySetting,
+  getSenderBlockRule,
   onSendReadReceipt,
   onComposeNewEmail,
   threadMessages,
@@ -2251,6 +2254,26 @@ export const EmailView: React.FC<EmailViewProps> = ({
             <span>{emlToast}</span>
           </div>
         )}
+
+        {/* Escudo Anectta: remetente bloqueado (segue o interruptor "Bloquear remetentes" do Escudo) */}
+        {(() => {
+          const rule = blockBlockedSenders ? getSenderBlockRule?.(email.senderEmail) : null;
+          if (!rule) return null;
+          const how = rule.startsWith('@')
+            ? `Domínio ${rule} bloqueado`
+            : `Remetente ${rule} bloqueado`;
+          return (
+            <div
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-200 ${isModalMode ? 'max-w-none' : 'max-w-3xl'}`}
+              title={`${how}. ${email.folder === 'junk' ? 'Para desbloquear, use o botão "Não é Spam" na barra acima.' : ''}`}
+            >
+              <UserX className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>
+                <strong>Escudo Anectta:</strong> Proteção Ativa (Remetente bloqueado)
+              </span>
+            </div>
+          );
+        })()}
 
         {/* Email Body (Renderiza HTML sanitizado com CSS inline ou texto plano) */}
         {email.bodyHtml ? (() => {
