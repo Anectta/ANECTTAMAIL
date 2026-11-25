@@ -516,7 +516,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }`}
                 >
                   <div className="flex items-center space-x-2.5 min-w-0">
-                    <span className="shrink-0 flex items-center">{item.icon}</span>
+                    {/* Todos os ícones do menu com a mesma cor e o mesmo tamanho (os do "Importar / Exportar") */}
+                    <span className="shrink-0 w-4 h-4 flex items-center justify-center text-sky-400 [&_svg]:!text-sky-400 [&_svg]:!w-4 [&_svg]:!h-4">
+                      {item.icon}
+                    </span>
                     <span className="text-left whitespace-nowrap truncate">{item.label}</span>
                   </div>
                   {item.badge !== undefined && (
