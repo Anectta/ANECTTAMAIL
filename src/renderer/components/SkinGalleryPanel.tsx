@@ -300,7 +300,7 @@ export const SkinGalleryPanel: React.FC = () => {
           </button>
           <div>
             <h4 className="text-xs font-bold text-white flex items-center space-x-1.5">
-              <span>Efeitos Sonoros da Skin</span>
+              <span>Efeitos Sonoros dos Temas</span>
             </h4>
             <p className="text-[11px] text-slate-400">
               Cliques, envios e alertas sincronizados com o tema ativo
