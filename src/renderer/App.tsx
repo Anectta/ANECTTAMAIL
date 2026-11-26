@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspens
 import { RotateCw, MailPlus, SlidersHorizontal, Minus, Square, X } from 'lucide-react';
 import { ActiveModule } from '@/components/AppRail';
 import { Sidebar } from '@/components/Sidebar';
+import { ZoomControls } from '@/components/ZoomControls';
 import { EmailList, EmailListRef, EmailLayoutMode } from '@/components/EmailList';
 import { EmailView } from '@/components/EmailView';
 import { EmailTabsBar } from '@/components/EmailTabsBar';
@@ -5239,6 +5240,9 @@ export const App: React.FC = () => {
                   {toastMessage}
                 </div>
               )}
+
+              {/* Zoom e tela cheia */}
+              <ZoomControls />
 
               {/* Window Controls */}
               <div className="flex items-center space-x-0.5 pl-2">

@@ -101,6 +101,8 @@ function applyMainZoom(factor: number): void {
   mainZoomFactor = Math.round(clamped * 100) / 100;
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.setZoomFactor(mainZoomFactor);
+    // Atualiza o controle de zoom da barra superior (botões e Ctrl + / Ctrl -)
+    mainWindow.webContents.send('zoom:changed', mainZoomFactor);
   }
   try {
     fs.writeFileSync(zoomPrefsFile(), JSON.stringify({ factor: mainZoomFactor }));
@@ -702,6 +704,20 @@ ipcMain.on('window:maximize', () => {
 ipcMain.on('window:close', () => {
   mainWindow?.close();
 });
+
+// Controle de zoom e tela cheia da barra superior
+ipcMain.handle('zoom:get', () => mainZoomFactor);
+ipcMain.handle('zoom:set', (_event, factor: number) => {
+  if (Number.isFinite(factor)) applyMainZoom(factor);
+  return mainZoomFactor;
+});
+ipcMain.handle('window:toggle-fullscreen', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  const next = !mainWindow.isFullScreen();
+  mainWindow.setFullScreen(next);
+  return next;
+});
+ipcMain.handle('window:is-fullscreen', () => Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFullScreen()));
 
 ipcMain.on('app:confirm-close', () => {
   finalizeQuit();

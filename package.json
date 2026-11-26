@@ -1,6 +1,6 @@
 {
   "name": "anectta-mail",
-  "version": "1.0.306",
+  "version": "1.0.307",
   "description": "Anectta MAIL - High Performance Corporate Desktop Email Client",
   "main": "dist-electron/main/main.js",
   "author": "Anectta Enterprise",

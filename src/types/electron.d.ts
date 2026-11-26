@@ -586,6 +586,13 @@ export interface ElectronAPI {
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   closeWindow: () => void;
+  /** Zoom da janela principal (0.7 a 1.5). */
+  getZoom?: () => Promise<number>;
+  setZoom?: (factor: number) => Promise<number>;
+  /** Avisa quando o zoom muda (botões ou Ctrl + / Ctrl - / Ctrl 0). */
+  onZoomChanged?: (callback: (factor: number) => void) => () => void;
+  toggleFullScreen?: () => Promise<boolean>;
+  isFullScreen?: () => Promise<boolean>;
   onPrepareClose?: (callback: () => void) => () => void;
   confirmAppClose?: () => void;
 }

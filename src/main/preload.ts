@@ -506,6 +506,15 @@ const electronAPI = {
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
+  getZoom: () => ipcRenderer.invoke('zoom:get'),
+  setZoom: (factor: number) => ipcRenderer.invoke('zoom:set', factor),
+  onZoomChanged: (callback: (factor: number) => void) => {
+    const listener = (_event: any, factor: number) => callback(factor);
+    ipcRenderer.on('zoom:changed', listener);
+    return () => ipcRenderer.removeListener('zoom:changed', listener);
+  },
+  toggleFullScreen: () => ipcRenderer.invoke('window:toggle-fullscreen'),
+  isFullScreen: () => ipcRenderer.invoke('window:is-fullscreen'),
   onPrepareClose: (callback: () => void) => {
     const listener = () => callback();
     ipcRenderer.on('app:prepare-close', listener);
