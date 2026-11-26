@@ -1744,3 +1744,9 @@ button:hover > span > .shield-tile-danger { filter: brightness(1.08); }
   border-color: transparent !important;
   box-shadow: none !important;
 }
+
+/* Logo alloM@il: letras brancas nos temas escuros, letras escuras nos temas claros */
+.brand-wm-white { display: inline-block; }
+.brand-wm-dark { display: none; }
+.clean-white .brand-wm-white { display: none; }
+.clean-white .brand-wm-dark { display: inline-block; }

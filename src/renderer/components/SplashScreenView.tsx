@@ -44,7 +44,7 @@ export const SplashScreenView: React.FC = () => {
         </div>
 
         <h1 className="leading-tight">
-          <BrandWordmark className="text-[34px] text-white" />
+          <BrandWordmark className="text-[34px] text-white" variant="white" />
         </h1>
 
         <div className="mt-2 flex items-center justify-center gap-2.5 text-xs font-normal tracking-wider text-slate-200">
