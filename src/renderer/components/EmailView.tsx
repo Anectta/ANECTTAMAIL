@@ -119,11 +119,11 @@ const ACTION_TONES = {
 type ActionTone = keyof typeof ACTION_TONES;
 
 const actionTile = (tone: ActionTone, active = false) => ({
-  className: `action-tile${active ? ' is-active' : ''} w-8 h-8 shrink-0 flex items-center justify-center rounded-[8px] border transition-all duration-150 disabled:opacity-60 disabled:cursor-wait`,
+  className: `action-tile${active ? ' is-active' : ''} w-8 h-8 shrink-0 flex items-center justify-center rounded-[7px] border transition-all duration-150 disabled:opacity-60 disabled:cursor-wait`,
   style: { ['--tile-color' as string]: ACTION_TONES[tone] } as React.CSSProperties,
 });
 
-const ACTION_ICON = 'w-[14px] h-[14px] shrink-0';
+const ACTION_ICON = 'w-[16px] h-[16px] shrink-0';
 
 /** Ícone do botão "Mais ações": grade 3x3 de pontos coloridos. */
 const MoreActionsDotsIcon: React.FC = () => {
