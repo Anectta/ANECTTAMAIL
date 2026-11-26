@@ -204,14 +204,14 @@ const INITIAL_EMAILS: EmailItem[] = [
     tags: ['Parceria', 'Networking'],
   },
   {
-    id: 'msg-anectta-soc2',
+    id: 'msg-anectta-seguranca',
     sender: 'Carlos Eduardo Mendes',
     senderEmail: 'carlos.mendes@cyberdefense.io',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
     recipient: 'carlosamoroso@anectta.com.br',
-    subject: 'Auditoria de Segurança SOC 2 Tipo II & Relatório Pentest Q3',
-    snippet: 'Carlos, os testes de penetração externa e conformidade foram aprovados sem apontamentos críticos...',
-    body: `Prezado Carlos Amoroso,\n\nConcluímos a avaliação técnica dos servidores de borda e do isolamento de processos do client desktop Anectta MAIL.\n\nResultado:\n- Certificação de conformidade SOC 2 Tipo II e controles LGPD auditados.\n- Zero vulnerabilidades críticas encontradas no Electron runtime isolado.\n\nO certificado oficial já se encontra pronto para publicação.\n\nAtenciosamente,\nCarlos E. Mendes\nLead Security Engineer`,
+    subject: 'Checklist de segurança dos computadores da equipe',
+    snippet: 'Carlos, segue o checklist trimestral: atualizações do Windows, senhas fortes e backup...',
+    body: `Prezado Carlos Amoroso,\n\nSegue o checklist trimestral de segurança dos computadores da equipe:\n\n- Manter o Windows e os aplicativos atualizados.\n- Usar senhas fortes e ativar a verificação em duas etapas.\n- Conferir se o backup dos e-mails e arquivos está em dia.\n- Desconfiar de anexos e links inesperados.\n\nQualquer dúvida, estou à disposição.\n\nAtenciosamente,\nCarlos E. Mendes\nConsultor de Segurança`,
     timestamp: 'qui 05/11',
     period: 'last_week',
     folder: 'inbox',
@@ -220,7 +220,7 @@ const INITIAL_EMAILS: EmailItem[] = [
     isStarred: false,
     hasAttachment: true,
     category: 'DevOps',
-    tags: ['Segurança', 'SOC2'],
+    tags: ['Segurança'],
   },
 ];
 

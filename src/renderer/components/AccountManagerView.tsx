@@ -2452,10 +2452,11 @@ export const AccountManagerView: React.FC<AccountManagerViewProps> = ({
               <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
                 <div className="flex items-center space-x-2 text-emerald-400">
                   <Lock className="w-4 h-4" />
-                  <span className="font-semibold">Criptografia AES-256 e SOC 2 Habilitados</span>
+                  <span className="font-semibold">Senhas e e-mails protegidos pela criptografia do Windows</span>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Todas as chaves e mensagens são isoladas no armazenamento seguro do Anectta MAIL.
+                  A senha desta conta e os e-mails guardados ficam cifrados no disco e só abrem no seu usuário do
+                  Windows.
                 </p>
               </div>
             </div>

@@ -585,48 +585,23 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
         </div>
       </div>
 
-      {/* Card 3: Segurança Corporativa (AES-256 & SOC2/LGPD) */}
+      {/* Card 3: Proteção dos dados no computador (sempre ativa — criptografia do Windows) */}
       <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
         <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-          Criptografia & Conformidade
+          Proteção dos dados no computador
         </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-start space-x-2.5">
-            <Lock className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-            <div>
-              <span className="text-xs text-slate-200 block font-medium">
-                Criptografia de Dados Locais (AES-256)
-              </span>
-              <span className="text-[10px] text-slate-500">
-                Protege rascunhos, tokens e cache offline armazenados no disco.
-              </span>
-            </div>
+        <div className="flex items-start space-x-2.5">
+          <Lock className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+          <div>
+            <span className="text-xs text-slate-200 block font-medium">
+              Senhas e e-mails protegidos pela criptografia do Windows
+            </span>
+            <span className="text-[10px] text-slate-500">
+              Senhas das contas, e-mails guardados e cache ficam cifrados no disco e só abrem no seu usuário do
+              Windows. Sempre ativo.
+            </span>
           </div>
-          <ToggleSwitch
-            checked={security.enableEncryption}
-            onChange={(next) => updateField('enableEncryption', next)}
-            activeColor="bg-brand-600"
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-start space-x-2.5">
-            <Shield className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-            <div>
-              <span className="text-xs text-slate-200 block font-medium">
-                Modo de Conformidade SOC 2 Tipo II & LGPD
-              </span>
-              <span className="text-[10px] text-slate-500">
-                Mantém trilha de auditoria e bloqueia execução de scripts não assinados.
-              </span>
-            </div>
-          </div>
-          <ToggleSwitch
-            checked={security.soc2ComplianceMode}
-            onChange={(next) => updateField('soc2ComplianceMode', next)}
-            activeColor="bg-brand-600"
-          />
         </div>
       </div>
 
@@ -1227,7 +1202,7 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
           </h4>
           {docModal === 'policy' ? (
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              O Anectta Mail opera com arquitetura local-first: suas mensagens IMAP/POP3, rascunhos, contatos e configurações ficam armazenados apenas no seu equipamento, com suporte a criptografia local AES-256 e sem venda ou compartilhamento do conteúdo dos seus e-mails com terceiros.
+              O Anectta Mail opera com arquitetura local-first: suas mensagens IMAP/POP3, rascunhos, contatos e configurações ficam armazenados apenas no seu equipamento, protegidos pela criptografia do Windows, e sem venda ou compartilhamento do conteúdo dos seus e-mails com terceiros.
             </p>
           ) : (
             <ul className="text-[11px] text-slate-300 space-y-1 list-disc pl-4">

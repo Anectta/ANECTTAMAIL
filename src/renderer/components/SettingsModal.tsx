@@ -471,7 +471,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               },
               {
                 key: 'security',
-                label: 'Segurança & SOC2',
+                label: 'Segurança',
                 icon: <Shield className="w-4 h-4" />,
                 isActive: activeTab === 'security',
                 activeClass: 'bg-emerald-600/20 text-emerald-400 font-semibold border border-emerald-500/30',
@@ -2369,7 +2369,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               />
             )}
 
-            {/* ================= TAB 5: SEGURANÇA & SOC2 ================= */}
+            {/* ================= TAB 5: SEGURANÇA ================= */}
             {activeTab === 'security' && (
               <PrivacyCenterPanel
                 security={formData.security}
