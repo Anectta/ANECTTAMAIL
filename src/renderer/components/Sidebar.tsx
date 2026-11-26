@@ -50,6 +50,7 @@ import { EMAIL_DRAG_MIME } from '../utils/emailDrag';
 
 const QUICK_NAV_COLLAPSED_KEY = 'anectta_sidebar_quicknav_collapsed';
 const MORE_FOLDERS_KEY = 'anectta_sidebar_more_folders';
+const MORE_FOLDERS_BY_ACCOUNT_KEY = 'anectta_sidebar_more_folders_by_account';
 
 interface QuickNavItem {
   key: string;
@@ -209,18 +210,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const emailDropRing = (accId: string, folder: MailFolder) =>
     emailDropKey === `${accId}::${folder}` ? ' ring-2 ring-sky-400 !bg-sky-500/20 !text-white' : '';
   // Pastas além das principais (Entrada, Enviados, Saída, Excluídos, Lixo): recolhíveis.
-  const [showMoreFolders, setShowMoreFolders] = useState<boolean>(() => {
+  // Cada conta guarda a sua escolha ("Exibir mais/menos pastas").
+  // Contas sem escolha própria seguem o valor antigo (único para todas), para não mudar o que o usuário já via.
+  const [legacyShowMoreFolders] = useState<boolean>(() => {
     try {
       return localStorage.getItem(MORE_FOLDERS_KEY) !== '0';
     } catch {
       return true;
     }
   });
-  const toggleMoreFolders = () => {
-    setShowMoreFolders((prev) => {
-      const next = !prev;
+  const [moreFoldersByAccount, setMoreFoldersByAccount] = useState<Record<string, boolean>>(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(MORE_FOLDERS_BY_ACCOUNT_KEY) || '{}');
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
+  const isMoreFoldersShown = (accId: string) => moreFoldersByAccount[accId] ?? legacyShowMoreFolders;
+  const toggleMoreFolders = (accId: string) => {
+    setMoreFoldersByAccount((prev) => {
+      const next = { ...prev, [accId]: !(prev[accId] ?? legacyShowMoreFolders) };
       try {
-        localStorage.setItem(MORE_FOLDERS_KEY, next ? '1' : '0');
+        localStorage.setItem(MORE_FOLDERS_BY_ACCOUNT_KEY, JSON.stringify(next));
       } catch {}
       return next;
     });
@@ -1457,18 +1469,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {/* Mais pastas: mostra/oculta as pastas além das principais */}
                     <button
                       type="button"
-                      onClick={toggleMoreFolders}
-                      title={showMoreFolders ? 'Exibir só as pastas principais' : 'Exibir todas as pastas'}
+                      onClick={() => toggleMoreFolders(accId)}
+                      title={isMoreFoldersShown(accId) ? 'Exibir só as pastas principais' : 'Exibir todas as pastas'}
                       className="w-full flex items-center space-x-2 px-2 py-1 rounded-md text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
                     >
-                      {showMoreFolders ? (
+                      {isMoreFoldersShown(accId) ? (
                         <ChevronDown className="w-3 h-3" />
                       ) : (
                         <ChevronRight className="w-3 h-3" />
                       )}
-                      <span>{showMoreFolders ? 'Exibir menos pastas' : 'Exibir mais pastas'}</span>
+                      <span>{isMoreFoldersShown(accId) ? 'Exibir menos pastas' : 'Exibir mais pastas'}</span>
                     </button>
-                    {showMoreFolders && (
+                    {isMoreFoldersShown(accId) && (
                       <>
                       {/* Favoritos (mensagens com estrela) */}
                       <button
