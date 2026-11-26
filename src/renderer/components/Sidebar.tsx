@@ -913,11 +913,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <PanelLeftClose className="w-4 h-4" />
             </button>
           )}
-          <img
-            src={logoImg}
-            alt="Anectta Mail"
-            className="w-11 h-11 object-contain shrink-0 anectta-logo-spin drop-shadow-[0_0_10px_rgba(0,168,255,0.45)]"
-          />
           <BrandWordmark className="mt-2 text-[22px] text-white" />
           <div className="mt-1 flex items-center justify-center gap-2 text-[11px] font-normal tracking-wide text-slate-300">
             <span>Ágil</span>
