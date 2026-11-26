@@ -108,7 +108,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   },
 
   // =========================================================================
-  // TEMAS CLAROS (7) — Paletas 1, 2, 3, 4, 5, 7 e 10
+  // TEMAS CLAROS (8) — Paletas 1, 2, 3, 4, 5, 7, 10 e Cinza Névoa + Azul Aço
   // =========================================================================
   {
     id: 'slate-teal',
@@ -401,6 +401,47 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   // =========================================================================
   // TEMAS ESCUROS (8) — Paletas 6, 8, 9, 11, 12, 13, 14 e 15
   // =========================================================================
+  {
+    id: 'corporativo-classico',
+    name: 'Cinza Névoa + Azul Aço',
+    subtitle: 'Cinza-claro neutro e superfícies brancas com azul corporativo sóbrio',
+    category: 'light',
+    section: 'light',
+    soundTheme: 'light',
+    icon: 'building',
+    previewColors: ['#F5F6F8', '#FFFFFF', '#2B66B0'],
+    variables: {
+      '--bg-app': '#F5F6F8',
+      '--bg-sidebar': '#EEF1F5',
+      '--bg-surface': '#FFFFFF',
+      '--bg-surface-hover': '#E8EDF3',
+      '--bg-hover': '#E8EDF3',
+      '--bg-card': '#FFFFFF',
+      '--bg-input': '#FFFFFF',
+      '--border-subtle': '#D5DAE1',
+      '--border-highlight': '#2B66B0',
+      '--text-primary': '#1F2329',
+      '--text-secondary': '#3D4450',
+      '--text-muted': '#6B7280',
+      '--accent-primary': '#2B66B0',
+      '--accent-hover': '#1F5394',
+      '--accent-contrast': '#FFFFFF',
+      '--accent-gradient': 'linear-gradient(135deg, #1F5394 0%, #2B66B0 50%, #4A86CF 100%)',
+      '--accent-glow': '0 0 16px rgba(43, 102, 176, 0.22)',
+      '--badge-bg': '#DCE8F7',
+      '--badge-text': '#1E4F8A',
+      '--email-anim-primary': '#2B66B0',
+      '--email-anim-accent': '#4A86CF',
+      '--email-anim-trail': '#8DB6E8',
+      '--icon-border-radius': '10px',
+      '--selection-bg': '#E3EEFA',
+      '--selection-border': '#2B66B0',
+      '--primary-btn-bg': '#2B66B0',
+      '--primary-btn-hover': '#1F5394',
+      '--primary-btn-text': '#FFFFFF',
+      '--secondary-btn-bg': '#E8EDF3',
+    },
+  },
   {
     id: 'purple-yellow',
     name: '6. Roxo + Amarelo',

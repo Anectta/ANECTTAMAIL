@@ -246,6 +246,27 @@
     --selection-border: #DC2626;
   }
 
+  /* Cinza Névoa + Azul Aço (Light) — somente cores, paleta própria */
+  html[data-theme="corporativo-classico"] {
+    --bg-app: #F5F6F8;
+    --bg-sidebar: #EEF1F5;
+    --bg-surface: #FFFFFF;
+    --bg-surface-hover: #E8EDF3;
+    --bg-hover: #E8EDF3;
+    --bg-card: #FFFFFF;
+    --bg-input: #FFFFFF;
+    --border-subtle: #D5DAE1;
+    --border-highlight: #2B66B0;
+    --text-primary: #1F2329;
+    --text-secondary: #3D4450;
+    --text-muted: #6B7280;
+    --accent-primary: #2B66B0;
+    --accent-hover: #1F5394;
+    --accent-contrast: #FFFFFF;
+    --selection-bg: #E3EEFA;
+    --selection-border: #2B66B0;
+  }
+
   /* 11. Deep Blue + Teal (Dark) */
   html[data-theme="deepblue-teal"] {
     --bg-app: #081220;
