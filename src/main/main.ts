@@ -80,22 +80,47 @@ let closeSafetyTimer: NodeJS.Timeout | null = null;
 const MIN_ZOOM_FACTOR = 0.7;
 const MAX_ZOOM_FACTOR = 1.5;
 const ZOOM_STEP = 0.1;
+const zoomPrefsFile = () => path.join(app.getPath('userData'), 'zoom.json');
 
-/** Zoom com que o app sempre abre (inclusive na primeira instalação). */
-const STARTUP_ZOOM_FACTOR = 0.8;
+/** Zoom de quem instala o app pela primeira vez. */
+const NEW_INSTALL_ZOOM_FACTOR = 0.8;
+/** Zoom que o app sempre usou antes (mantido para quem já usava e nunca mexeu no zoom). */
+const LEGACY_ZOOM_FACTOR = 1.0;
+
+function saveMainZoom(factor: number): void {
+  try {
+    fs.writeFileSync(zoomPrefsFile(), JSON.stringify({ factor }));
+  } catch {}
+}
 
 /**
- * Zoom inicial da janela principal: sempre 80% ao abrir o app.
- * Durante o uso, Ctrl + / Ctrl - / Ctrl 0 e os botões da barra continuam mudando o zoom.
+ * Zoom inicial da janela principal:
+ * 1) zoom salvo pelo usuário (Ctrl + / Ctrl - / botões da barra) → mantém;
+ * 2) sem zoom salvo, mas o app já tem dados (configurações ou instalação concluída) → usuário antigo, 100%;
+ * 3) sem nada → instalação nova, 80%.
+ * A decisão é salva na primeira vez, e depois vale sempre o que o usuário escolher.
  */
 function loadSavedMainZoom(): number {
-  return STARTUP_ZOOM_FACTOR;
+  try {
+    const v = Number(JSON.parse(fs.readFileSync(zoomPrefsFile(), 'utf8'))?.factor);
+    if (Number.isFinite(v)) return Math.min(MAX_ZOOM_FACTOR, Math.max(MIN_ZOOM_FACTOR, v));
+  } catch {}
+  const isExistingUser = [getSettingsFilePath(), getSetupStateFilePath()].some((f) => {
+    try {
+      return fs.existsSync(f);
+    } catch {
+      return false;
+    }
+  });
+  const initial = isExistingUser ? LEGACY_ZOOM_FACTOR : NEW_INSTALL_ZOOM_FACTOR;
+  saveMainZoom(initial);
+  return initial;
 }
 let mainZoomFactor = 1.0;
 let mainZoomLoaded = false;
 
 /**
- * Applies a clamped zoom factor to the main window (vale só para esta sessão: ao abrir, volta a 80%).
+ * Applies a clamped zoom factor to the main window and remembers it (cada usuário mantém o seu zoom).
  */
 function applyMainZoom(factor: number): void {
   const clamped = Math.min(MAX_ZOOM_FACTOR, Math.max(MIN_ZOOM_FACTOR, factor));
@@ -105,6 +130,7 @@ function applyMainZoom(factor: number): void {
     // Atualiza o controle de zoom da barra superior (botões e Ctrl + / Ctrl -)
     mainWindow.webContents.send('zoom:changed', mainZoomFactor);
   }
+  saveMainZoom(mainZoomFactor);
 }
 
 /**
