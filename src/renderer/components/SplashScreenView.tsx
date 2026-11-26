@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import logoImg from '../assets/logo.png';
+import { BrandWordmark } from './BrandLogo';
 
 export const SplashScreenView: React.FC = () => {
   const [appVersion, setAppVersion] = useState<string>('');
@@ -42,8 +43,8 @@ export const SplashScreenView: React.FC = () => {
           />
         </div>
 
-        <h1 className="text-[30px] font-light tracking-[0.06em] text-white leading-tight select-none">
-          &#923;NECTT&#923; M@il
+        <h1 className="leading-tight">
+          <BrandWordmark className="text-[34px] text-white" />
         </h1>
 
         <div className="mt-2 flex items-center justify-center gap-2.5 text-xs font-normal tracking-wider text-slate-200">

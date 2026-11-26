@@ -58,6 +58,7 @@ import { StorageSettingsPanel } from './StorageSettingsPanel';
 import { VersionSettingsPanel } from './VersionSettingsPanel';
 import { ProxySettingsPanel } from './ProxySettingsPanel';
 import logoImg from '../assets/logo.png';
+import { BrandWordmark } from './BrandLogo';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -336,7 +337,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div>
               <h2 className="text-sm font-bold text-white tracking-wide">
-                Configurações Internas do <span className="font-light tracking-[0.06em]">&#923;NECTT&#923; M@il</span>
+                Configurações Internas do <BrandWordmark className="ml-0.5 text-white" />
               </h2>
               <p className="text-[11px] text-slate-400">
                 Gerenciamento de contas, servidores corporativos (IMAP/POP3/SMTP) e segurança

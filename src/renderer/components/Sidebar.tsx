@@ -45,6 +45,7 @@ import {
 import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount } from '@/types/email';
 import { AccountSettings, AppsSettings } from '@/types/settings';
 import logoImg from '../assets/logo.png';
+import { BrandWordmark } from './BrandLogo';
 import { EMAIL_DRAG_MIME } from '../utils/emailDrag';
 
 const QUICK_NAV_COLLAPSED_KEY = 'anectta_sidebar_quicknav_collapsed';
@@ -917,9 +918,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             alt="Anectta Mail"
             className="w-11 h-11 object-contain shrink-0 anectta-logo-spin drop-shadow-[0_0_10px_rgba(0,168,255,0.45)]"
           />
-          <span className="mt-1.5 text-[20px] font-light tracking-[0.06em] text-white leading-tight select-none">
-            &#923;NECTT&#923; M@il
-          </span>
+          <BrandWordmark className="mt-2 text-[22px] text-white" />
           <div className="mt-1 flex items-center justify-center gap-2 text-[11px] font-normal tracking-wide text-slate-300">
             <span>Ágil</span>
             <span

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, DownloadCloud, RefreshCw, ShieldCheck, AlertCircle } from 'lucide-react';
 import logoImg from '../assets/logo.png';
+import { BrandWordmark } from './BrandLogo';
 
 type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'error' | 'dev';
 
@@ -120,8 +121,9 @@ export const VersionSettingsPanel: React.FC = () => {
             <img src={logoImg} alt="Anectta MAIL" className="w-8 h-8 object-contain" />
           </div>
           <div>
-            <div className="text-sm font-light tracking-[0.06em] text-white">
-              &#923;NECTT&#923; M@il <span className="font-semibold tracking-normal">Corporate Desktop</span>
+            <div className="text-sm text-white">
+              <BrandWordmark className="text-[15px] text-white" />{' '}
+              <span className="font-semibold tracking-normal">Corporate Desktop</span>
             </div>
             <div className="text-xs text-slate-400 mt-0.5">
               Versão instalada:{' '}

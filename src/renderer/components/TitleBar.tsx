@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Minus, Square, X, Search } from 'lucide-react';
 import logoImg from '../assets/logo.png';
+import { BrandWordmark } from './BrandLogo';
 
 interface TitleBarProps {
   searchQuery?: string;
@@ -49,9 +50,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           alt="Anectta MAIL"
           className="w-5 h-5 object-contain"
         />
-        <span className="text-xs font-light tracking-[0.06em] text-slate-100 select-none">
-          &#923;NECTT&#923; M@il
-        </span>
+        <BrandWordmark className="text-[13px] text-slate-100" />
       </div>
 
       {/* Center Dedicated Email Search Bar (Restrita à conta marcada) */}
