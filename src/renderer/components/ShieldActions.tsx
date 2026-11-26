@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 /** Cada situação tem a sua cor (definidas em index.css → .shield-tone-*, com versão para temas claros). */
 export type ShieldTone = 'golpe' | 'suspeito' | 'desvio' | 'bloqueio' | 'protecao' | 'imagem' | 'inscricao';
@@ -36,6 +37,9 @@ export const ShieldActions: React.FC<{
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [pulseOn, setPulseOn] = useState(true);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Posição do ícone clicado (o painel da barra abre solto, por cima de tudo, sempre dentro da janela)
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
 
   // Novo e-mail: fecha o painel e volta a pulsar os alertas de perigo por alguns segundos
   useEffect(() => {
@@ -48,14 +52,19 @@ export const ShieldActions: React.FC<{
   useEffect(() => {
     if (!openKey) return;
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpenKey(null);
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpenKey(null);
     };
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpenKey(null);
+    const onResize = () => setOpenKey(null);
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onResize);
     return () => {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
     };
   }, [openKey]);
 
@@ -71,7 +80,10 @@ export const ShieldActions: React.FC<{
             <button
               key={item.key}
               type="button"
-              onClick={() => setOpenKey(isOpen ? null : item.key)}
+              onClick={(e) => {
+                setAnchor(e.currentTarget.getBoundingClientRect());
+                setOpenKey(isOpen ? null : item.key);
+              }}
               title={item.title || item.label}
               aria-label={item.label}
               aria-expanded={isOpen}
@@ -89,15 +101,29 @@ export const ShieldActions: React.FC<{
           );
         })}
 
-        {open && (
-          <div
-            role="dialog"
-            aria-label={open.label}
-            className={`shield-tone-${open.tone} shield-panel absolute right-0 top-full mt-2 z-40 w-[340px] max-w-[80vw] rounded-xl border bg-slate-950 shadow-2xl p-3.5 text-xs text-slate-200 space-y-2.5`}
-          >
-            {open.render(() => setOpenKey(null))}
-          </div>
-        )}
+        {open &&
+          anchor &&
+          (() => {
+            const margin = 8;
+            const width = Math.min(340, window.innerWidth - margin * 2);
+            // Preferência: alinhado à esquerda do ícone; se não couber, à direita; sempre dentro da janela
+            let left = anchor.left;
+            if (left + width > window.innerWidth - margin) left = anchor.right - width;
+            left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+            const top = anchor.bottom + 8;
+            return createPortal(
+              <div
+                ref={panelRef}
+                role="dialog"
+                aria-label={open.label}
+                style={{ position: 'fixed', top, left, width, maxHeight: Math.max(160, window.innerHeight - top - 12) }}
+                className={`shield-tone-${open.tone} shield-panel z-[70] overflow-y-auto rounded-xl border bg-slate-950 shadow-2xl p-3.5 text-xs text-slate-200 space-y-2.5`}
+              >
+                {open.render(() => setOpenKey(null))}
+              </div>,
+              document.body
+            );
+          })()}
       </div>
     );
   }

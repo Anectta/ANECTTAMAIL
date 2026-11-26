@@ -83,7 +83,7 @@ const ZOOM_STEP = 0.1;
 const zoomPrefsFile = () => path.join(app.getPath('userData'), 'zoom.json');
 
 /** Zoom de quem instala o app pela primeira vez. */
-const NEW_INSTALL_ZOOM_FACTOR = 0.8;
+const NEW_INSTALL_ZOOM_FACTOR = 0.9;
 /** Zoom que o app sempre usou antes (mantido para quem já usava e nunca mexeu no zoom). */
 const LEGACY_ZOOM_FACTOR = 1.0;
 
@@ -97,7 +97,7 @@ function saveMainZoom(factor: number): void {
  * Zoom inicial da janela principal:
  * 1) zoom salvo pelo usuário (Ctrl + / Ctrl - / botões da barra) → mantém;
  * 2) sem zoom salvo, mas o app já tem dados (configurações ou instalação concluída) → usuário antigo, 100%;
- * 3) sem nada → instalação nova, 80%.
+ * 3) sem nada → instalação nova, 90%.
  * A decisão é salva na primeira vez, e depois vale sempre o que o usuário escolher.
  */
 function loadSavedMainZoom(): number {
