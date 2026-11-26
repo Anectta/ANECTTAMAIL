@@ -80,21 +80,22 @@ let closeSafetyTimer: NodeJS.Timeout | null = null;
 const MIN_ZOOM_FACTOR = 0.7;
 const MAX_ZOOM_FACTOR = 1.5;
 const ZOOM_STEP = 0.1;
-const zoomPrefsFile = () => path.join(app.getPath('userData'), 'zoom.json');
 
-/** Zoom salvo da janela principal (Ctrl + / Ctrl - / Ctrl 0), lembrado entre sessões. */
+/** Zoom com que o app sempre abre (inclusive na primeira instalação). */
+const STARTUP_ZOOM_FACTOR = 0.8;
+
+/**
+ * Zoom inicial da janela principal: sempre 80% ao abrir o app.
+ * Durante o uso, Ctrl + / Ctrl - / Ctrl 0 e os botões da barra continuam mudando o zoom.
+ */
 function loadSavedMainZoom(): number {
-  try {
-    const v = Number(JSON.parse(fs.readFileSync(zoomPrefsFile(), 'utf8'))?.factor);
-    if (Number.isFinite(v)) return Math.min(MAX_ZOOM_FACTOR, Math.max(MIN_ZOOM_FACTOR, v));
-  } catch {}
-  return 1.0;
+  return STARTUP_ZOOM_FACTOR;
 }
 let mainZoomFactor = 1.0;
 let mainZoomLoaded = false;
 
 /**
- * Applies a clamped zoom factor to the main window and remembers it.
+ * Applies a clamped zoom factor to the main window (vale só para esta sessão: ao abrir, volta a 80%).
  */
 function applyMainZoom(factor: number): void {
   const clamped = Math.min(MAX_ZOOM_FACTOR, Math.max(MIN_ZOOM_FACTOR, factor));
@@ -104,9 +105,6 @@ function applyMainZoom(factor: number): void {
     // Atualiza o controle de zoom da barra superior (botões e Ctrl + / Ctrl -)
     mainWindow.webContents.send('zoom:changed', mainZoomFactor);
   }
-  try {
-    fs.writeFileSync(zoomPrefsFile(), JSON.stringify({ factor: mainZoomFactor }));
-  } catch {}
 }
 
 /**
