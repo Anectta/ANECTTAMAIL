@@ -1700,7 +1700,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           <strong>Novo Compromisso</strong> ou importe um arquivo <code>.ics</code>.
                         </div>
                       ) : (
-                        <div className="max-w-4xl space-y-3">
+                        <div className="max-w-none space-y-3">
                           {paneOccs.map((occ, idx) => {
                             const ev = occ.event;
                             const style = COLOR_STYLES[getEventColor(ev)];

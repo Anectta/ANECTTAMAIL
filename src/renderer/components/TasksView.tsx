@@ -448,7 +448,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
             })}
           </div>
         ) : (
-          <div className="max-w-4xl mx-auto space-y-2.5">
+          <div className="max-w-none space-y-2.5">
             {filteredTasks.map(renderTaskCard)}
           </div>
         )}

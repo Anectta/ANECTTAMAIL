@@ -1226,7 +1226,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="w-full max-w-4xl bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-slate-200 relative max-h-[92vh]">
+      <div className="w-[90vw] max-w-[1400px] bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-slate-200 relative max-h-[92vh]">
         {/* Outgoing Animation Cinematic Overlay */}
         {isDispatching && (
           <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-lg flex flex-col items-center justify-center animate-in fade-in duration-200">

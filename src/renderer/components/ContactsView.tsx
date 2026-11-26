@@ -354,7 +354,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
         </div>
       </div>
 
-      <div className="py-5 space-y-4 max-w-5xl">
+      <div className="py-5 space-y-4 max-w-none">
         {ioNotice && (
           <div className="px-3.5 py-2.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-xs font-medium flex items-center justify-between">
             <span>{ioNotice}</span>

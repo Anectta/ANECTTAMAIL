@@ -87,7 +87,7 @@ export const EmailReaderModal: React.FC<EmailReaderModalProps> = ({
         className={`bg-slate-950 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-150 ${
           isMaximized
             ? 'w-[98vw] h-[95vh] max-w-none'
-            : 'w-[92vw] max-w-5xl h-[90vh]'
+            : 'w-[92vw] h-[90vh]'
         }`}
       >
         {/* Barra Superior da Caixa de Leitura (estilo Outlook Mensagem Aberta) */}

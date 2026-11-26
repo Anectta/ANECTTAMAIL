@@ -240,7 +240,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[86vh] flex flex-col overflow-hidden text-slate-100">
+      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl w-[90vw] max-w-[1400px] max-h-[86vh] flex flex-col overflow-hidden text-slate-100">
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
           <div className="flex items-center space-x-2.5">

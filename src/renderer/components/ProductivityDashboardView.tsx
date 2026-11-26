@@ -212,7 +212,7 @@ export const ProductivityDashboardView: React.FC<ProductivityDashboardViewProps>
       </div>
 
       {/* Main Content */}
-      <div className="p-6 space-y-6 max-w-6xl w-full mx-auto">
+      <div className="p-6 space-y-6 max-w-none w-full">
         {/* KPI Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">

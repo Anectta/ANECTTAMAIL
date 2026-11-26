@@ -856,7 +856,7 @@ export const AccountManagerView: React.FC<AccountManagerViewProps> = ({
 
           {/* ================= SECTION: IDENTIDADE DA CONTA & PROTOCOLO EXCLUSIVO ================= */}
           {activeSection === 'identity' && (
-            <div className="space-y-6 max-w-2xl">
+            <div className="space-y-6 max-w-none">
               {/* ================= CARD EXCLUSIVO DE PROTOCOLO DA CONTA ================= */}
               <div className="p-4 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-4 shadow-lg">
                 <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
@@ -1226,7 +1226,7 @@ export const AccountManagerView: React.FC<AccountManagerViewProps> = ({
 
           {/* ================= SECTION: CONFIGURAÇÕES DO SERVIDOR (IMAP / POP3 / SMTP / AVANÇADO) ================= */}
           {activeSection === 'server' && (
-            <div className="space-y-6 max-w-2xl">
+            <div className="space-y-6 max-w-none">
               <div>
                 <h3 className="text-sm font-bold text-white mb-1 flex items-center space-x-2">
                   <Server className="w-4 h-4 text-brand-400" />
@@ -2190,7 +2190,7 @@ export const AccountManagerView: React.FC<AccountManagerViewProps> = ({
 
           {/* ================= SECTION: CÓPIAS E PASTAS ================= */}
           {activeSection === 'copies_folders' && (
-            <div className="space-y-5 max-w-2xl text-xs text-slate-300">
+            <div className="space-y-5 max-w-none text-xs text-slate-300">
               <div>
                 <h3 className="text-sm font-bold text-white mb-1 flex items-center space-x-2">
                   <FolderTree className="w-4 h-4 text-brand-400" />
@@ -2246,7 +2246,7 @@ export const AccountManagerView: React.FC<AccountManagerViewProps> = ({
 
           {/* ================= SECTION: SINCRONIZAÇÃO E PASTAS ================= */}
           {activeSection === 'sync_storage' && (
-            <div className="space-y-5 max-w-2xl text-xs text-slate-300">
+            <div className="space-y-5 max-w-none text-xs text-slate-300">
               <div>
                 <h3 className="text-sm font-bold text-white mb-1 flex items-center space-x-2">
                   <Server className="w-4 h-4 text-brand-400" />
@@ -2380,7 +2380,7 @@ export const AccountManagerView: React.FC<AccountManagerViewProps> = ({
 
           {/* ================= SECTION: SERVIDOR DE ENVIO (SMTP) ================= */}
           {activeSection === 'outgoing_smtp' && (
-            <div className="space-y-6 max-w-2xl">
+            <div className="space-y-6 max-w-none">
               <div>
                 <h3 className="text-sm font-bold text-white mb-1 flex items-center space-x-2">
                   <Send className="w-4 h-4 text-cyan-400" />
