@@ -83,12 +83,12 @@ export const ShieldActions: React.FC<{ items: ShieldActionItem[]; resetKey?: str
             className="flex flex-col items-center gap-1 w-[74px] cursor-pointer group"
           >
             <span
-              className={`relative w-9 h-9 rounded-xl border flex items-center justify-center transition-colors ${tone.tile} ${
-                isOpen ? 'ring-2 ring-white/20' : ''
+              className={`relative w-[18px] h-[18px] rounded-[5px] border flex items-center justify-center transition-colors ${tone.tile} ${
+                isOpen ? 'ring-1 ring-white/30' : ''
               }`}
             >
               {item.pulse && pulseOn && (
-                <span className="absolute inset-0 rounded-xl border-2 border-rose-400/70 animate-ping" aria-hidden="true" />
+                <span className="absolute inset-0 rounded-[5px] border border-rose-400/70 animate-ping" aria-hidden="true" />
               )}
               {item.icon}
             </span>

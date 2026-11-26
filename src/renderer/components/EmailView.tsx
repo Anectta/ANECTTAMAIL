@@ -718,7 +718,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
     const danger = phishingReport.level === 'danger';
     shieldItems.push({
       key: 'golpe',
-      icon: <ShieldAlert className="w-5 h-5" />,
+      icon: <ShieldAlert className="w-2.5 h-2.5" />,
       label: danger ? 'Possível golpe' : 'E-mail suspeito',
       tone: danger ? 'red' : 'amber',
       pulse: danger,
@@ -772,7 +772,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
   if (replyRisk.level === 'warn') {
     shieldItems.push({
       key: 'resposta',
-      icon: <Reply className="w-5 h-5" />,
+      icon: <Reply className="w-2.5 h-2.5" />,
       label: 'Resposta desviada',
       tone: 'red',
       pulse: true,
@@ -796,7 +796,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
     const how = senderBlockRule.startsWith('@') ? `Domínio ${senderBlockRule} bloqueado` : `Remetente ${senderBlockRule} bloqueado`;
     shieldItems.push({
       key: 'bloqueado',
-      icon: <UserX className="w-5 h-5" />,
+      icon: <UserX className="w-2.5 h-2.5" />,
       label: 'Remetente bloqueado',
       tone: 'red',
       title: how,
@@ -818,7 +818,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
     const n = bodyScan.blockedPixelsCount;
     shieldItems.push({
       key: 'protecao',
-      icon: <ShieldCheck className="w-5 h-5" />,
+      icon: <ShieldCheck className="w-2.5 h-2.5" />,
       label: 'Proteção ativa',
       tone: 'green',
       title: `${n} ${n === 1 ? 'rastreador de leitura bloqueado' : 'rastreadores de leitura bloqueados'}`,
@@ -838,7 +838,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
     const n = bodyScan.blockedImagesCount;
     shieldItems.push({
       key: 'imagens',
-      icon: <ImageIcon className="w-5 h-5" />,
+      icon: <ImageIcon className="w-2.5 h-2.5" />,
       label: 'Exibir imagem',
       tone: 'amber',
       title: `${n} ${n === 1 ? 'imagem externa bloqueada' : 'imagens externas bloqueadas'} para sua privacidade`,
@@ -883,7 +883,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
   if (unsubInfo && onUnsubscribe) {
     shieldItems.push({
       key: 'inscricao',
-      icon: <MailX className="w-5 h-5" />,
+      icon: <MailX className="w-2.5 h-2.5" />,
       label: 'Cancelar inscrição',
       tone: 'amber',
       title: 'Mensagem de lista ou newsletter',
