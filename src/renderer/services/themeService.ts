@@ -5,7 +5,7 @@
 
 import { soundService, SoundTheme } from './soundService';
 
-export type SkinSection = 'default' | 'light' | 'dark';
+export type SkinSection = 'light' | 'dark';
 
 export interface SkinDefinition {
   id: string;
@@ -28,7 +28,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
     name: 'Marinho Profundo + Azul',
     subtitle: 'Azul-marinho corporativo clássico com azul cobalto e dourado discreto',
     category: 'dark',
-    section: 'default',
+    section: 'dark',
     soundTheme: 'executive',
     icon: 'briefcase',
     previewColors: ['#060a12', '#0f172a', '#2563eb'],
@@ -70,7 +70,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
     name: 'Cinza Claro - Vítreo',
     subtitle: 'Vidro azul-marinho translúcido com brilho ciano (painéis de vidro sobre fundo luminoso)',
     category: 'dark',
-    section: 'default',
+    section: 'dark',
     soundTheme: 'executive',
     icon: 'sparkles',
     previewColors: ['#081a36', '#10284c', '#38bdf8'],

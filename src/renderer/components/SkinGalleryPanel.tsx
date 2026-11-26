@@ -51,7 +51,6 @@ export const SkinGalleryPanel: React.FC = () => {
     soundService.play('click');
   };
 
-  const defaultSkins = AVAILABLE_SKINS.filter((s) => s.section === 'default');
   const lightSkins = AVAILABLE_SKINS.filter((s) => s.section === 'light');
   const darkSkins = AVAILABLE_SKINS.filter((s) => s.section === 'dark');
   const visibleSkins = AVAILABLE_SKINS.filter((s) => s.section === activeTab);
@@ -74,7 +73,7 @@ export const SkinGalleryPanel: React.FC = () => {
         key={skin.id}
         type="button"
         onClick={() => handleSelectSkin(skin)}
-        className={`group relative rounded-xl p-3 border text-left transition-all flex flex-col items-center ${
+        className={`group relative aspect-square rounded-xl p-3 border text-left transition-all flex flex-col items-center ${
           isSelected
             ? 'border-brand-500 ring-2 ring-brand-500/40 shadow-lg'
             : 'border-slate-800 bg-slate-900/40 hover:border-slate-600 hover:bg-slate-900/80'
@@ -97,7 +96,7 @@ export const SkinGalleryPanel: React.FC = () => {
 
         {/* Miniatura Retangular da Interface (3 colunas: Pastas + Lista + Leitura) */}
         <div
-          className="w-full h-24 rounded-lg overflow-hidden shadow-md flex border"
+          className="w-full flex-1 min-h-0 rounded-lg overflow-hidden shadow-md flex border"
           style={{
             backgroundColor: bgApp,
             borderColor: isSelected ? accent : borderSubtle,
@@ -266,7 +265,7 @@ export const SkinGalleryPanel: React.FC = () => {
         </div>
 
         {/* Name & Category */}
-        <div className="mt-2.5 text-center w-full">
+        <div className="mt-2.5 text-center w-full shrink-0">
           <div className="text-xs font-bold text-white truncate">
             {skin.name}
           </div>
@@ -331,12 +330,11 @@ export const SkinGalleryPanel: React.FC = () => {
         )}
       </div>
 
-      {/* Abas de Temas: Padrão, Claros e Escuros */}
+      {/* Abas de Temas: Claros e Escuros */}
       <div className="space-y-3">
         <div className="flex items-center space-x-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800 w-fit">
           {(
             [
-              { id: 'default', label: `Padrão (${defaultSkins.length})` },
               { id: 'light', label: `Claros (${lightSkins.length})` },
               { id: 'dark', label: `Escuros (${darkSkins.length})` },
             ] as const
@@ -356,7 +354,7 @@ export const SkinGalleryPanel: React.FC = () => {
           ))}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-3">
           {visibleSkins.map(renderSkinCard)}
         </div>
       </div>
