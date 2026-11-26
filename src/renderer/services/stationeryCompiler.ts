@@ -113,7 +113,14 @@ export const ANIMATED_STICKERS: StickerPreset[] = [
   },
 ];
 
-export type OutgoingAnimationType = 'airplane' | 'rocket' | 'wax-seal' | 'instant';
+export type OutgoingAnimationType = 'airplane' | 'rocket' | 'astro' | 'instant';
+
+/** Valor salvo → animação válida ("wax-seal", que saiu da lista, vira o Astro Entregador). */
+export function normalizeOutgoingAnimation(value?: string | null): OutgoingAnimationType {
+  if (value === 'airplane' || value === 'rocket' || value === 'astro' || value === 'instant') return value;
+  if (value === 'wax-seal') return 'astro';
+  return 'airplane';
+}
 
 export interface OutgoingAnimationOption {
   id: OutgoingAnimationType;
@@ -136,10 +143,10 @@ export const OUTGOING_ANIMATIONS: OutgoingAnimationOption[] = [
     iconName: 'Rocket',
   },
   {
-    id: 'wax-seal',
-    name: 'Selo de Cera Oficial',
-    description: 'O envelope é carimbado e selado com brasão executivo dourado.',
-    iconName: 'Shield',
+    id: 'astro',
+    name: 'Astro Entregador',
+    description: 'O Astro pega o envelope e sai voando, deixando um rastro de luz azul.',
+    iconName: 'Bot',
   },
   {
     id: 'instant',

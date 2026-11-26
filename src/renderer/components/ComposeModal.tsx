@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   Plus,
   Rocket,
-  Shield,
   Zap,
   Clock,
   CheckCheck,
@@ -48,6 +47,7 @@ import {
 } from '@/types/settings';
 import { RecentFileItem } from '../../types/electron';
 import { EmailSending } from './animated-icons';
+import { NotifierMascot } from './NotifierMascot';
 import { CorporateContact } from './ContactsView';
 import {
   OutgoingAnimationType,
@@ -1109,7 +1109,9 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
 
     try {
       // Pequeno delay suave para a animação cinematográfica decolar
-      const animationDelay = scheduledAt || outgoingAnimation === 'instant' ? 150 : 900;
+      // O Astro Entregador precisa de um pouco mais para sair voando até o fim
+      const animationDelay =
+        scheduledAt || outgoingAnimation === 'instant' ? 150 : outgoingAnimation === 'astro' ? 1200 : 900;
       await new Promise((res) => setTimeout(res, animationDelay));
 
       await onSend({
@@ -1254,17 +1256,50 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               </div>
             )}
 
-            {outgoingAnimation === 'wax-seal' && (
-              <div className="flex flex-col items-center space-y-4 animate-in zoom-in-95">
-                <div className="w-20 h-20 rounded-full bg-amber-500/15 border border-amber-500/40 flex items-center justify-center ring-4 ring-amber-500/20">
-                  <Shield className="w-10 h-10 text-amber-400" />
+            {outgoingAnimation === 'astro' && (
+              <div className="flex flex-col items-center space-y-4 w-full">
+                <style>{`
+                  .astro-delivery { animation: astroFly .8s cubic-bezier(.55,0,.75,.4) .3s forwards; }
+                  .astro-delivery-bot { animation: astroArrive .3s ease-out both; }
+                  .astro-delivery-trail { transform: scaleX(0); transform-origin: right center; opacity: 0;
+                    animation: astroTrail .8s ease-in .3s forwards; }
+                  @keyframes astroArrive { from { transform: translateY(14px) scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
+                  @keyframes astroFly {
+                    0% { transform: translateX(0) rotate(0); }
+                    15% { transform: translateX(-14px) rotate(-6deg); }
+                    100% { transform: translateX(720px) translateY(-40px) rotate(8deg); }
+                  }
+                  @keyframes astroTrail {
+                    0% { transform: scaleX(0); opacity: 0; }
+                    25% { opacity: 1; }
+                    100% { transform: scaleX(1); opacity: .9; }
+                  }
+                  @media (prefers-reduced-motion: reduce) {
+                    .astro-delivery, .astro-delivery-trail { animation: none; }
+                  }
+                `}</style>
+                <div className="relative h-[100px] w-full flex items-center justify-center">
+                  <div className="astro-delivery relative">
+                    {/* Rastro de luz azul */}
+                    <div
+                      aria-hidden="true"
+                      className="astro-delivery-trail absolute right-[70%] top-1/2 -translate-y-1/2 h-4 w-[420px] rounded-full"
+                      style={{
+                        background:
+                          'linear-gradient(90deg, rgba(56,189,248,0) 0%, rgba(56,189,248,.35) 55%, rgba(125,211,252,.95) 100%)',
+                        filter: 'blur(3px)',
+                        boxShadow: '0 0 18px rgba(56,189,248,.55)',
+                      }}
+                    />
+                    <div className="astro-delivery-bot relative">
+                      <NotifierMascot size={92} />
+                    </div>
+                  </div>
                 </div>
-                <span className="text-sm font-bold text-amber-200 tracking-wide">
-                  Selo oficial de cera aplicado!
+                <span className="text-sm font-bold text-sky-200 tracking-wide">
+                  O Astro está levando sua mensagem...
                 </span>
-                <span className="text-xs text-slate-400 font-mono">
-                  Mensagem formal lacrada com integridade
-                </span>
+                <span className="text-xs text-slate-400 font-mono">Despachando via servidor seguro SMTP</span>
               </div>
             )}
 

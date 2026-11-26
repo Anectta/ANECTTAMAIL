@@ -18,6 +18,7 @@ import { isBodyStripped } from './utils/emailBodyStrip';
 import { quickReplyText, type DateMention } from './utils/assistantInsights';
 import { followUpText } from './utils/astroAgenda';
 import { replyToRisk } from './utils/phishingDetector';
+import { normalizeOutgoingAnimation } from './services/stationeryCompiler';
 import { APP_LOCK_EVENT, loadAppLock, type AppLockConfig } from './utils/appLock';
 import { LockScreen } from './components/LockScreen';
 import { AstroDailyPanel } from './components/AstroDailyPanel';
@@ -5842,7 +5843,7 @@ export const App: React.FC = () => {
             draftAutoSaveEnabled={settings.drafts?.autoSaveEnabled ?? true}
             draftAutoSaveMinutes={settings.drafts?.autoSaveMinutes ?? 3}
             spellCheckEnabled={(settings.spellcheck?.enabled ?? true) && (settings.spellcheck?.checkEmailCompose ?? true)}
-            outgoingAnimation={settings.sending?.outgoingAnimation ?? 'airplane'}
+            outgoingAnimation={normalizeOutgoingAnimation(settings.sending?.outgoingAnimation)}
             confirmations={settings.notifications?.confirmations}
           />
         </Suspense>

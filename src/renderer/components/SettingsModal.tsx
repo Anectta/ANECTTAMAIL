@@ -40,7 +40,7 @@ import {
 } from 'lucide-react';
 import { EmailItem } from '@/types/email';
 import { AccountSettings, AppSettings, EmailSignature } from '@/types/settings';
-import { OUTGOING_ANIMATIONS } from '../services/stationeryCompiler';
+import { OUTGOING_ANIMATIONS, normalizeOutgoingAnimation } from '../services/stationeryCompiler';
 import { QuickRepliesService, QuickSnippetItem } from '../services/quickRepliesService';
 import { EmailProviderNotice } from './EmailProviderNotice';
 import { SignatureEditorPanel } from './SignatureEditorPanel';
@@ -1695,7 +1695,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {OUTGOING_ANIMATIONS.map((opt) => {
-                        const selectedAnimation = formData.sending?.outgoingAnimation ?? 'airplane';
+                        const selectedAnimation = normalizeOutgoingAnimation(formData.sending?.outgoingAnimation);
                         const isSelected = selectedAnimation === opt.id;
                         return (
                           <button
