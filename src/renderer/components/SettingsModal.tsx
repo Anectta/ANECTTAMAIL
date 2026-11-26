@@ -2095,7 +2095,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="space-y-4">
                 <div>
                   <h3 className="text-sm font-bold text-white mb-1">
-                    Aparência, Temas & Skins
+                    Aparência, Sons & Assistente Virtual
                   </h3>
                   <p className="text-xs text-slate-400">
                     Escolha um tema para aplicar instantaneamente em toda a interface do Anectta MAIL.
