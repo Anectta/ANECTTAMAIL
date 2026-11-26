@@ -17,6 +17,7 @@ import { ensureEmailBody, useHydratedEmails } from '@/services/emailBodyCache';
 import { isBodyStripped } from './utils/emailBodyStrip';
 import { quickReplyText, type DateMention } from './utils/assistantInsights';
 import { followUpText } from './utils/astroAgenda';
+import { replyToRisk } from './utils/phishingDetector';
 import { APP_LOCK_EVENT, loadAppLock, type AppLockConfig } from './utils/appLock';
 import { LockScreen } from './components/LockScreen';
 import { AstroDailyPanel } from './components/AstroDailyPanel';
@@ -3741,6 +3742,21 @@ export const App: React.FC = () => {
     };
   };
 
+  /**
+   * Para quem a resposta vai: o "Responder para" (Reply-To) do e-mail, quando houver.
+   * Se ele for suspeito, pergunta antes. Devolve null quando o usuário desiste.
+   */
+  const resolveReplyAddress = (baseEmail: EmailItem): string | null => {
+    const risk = replyToRisk({ sender: baseEmail.sender, senderEmail: baseEmail.senderEmail, replyTo: baseEmail.replyTo });
+    if (risk.level === 'warn') {
+      const ok = window.confirm(
+        `Atenção: a resposta vai para ${risk.replyTo}, e não para ${baseEmail.senderEmail}.\n\n${risk.reason}\n\nDeseja responder mesmo assim?`
+      );
+      if (!ok) return null;
+    }
+    return (baseEmail.replyTo || '').trim() || baseEmail.senderEmail;
+  };
+
   const handleReply = async (targetEmail?: EmailItem) => {
     let baseEmail = targetEmail || selectedEmail;
     if (!baseEmail) return;
@@ -3769,9 +3785,11 @@ export const App: React.FC = () => {
       setIsComposeOpen(true);
       return;
     }
+    const replyAddress = resolveReplyAddress(baseEmail);
+    if (!replyAddress) return;
     const { inReplyTo, references } = buildReplyThreadingHeaders(baseEmail);
     setComposeDefaults({
-      recipient: baseEmail.senderEmail,
+      recipient: replyAddress,
       subject: baseEmail.subject.startsWith('Re:')
         ? baseEmail.subject
         : `Re: ${baseEmail.subject}`,
@@ -3783,10 +3801,12 @@ export const App: React.FC = () => {
 
   /** Amoroso: resposta pronta (Confirmar recebimento / Agradecer) — o usuário revisa antes de enviar. */
   const handleAssistantQuickReply = (baseEmail: EmailItem, kind: 'confirm' | 'thanks') => {
+    const replyAddress = resolveReplyAddress(baseEmail);
+    if (!replyAddress) return;
     soundService.play('click');
     const { inReplyTo, references } = buildReplyThreadingHeaders(baseEmail);
     setComposeDefaults({
-      recipient: baseEmail.senderEmail,
+      recipient: replyAddress,
       subject: baseEmail.subject.startsWith('Re:') ? baseEmail.subject : `Re: ${baseEmail.subject}`,
       body: quickReplyText(kind, baseEmail.sender),
       inReplyTo,
@@ -3979,8 +3999,10 @@ export const App: React.FC = () => {
     const baseEmail = targetEmail || selectedEmail;
     if (!baseEmail) return;
     const myEmail = (currentAccount?.email || '').trim().toLowerCase();
-    const senderAddr = (baseEmail.senderEmail || '').trim();
-    const isMeSender = senderAddr.toLowerCase() === myEmail;
+    const isMeSender = (baseEmail.senderEmail || '').trim().toLowerCase() === myEmail;
+    // Quem recebe a resposta é o "Responder para" (Reply-To), quando houver
+    const senderAddr = isMeSender ? (baseEmail.senderEmail || '').trim() : resolveReplyAddress(baseEmail);
+    if (!senderAddr) return;
 
     const toCandidates = isMeSender
       ? (baseEmail.recipient || '').split(/[;,]+/)

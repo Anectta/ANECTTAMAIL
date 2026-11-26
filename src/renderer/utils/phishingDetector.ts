@@ -28,6 +28,7 @@ export interface PhishingSource {
   body?: string;
   bodyHtml?: string;
   attachments?: Array<{ name: string }>;
+  authResults?: { spf?: string; dkim?: string; dmarc?: string };
 }
 
 interface Brand {
@@ -180,6 +181,11 @@ export function analyzePhishing(src: PhishingSource, trustedSenders?: Set<string
     }
   }
 
+  // 2b. Domínio do remetente disfarçado (Punycode ou letras de outro alfabeto)
+  if (senderHost.split('.').some((l) => l.startsWith('xn--')) || /[^\x00-\x7f]/.test(senderHost)) {
+    danger.push(`O endereço do remetente (${senderHost}) usa caracteres disfarçados, que podem imitar outro domínio.`);
+  }
+
   // 3. Links
   const links = extractLinks(src);
   const seen = new Set<string>();
@@ -209,6 +215,11 @@ export function analyzePhishing(src: PhishingSource, trustedSenders?: Set<string
   const text = norm(`${src.subject || ''}\n${src.body || ''}\n${src.bodyHtml ? src.bodyHtml.replace(/<[^>]+>/g, ' ') : ''}`);
   const urgent = URGENCY_RE.test(text);
   if (urgent && links.length > 0) weak.push('O e-mail pressiona você a agir com urgência (bloqueio, senha, dados).');
+
+  // 4b. O servidor não confirmou o remetente (SPF/DKIM/DMARC)
+  if (authLevel(src.authResults) === 'fail') {
+    weak.push('O servidor de e-mail não conseguiu confirmar que a mensagem veio mesmo desse remetente (SPF/DKIM/DMARC).');
+  }
 
   // 5. Anexo executável
   for (const a of src.attachments || []) {
@@ -265,3 +276,56 @@ export function saveTrustedHosts(set: Set<string>): void {
 }
 
 export { hostOf };
+
+// ---------------------------------------------------------------- autenticidade e "Responder para"
+
+export type AuthLevel = 'verified' | 'fail' | 'unknown';
+
+/**
+ * Selo de autenticidade: "verified" quando o DMARC passou (ou SPF e DKIM passaram); "fail" quando
+ * o DMARC falhou ou SPF e DKIM falharam juntos; "unknown" quando não há o carimbo.
+ */
+export function authLevel(r?: { spf?: string; dkim?: string; dmarc?: string }): AuthLevel {
+  if (!r) return 'unknown';
+  const bad = (v?: string) => Boolean(v && /^(fail|softfail|permerror|reject|quarantine)$/.test(v));
+  if (r.dmarc === 'pass' || (r.spf === 'pass' && r.dkim === 'pass')) return 'verified';
+  if (bad(r.dmarc) || (bad(r.spf) && (bad(r.dkim) || r.dkim === 'none' || !r.dkim))) return 'fail';
+  return 'unknown';
+}
+
+const FREE_MAIL = new Set([
+  'gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.com.br', 'outlook.com', 'outlook.com.br', 'live.com',
+  'msn.com', 'yahoo.com', 'yahoo.com.br', 'ymail.com', 'bol.com.br', 'uol.com.br', 'terra.com.br', 'ig.com.br',
+  'icloud.com', 'me.com', 'aol.com', 'gmx.com', 'gmx.net', 'mail.com', 'proton.me', 'protonmail.com', 'zoho.com',
+  'yandex.com', 'yandex.ru',
+]);
+
+export interface ReplyToRisk {
+  /** none: igual ao remetente; info: diferente, mas comum (atendimento, newsletter); warn: suspeito */
+  level: 'none' | 'info' | 'warn';
+  replyTo?: string;
+  reason?: string;
+}
+
+/** Avalia se o "Responder para" leva a um endereço suspeito, diferente de quem diz enviar. */
+export function replyToRisk(src: { sender?: string; senderEmail?: string; replyTo?: string }): ReplyToRisk {
+  const from = (src.senderEmail || '').trim().toLowerCase();
+  const rt = (src.replyTo || '').trim().toLowerCase();
+  if (!rt || !from || rt === from) return { level: 'none' };
+  const fromHost = from.split('@')[1] || '';
+  const rtHost = rt.split('@')[1] || '';
+  if (baseDomain(fromHost) === baseDomain(rtHost)) return { level: 'none' };
+  const name = norm(src.sender || '');
+  const claimsBrand = BRANDS.some((b) => b.name.test(name));
+  const disguised = rtHost.split('.').some((l) => l.startsWith('xn--')) || /[^\x00-\x7f]/.test(rtHost);
+  const rtFree = FREE_MAIL.has(rtHost);
+  const fromFree = FREE_MAIL.has(fromHost);
+  if (disguised) return { level: 'warn', replyTo: rt, reason: 'O endereço de resposta usa caracteres disfarçados.' };
+  if (claimsBrand) {
+    return { level: 'warn', replyTo: rt, reason: 'O remetente diz ser uma empresa conhecida, mas as respostas vão para outro domínio.' };
+  }
+  if (rtFree && !fromFree) {
+    return { level: 'warn', replyTo: rt, reason: 'O e-mail vem de uma empresa, mas as respostas vão para um e-mail gratuito.' };
+  }
+  return { level: 'info', replyTo: rt };
+}

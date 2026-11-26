@@ -63,6 +63,7 @@ import DOMPurify from 'dompurify';
 import { formatReceivedLabel } from '../utils/dateSortUtils';
 import { linkifyHtml, splitLinks } from '../utils/linkify';
 import { senderInList } from '../utils/mailHygiene';
+import { authLevel, baseDomain, replyToRisk } from '../utils/phishingDetector';
 import {
   analyzePhishing,
   hostOf,
@@ -294,6 +295,18 @@ export const EmailView: React.FC<EmailViewProps> = ({
   const [phishingTrusted, setPhishingTrusted] = useState<Set<string>>(() => loadPhishingTrusted());
   const [trustedHosts, setTrustedHosts] = useState<Set<string>>(() => loadTrustedHosts());
   const [pendingLink, setPendingLink] = useState<{ href: string; warnings: string[] } | null>(null);
+  // Anexo que não abre direto (tipo perigoso ou programa disfarçado): janela com as opções
+  const [blockedAttachment, setBlockedAttachment] = useState<{
+    name: string;
+    path: string;
+    kind: 'dangerous' | 'disguised';
+    ext: string;
+  } | null>(null);
+  // "Responder para" diferente do remetente
+  const replyRisk = useMemo(
+    () => (email ? replyToRisk({ sender: email.sender, senderEmail: email.senderEmail, replyTo: email.replyTo }) : { level: 'none' as const }),
+    [email]
+  );
   const [dontAskHost, setDontAskHost] = useState(false);
 
   const phishingReport = useMemo(() => {
@@ -308,6 +321,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
         body: email.body,
         bodyHtml: email.bodyHtml,
         attachments: email.attachments,
+        authResults: email.authResults,
       },
       phishingTrusted
     );
@@ -572,6 +586,9 @@ export const EmailView: React.FC<EmailViewProps> = ({
         if (res.success) {
           soundService.play('pop');
           showAttachmentFeedback(`Abrindo: ${att.name}`);
+        } else if (res.blocked) {
+          soundService.play('error');
+          setBlockedAttachment({ name: att.name, path: att.path!, kind: res.blocked, ext: res.ext || '' });
         } else {
           soundService.play('error');
           showAttachmentFeedback(res.error || `Erro ao abrir anexo.`, true);
@@ -1850,7 +1867,36 @@ export const EmailView: React.FC<EmailViewProps> = ({
                   <span className="text-xs text-slate-500">
                     &lt;{email.senderEmail}&gt;
                   </span>
+                  {(() => {
+                    const lvl = authLevel(email.authResults);
+                    if (lvl === 'unknown') return null;
+                    const r = email.authResults || {};
+                    const detail = `SPF: ${r.spf || '—'} · DKIM: ${r.dkim || '—'} · DMARC: ${r.dmarc || '—'}`;
+                    return lvl === 'verified' ? (
+                      <span
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                        title={`Remetente verificado pelo servidor de e-mail (${detail})`}
+                      >
+                        <ShieldCheck className="w-3 h-3" /> Verificado
+                      </span>
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                        title={`O servidor de e-mail não conseguiu confirmar o remetente (${detail})`}
+                      >
+                        <ShieldAlert className="w-3 h-3" /> Remetente não confirmado
+                      </span>
+                    );
+                  })()}
                 </div>
+                {replyRisk.level !== 'none' && replyRisk.replyTo && (
+                  <div className="text-xs text-slate-400">
+                    Respostas vão para:{' '}
+                    <span className={replyRisk.level === 'warn' ? 'text-amber-300 font-semibold' : 'text-slate-300 font-medium'}>
+                      {replyRisk.replyTo}
+                    </span>
+                  </div>
+                )}
                 <div className="text-xs text-slate-400">
                   Para:{' '}
                   <span className="text-slate-300 font-medium">
@@ -1927,6 +1973,94 @@ export const EmailView: React.FC<EmailViewProps> = ({
             )}
           </div>
         </div>
+
+        {/* Escudo Anectta: "Responder para" suspeito */}
+        {replyRisk.level === 'warn' && (
+          <div
+            className={`flex items-start gap-2 px-3.5 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs text-amber-100 ${isModalMode ? 'max-w-none' : 'max-w-3xl'}`}
+          >
+            <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <span>
+              <strong>Escudo Anectta:</strong> se você responder, a mensagem vai para{' '}
+              <strong className="text-amber-200">{replyRisk.replyTo}</strong>, e não para {email.senderEmail}.{' '}
+              {replyRisk.reason}
+            </span>
+          </div>
+        )}
+
+        {/* Janela: anexo que não abre direto (tipo perigoso ou programa disfarçado) */}
+        {blockedAttachment && (
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(2, 6, 23, 0.6)' }}
+            onClick={() => setBlockedAttachment(null)}
+          >
+            <div
+              role="dialog"
+              aria-label="Anexo bloqueado"
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-md rounded-2xl border shadow-2xl bg-slate-950 p-5 space-y-3 ${
+                blockedAttachment.kind === 'disguised' ? 'border-rose-500/60' : 'border-amber-500/50'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <ShieldAlert className={`w-5 h-5 ${blockedAttachment.kind === 'disguised' ? 'text-rose-400' : 'text-amber-400'}`} />
+                <h3 className="text-sm font-bold text-white">
+                  {blockedAttachment.kind === 'disguised' ? 'Anexo perigoso: programa disfarçado' : 'Este anexo não abre direto'}
+                </h3>
+              </div>
+              <p className="text-sm text-slate-200 font-mono break-all">{blockedAttachment.name}</p>
+              {blockedAttachment.kind === 'disguised' ? (
+                <p className="text-xs text-rose-200">
+                  O arquivo diz ser "{blockedAttachment.ext || 'documento'}", mas na verdade é um <strong>programa</strong>. Isso é
+                  típico de vírus. Recomendamos <strong>não abrir</strong> e excluir o e-mail.
+                </p>
+              ) : (
+                <p className="text-xs text-slate-300">
+                  Arquivos {blockedAttachment.ext ? <strong>{blockedAttachment.ext}</strong> : 'deste tipo'} podem conter
+                  programas e executar algo no seu computador. Só abra se você <strong>esperava receber este arquivo</strong> de
+                  alguém que você conhece. Ao abrir pela pasta, o Windows ainda vai avisar que o arquivo veio da internet.
+                </p>
+              )}
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setBlockedAttachment(null)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white"
+                  autoFocus
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const b = blockedAttachment;
+                    setBlockedAttachment(null);
+                    const res = await window.electronAPI?.saveAttachmentAs?.({ sourcePath: b.path, defaultName: b.name });
+                    if (res?.success) showAttachmentFeedback(`Anexo salvo em: ${res.savedPath}`);
+                    else if (res && !res.canceled) showAttachmentFeedback(res.error || 'Não foi possível salvar.', true);
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-600 text-slate-200 hover:bg-slate-800"
+                >
+                  Salvar em…
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const b = blockedAttachment;
+                    setBlockedAttachment(null);
+                    void window.electronAPI?.showAttachmentInFolder?.(b.path);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-white ${
+                    blockedAttachment.kind === 'disguised' ? 'bg-rose-700 hover:bg-rose-600' : 'bg-amber-600 hover:bg-amber-500'
+                  }`}
+                >
+                  Mostrar na pasta
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Escudo Anectta: possível golpe (phishing) */}
         {phishingReport.level !== 'none' && (
@@ -2442,9 +2576,19 @@ export const EmailView: React.FC<EmailViewProps> = ({
                 </h3>
               </div>
               <div className="rounded-xl bg-slate-900 border border-slate-800 p-3 space-y-1">
-                <p className="text-[11px] text-slate-500">Você vai para:</p>
-                <p className="text-sm font-bold text-sky-300 break-all">{hostOf(pendingLink.href) || pendingLink.href}</p>
-                <p className="text-[11px] text-slate-400 break-all">{pendingLink.href}</p>
+                <p className="text-[11px] text-slate-500">Você vai para o site:</p>
+                {/* Domínio principal (ex.: itau.com.br) em destaque: é ele que diz de quem é o site */}
+                <p
+                  className={`text-xl font-extrabold break-all ${
+                    pendingLink.warnings.length > 0 ? 'text-rose-400' : 'text-sky-300'
+                  }`}
+                >
+                  {baseDomain(hostOf(pendingLink.href)) || pendingLink.href}
+                </p>
+                {hostOf(pendingLink.href) !== baseDomain(hostOf(pendingLink.href)) && (
+                  <p className="text-xs text-slate-400 break-all">Endereço: {hostOf(pendingLink.href)}</p>
+                )}
+                <p className="text-[11px] text-slate-500 break-all">{pendingLink.href}</p>
               </div>
               {pendingLink.warnings.length > 0 && (
                 <ul className="list-disc pl-5 text-xs text-rose-200 space-y-0.5">

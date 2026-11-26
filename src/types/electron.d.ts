@@ -348,7 +348,7 @@ export interface ElectronAPI {
   revealSettingsSync?: (settingsObj: any) => any;
   loadMessageCacheSync?: () => any[] | null;
   saveMessageCache?: (json: string) => void;
-  openAttachment?: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+  openAttachment?: (filePath: string) => Promise<{ success: boolean; error?: string; blocked?: 'dangerous' | 'disguised'; ext?: string }>;
   showAttachmentInFolder?: (filePath: string) => Promise<{ success: boolean; error?: string }>;
   saveAttachmentAs?: (payload: { sourcePath: string; defaultName?: string }) => Promise<{ success?: boolean; canceled?: boolean; savedPath?: string; error?: string }>;
   showNotifier: (data: {

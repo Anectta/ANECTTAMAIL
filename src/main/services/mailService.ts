@@ -6,6 +6,7 @@ import nodemailer from 'nodemailer';
 import MailComposer from 'nodemailer/lib/mail-composer';
 import crypto from 'crypto';
 import { simpleParser } from 'mailparser';
+import { extractSecurityHeaders, type AuthResults } from './messageSecurity';
 import { SimplePop3Client } from './pop3Client';
 import { isTlsHostTrusted } from './tlsTrust';
 import { implicitTls } from './mailSecurity';
@@ -802,6 +803,7 @@ export class MailService {
     let parsedCc: string | undefined = undefined;
     let calendarInvite: any = undefined;
     let listHeaders: { listUnsubscribe?: string; listUnsubscribePost?: string; listId?: string; precedence?: string } = {};
+    let securityHeaders: { authResults?: AuthResults; replyTo?: string } = {};
 
     if (message.source) {
       try {
@@ -829,6 +831,7 @@ export class MailService {
         readReceiptRequestedBy = extractReadReceiptAddress(parsed.headers, senderEmail);
         calendarInvite = extractCalendarInviteFromParsed(parsed);
         listHeaders = extractListHeaders(parsed.headers);
+        securityHeaders = extractSecurityHeaders(parsed);
 
         if (parsed.attachments && Array.isArray(parsed.attachments) && parsed.attachments.length > 0) {
           attachmentsList = parsed.attachments.map((att: any, idx: number) =>
@@ -924,6 +927,8 @@ export class MailService {
       listUnsubscribePost: listHeaders.listUnsubscribePost,
       listId: listHeaders.listId,
       precedence: listHeaders.precedence,
+      authResults: securityHeaders.authResults,
+      replyTo: securityHeaders.replyTo,
     };
   }
 
@@ -2242,6 +2247,7 @@ export class MailService {
           const popReferences = parseReferencesHeader(parsed.references);
           const popCalendarInvite = extractCalendarInviteFromParsed(parsed);
           const popListHeaders = extractListHeaders(parsed.headers);
+          const popSecurity = extractSecurityHeaders(parsed);
 
           messages.push({
             id: pop3MessageId,
@@ -2271,6 +2277,8 @@ export class MailService {
             tags: ['POP3 (Local)'],
             calendarInvite: popCalendarInvite || undefined,
             listUnsubscribe: popListHeaders.listUnsubscribe,
+            authResults: popSecurity.authResults,
+            replyTo: popSecurity.replyTo,
             listUnsubscribePost: popListHeaders.listUnsubscribePost,
             listId: popListHeaders.listId,
             precedence: popListHeaders.precedence,

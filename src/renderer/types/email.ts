@@ -123,6 +123,10 @@ export interface EmailItem {
   calendarInvite?: CalendarInviteInfo;
   listUnsubscribe?: string;
   listUnsubscribePost?: string;
+  /** Resultado de SPF/DKIM/DMARC gravado pelo servidor de entrada (Authentication-Results). */
+  authResults?: { spf?: string; dkim?: string; dmarc?: string };
+  /** Para onde a resposta vai (Reply-To), quando diferente do remetente. */
+  replyTo?: string;
   listId?: string;
   precedence?: string;
   snoozedUntil?: number; // epoch ms

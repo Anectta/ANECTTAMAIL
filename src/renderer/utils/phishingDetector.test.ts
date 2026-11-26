@@ -83,3 +83,36 @@ describe('aviso de link', () => {
     expect(baseDomain('mail.google.com')).toBe('google.com');
   });
 });
+
+describe('autenticidade (SPF/DKIM/DMARC)', () => {
+  it('selo verificado, falha e desconhecido', async () => {
+    const { authLevel } = await import('./phishingDetector');
+    expect(authLevel({ spf: 'pass', dkim: 'pass', dmarc: 'pass' })).toBe('verified');
+    expect(authLevel({ dmarc: 'pass' })).toBe('verified');
+    expect(authLevel({ spf: 'fail', dkim: 'none', dmarc: 'fail' })).toBe('fail');
+    expect(authLevel({ spf: 'softfail', dkim: 'pass' })).toBe('unknown');
+    expect(authLevel(undefined)).toBe('unknown');
+  });
+  it('falha sozinha não vira alarme; com outro sinal fica suspeito', () => {
+    const fail = { spf: 'fail', dkim: 'fail', dmarc: 'fail' };
+    expect(analyzePhishing({ sender: 'Ana', senderEmail: 'ana@empresa.com', body: 'oi', authResults: fail }).level).toBe('none');
+    expect(
+      analyzePhishing({ sender: 'Suporte', senderEmail: 's@site.com', body: 'Último aviso: confirme seus dados em https://bit.ly/x', authResults: fail }).level
+    ).toBe('suspicious');
+  });
+});
+
+describe('remetente disfarçado e Responder para', () => {
+  it('Punycode ou outro alfabeto no remetente é golpe', () => {
+    expect(analyzePhishing({ sender: 'Banco', senderEmail: 'avisos@xn--itu-6ma.com', body: '' }).level).toBe('danger');
+    expect(analyzePhishing({ sender: 'Banco', senderEmail: 'avisos@itаu.com', body: '' }).level).toBe('danger'); // "а" cirílico
+  });
+  it('Reply-To: suspeito, comum e igual', async () => {
+    const { replyToRisk } = await import('./phishingDetector');
+    expect(replyToRisk({ sender: 'Itaú Atendimento', senderEmail: 'alerta@itau.com.br', replyTo: 'suporte@outro.com' }).level).toBe('warn');
+    expect(replyToRisk({ sender: 'Financeiro', senderEmail: 'nf@empresa.com.br', replyTo: 'financeiro.empresa@gmail.com' }).level).toBe('warn');
+    expect(replyToRisk({ sender: 'Loja', senderEmail: 'news@loja.com.br', replyTo: 'atendimento@zendesk.com' }).level).toBe('info');
+    expect(replyToRisk({ sender: 'Ana', senderEmail: 'ana@empresa.com', replyTo: 'ana@mail.empresa.com' }).level).toBe('none');
+    expect(replyToRisk({ sender: 'Ana', senderEmail: 'ana@empresa.com' }).level).toBe('none');
+  });
+});

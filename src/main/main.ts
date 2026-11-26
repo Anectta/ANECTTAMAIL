@@ -15,6 +15,12 @@ import readline from 'readline';
 import { PSTFile, PSTFolder, PSTMessage } from 'pst-extractor';
 import { MailService, MailServerConfig, ImapServerAction } from './services/mailService';
 import { ImapIdleService } from './services/imapIdleService';
+import {
+  applyMarkOfTheWeb,
+  BLOCKED_ATTACHMENT_EXTENSIONS,
+  isDisguisedExecutable,
+  readFileHead,
+} from './services/attachmentSafety';
 import { SearchIndexService } from './services/searchIndexService';
 import { MailStore, StoreUpsertRecord } from './services/mailStore';
 import { discoverMailSettings } from './services/accountDiscovery';
@@ -1149,14 +1155,32 @@ ipcMain.handle('attachment:open', async (_event, rawPath: string) => {
     if (!filePath) {
       return { success: false, error: 'Arquivo do anexo não foi localizado ou está fora da pasta segura do aplicativo.' };
     }
-    if (BLOCKED_EXEC_EXTENSIONS.has(path.extname(filePath).toLowerCase())) {
-      shell.showItemInFolder(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    if (BLOCKED_ATTACHMENT_EXTENSIONS.has(ext) || BLOCKED_EXEC_EXTENSIONS.has(ext)) {
       return {
         success: false,
-        error: 'Por segurança, anexos executáveis não são abertos diretamente. O arquivo foi exibido na pasta.',
+        blocked: 'dangerous',
+        ext,
+        error: 'Por segurança, este tipo de arquivo não é aberto diretamente pelo e-mail.',
       };
     }
     await ensureIntactAttachmentFile(filePath);
+    // Confere o "DNA" do arquivo: um "fatura.pdf" que na verdade é um programa não abre
+    try {
+      const disguised = isDisguisedExecutable(filePath, readFileHead(filePath));
+      if (disguised) {
+        return {
+          success: false,
+          blocked: 'disguised',
+          ext,
+          error: `Este anexo diz ser "${ext || 'documento'}", mas na verdade é um programa. Não foi aberto.`,
+        };
+      }
+    } catch {
+      // sem leitura do arquivo, segue a verificação normal do sistema
+    }
+    // Marca "veio da internet": o Windows avisa antes de executar e o Office abre em Modo Protegido
+    applyMarkOfTheWeb(filePath);
     const errMsg = await shell.openPath(filePath);
     if (errMsg) {
       // Se não há programa padrão associado, abre a pasta selecionando o arquivo
@@ -1200,6 +1224,7 @@ ipcMain.handle('attachment:save-as', async (_event, payload: { sourcePath: strin
       return { canceled: true };
     }
     await fs.promises.copyFile(payload.sourcePath, filePath);
+    applyMarkOfTheWeb(filePath);
     return { success: true, savedPath: filePath };
   } catch (err: any) {
     return { success: false, error: err.message };
