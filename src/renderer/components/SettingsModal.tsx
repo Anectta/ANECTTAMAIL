@@ -2173,6 +2173,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </button>
                 </div>
 
+                {/* Modo escuro inteligente para e-mails */}
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">
+                  <div>
+                    <div className="text-xs font-semibold text-white">Modo escuro inteligente para e-mails</div>
+                    <div className="text-[11px] text-slate-400">
+                      Nos temas escuros, e-mails simples (texto, listas e links) aparecem na cor do tema. E-mails com
+                      layout próprio, como newsletters, bancos e notas fiscais, continuam no fundo branco. No e-mail,
+                      o botão &quot;Ver original&quot; volta ao fundo branco.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={formData.appearance.smartDarkEmails ?? false}
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        appearance: {
+                          ...formData.appearance,
+                          smartDarkEmails: !(formData.appearance.smartDarkEmails ?? false),
+                        },
+                      })
+                    }
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ${
+                      (formData.appearance.smartDarkEmails ?? false) ? 'bg-brand-500' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition duration-200 ${
+                        (formData.appearance.smartDarkEmails ?? false) ? 'translate-x-4' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+
                 {/* Astro — pendências (aguardando sua resposta / enviados sem resposta) */}
                 <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
                   <div className="flex items-center justify-between gap-3">

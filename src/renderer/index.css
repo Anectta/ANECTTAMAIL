@@ -1792,3 +1792,18 @@ button:hover > span > .shield-tile-danger { filter: brightness(1.08); }
 .shield-pulse-tile { border-radius: 7px; }
 .shield-badge-tile { top: -6px; right: -6px; }
 .shield-toolbar-sep { width: 1px; height: 22px; background: rgba(148, 163, 184, 0.35); }
+
+/* Modo escuro inteligente para e-mails: só para e-mails simples, quando a opção está ligada (tema escuro) */
+.email-body-sanitized.email-body-dark {
+  background-color: var(--bg-card, #0f172a) !important;
+  color: #e5e7eb !important;
+}
+.email-body-dark a { color: #7dd3fc !important; }
+.email-body-dark blockquote { border-color: rgba(148, 163, 184, 0.45) !important; color: #cbd5e1 !important; }
+.email-body-dark hr { border-color: rgba(148, 163, 184, 0.35) !important; }
+
+/* Corpo do e-mail: listas, parágrafos e citações com aparência normal (o reset do Tailwind remove marcadores e espaços) */
+.email-body-sanitized p { margin: 0 0 0.75em; }
+.email-body-sanitized ul { list-style: disc; padding-left: 1.5em; margin: 0 0 0.75em; }
+.email-body-sanitized ol { list-style: decimal; padding-left: 1.5em; margin: 0 0 0.75em; }
+.email-body-sanitized blockquote { border-left: 3px solid #cbd5e1; padding-left: 0.75em; margin: 0 0 0.75em; }

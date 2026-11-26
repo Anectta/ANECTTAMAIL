@@ -72,6 +72,8 @@ export interface AppearanceSettings {
   showUnifiedInbox?: boolean;
   /** Amoroso — Assistente Anectta no topo do e-mail aberto (padrão: ligado). */
   showAssistant?: boolean;
+  /** Modo escuro inteligente: e-mails simples na cor do tema escuro (padrão: desligado). */
+  smartDarkEmails?: boolean;
   /** Astro: pendências "Aguardando sua resposta" / "Sem resposta" (padrão: ligado). */
   astroAgendaEnabled?: boolean;
   /** Astro: avisar de e-mails enviados sem resposta após N dias (padrão: 3). */

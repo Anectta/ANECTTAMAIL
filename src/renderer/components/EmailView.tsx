@@ -50,6 +50,7 @@ import {
 import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
 import { AssistantCard } from './AssistantCard';
+import { adaptHtmlForDark, isSimpleEmailHtml } from '../utils/smartDarkEmail';
 import {
   FilledArchive,
   FilledBellRing,
@@ -245,6 +246,8 @@ interface EmailViewProps {
   isContactContextOpen?: boolean;
   /** Amoroso — Assistente Anectta */
   showAssistant?: boolean;
+  /** Modo escuro inteligente: e-mails simples na cor do tema (só quando o tema é escuro). */
+  smartDarkEmails?: boolean;
   onAssistantQuickReply?: (email: EmailItem, kind: 'confirm' | 'thanks') => void;
   onAssistantCreateEvent?: (email: EmailItem, when?: DateMention) => void;
   onAssistantCreateReminder?: (email: EmailItem, when?: DateMention) => void;
@@ -297,12 +300,15 @@ export const EmailView: React.FC<EmailViewProps> = ({
   onToggleContactContext,
   isContactContextOpen = false,
   showAssistant = false,
+  smartDarkEmails = false,
   onAssistantQuickReply,
   onAssistantCreateEvent,
   onAssistantCreateReminder,
   onHideAssistant,
 }) => {
   const [revealedImagesEmailIds, setRevealedImagesEmailIds] = useState<Record<string, boolean>>({});
+  // Modo escuro inteligente: e-mails em que o usuário pediu "Ver original" (fundo branco)
+  const [originalViewIds, setOriginalViewIds] = useState<Record<string, boolean>>({});
 
   // Escudo Anectta — golpes (phishing) e confirmação ao abrir links
   const [phishingTrusted, setPhishingTrusted] = useState<Set<string>>(() => loadPhishingTrusted());
@@ -720,6 +726,25 @@ export const EmailView: React.FC<EmailViewProps> = ({
       </main>
     );
   }
+
+  // ===== Modo escuro inteligente: só e-mails simples, com opção de ver o original =====
+  const darkBodyEligible = smartDarkEmails && (!email.bodyHtml || isSimpleEmailHtml(bodyScan.html));
+  const useDarkBody = darkBodyEligible && !originalViewIds[email.id];
+  const bodyBoxStyle: React.CSSProperties = useDarkBody
+    ? { backgroundColor: 'var(--bg-card, #0f172a)', color: '#e5e7eb', borderColor: 'var(--border-subtle)' }
+    : { backgroundColor: '#FFFFFF', color: '#111827', borderColor: 'var(--border-subtle)' };
+  const darkBodyToggle = darkBodyEligible ? (
+    <div className="flex justify-end">
+      <button
+        type="button"
+        onClick={() => setOriginalViewIds((prev) => ({ ...prev, [email.id]: !prev[email.id] }))}
+        className="px-2 py-0.5 rounded-md text-[11px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors"
+        title={useDarkBody ? 'Mostrar o e-mail como foi enviado, no fundo branco' : 'Mostrar o e-mail na cor do tema'}
+      >
+        {useDarkBody ? 'Ver original' : 'Ver na cor do tema'}
+      </button>
+    </div>
+  ) : null;
 
   // ===== Escudo Anectta em ícones (só aparecem quando a situação existe; perigos primeiro) =====
   const shieldItems: ShieldActionItem[] = [];
@@ -2803,9 +2828,10 @@ export const EmailView: React.FC<EmailViewProps> = ({
         {/* Email Body (Renderiza HTML sanitizado com CSS inline ou texto plano) */}
         {email.bodyHtml ? (() => {
           // Endereços escritos como texto (sem link) também ficam clicáveis
-          const sanitizedHtml = linkifyHtml(bodyScan.html);
+          const sanitizedHtml = linkifyHtml(useDarkBody ? adaptHtmlForDark(bodyScan.html) : bodyScan.html);
           return (
             <div className="space-y-2">
+              {darkBodyToggle}
               <div
                 onClick={(e) => {
                   const target = e.target as HTMLElement | null;
@@ -2821,17 +2847,15 @@ export const EmailView: React.FC<EmailViewProps> = ({
                     requestOpenLink(rawHref, (anchor.textContent || '').trim());
                   }
                 }}
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  color: '#111827',
-                  borderColor: 'var(--border-subtle)',
-                }}
-                className={`email-body-sanitized text-sm leading-relaxed font-sans max-w-none rounded-xl overflow-x-auto border shadow-md p-4`}
+                style={bodyBoxStyle}
+                className={`email-body-sanitized${useDarkBody ? ' email-body-dark' : ''} text-sm leading-relaxed font-sans max-w-none rounded-xl overflow-x-auto border shadow-md p-4`}
                 dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
               />
             </div>
           );
         })() : (
+          <div className="space-y-2">
+          {darkBodyToggle}
           <div
             onClick={(e) => {
               // E-mail só de texto: endereços viram links e abrem no navegador
@@ -2842,19 +2866,15 @@ export const EmailView: React.FC<EmailViewProps> = ({
               e.stopPropagation();
               requestOpenLink(href, (anchor.textContent || '').trim());
             }}
-            style={{
-              backgroundColor: '#FFFFFF',
-              color: '#111827',
-              borderColor: 'var(--border-subtle)',
-            }}
-            className={`email-body-sanitized text-sm leading-relaxed whitespace-pre-wrap font-sans max-w-none rounded-xl border p-4`}
+            style={bodyBoxStyle}
+            className={`email-body-sanitized${useDarkBody ? ' email-body-dark' : ''} text-sm leading-relaxed whitespace-pre-wrap font-sans max-w-none rounded-xl border p-4`}
           >
             {splitLinks(email.body || '').map((part, i) =>
               part.type === 'link' ? (
                 <a
                   key={i}
                   href={part.href}
-                  className="text-blue-600 underline break-all"
+                  className={`${useDarkBody ? 'text-sky-300' : 'text-blue-600'} underline break-all`}
                   title={part.href}
                 >
                   {part.value}
@@ -2863,6 +2883,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                 <React.Fragment key={i}>{part.value}</React.Fragment>
               )
             )}
+          </div>
           </div>
         )}
       </div>

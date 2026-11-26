@@ -5546,6 +5546,7 @@ export const App: React.FC = () => {
                   onToggleContactContext={handleToggleContactContext}
                   isContactContextOpen={isContactContextOpen}
                   showAssistant={settings.appearance?.showAssistant ?? true}
+                  smartDarkEmails={(settings.appearance?.smartDarkEmails ?? false) && themeMode === 'dark'}
                   onAssistantQuickReply={handleAssistantQuickReply}
                   onAssistantCreateEvent={handleAssistantCreateEvent}
                   onAssistantCreateReminder={handleAssistantCreateReminder}
