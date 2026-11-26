@@ -288,7 +288,7 @@
     --selection-border: #2DD4BF;
   }
 
-  /* 12. Slate Escuro + Esmeralda (Dark) */
+  /* 12. Ardósia Escura + Esmeralda (Dark) */
   html[data-theme="darkslate-emerald"] {
     --bg-app: #111827;
     --bg-sidebar: #161F30;
@@ -309,7 +309,7 @@
     --selection-border: #10B981;
   }
 
-  /* 13. Grafite + Roxo Soft (Dark) */
+  /* 13. Grafite + Roxo Suave (Dark) */
   html[data-theme="graphite-softpurple"] {
     --bg-app: #151519;
     --bg-sidebar: #19191F;
@@ -1618,7 +1618,7 @@ html.clean-white .filter-chip.is-on:hover {
 }
 
 /* ==========================================================================
-   Tema "Anectta Glass" — painéis de vidro translúcidos sobre fundo azul luminoso.
+   Tema "Anectta Vidro" — painéis de vidro translúcidos sobre fundo azul luminoso.
    Só os painéis grandes (pastas, lista, leitura, barra lateral de apps) ficam
    translúcidos; menus, janelas e campos continuam opacos (variáveis do tema)
    para não perder a leitura. Sem backdrop-filter nos painéis grandes: o fundo é

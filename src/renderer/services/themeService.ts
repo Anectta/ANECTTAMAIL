@@ -67,7 +67,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
 
   {
     id: 'anectta-glass',
-    name: 'Anectta Glass',
+    name: 'Anectta Vidro',
     subtitle: 'Vidro azul-marinho translúcido com brilho ciano (painéis de vidro sobre fundo luminoso)',
     category: 'dark',
     section: 'default',
@@ -113,7 +113,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   {
     id: 'slate-teal',
     name: 'Ardósia + Azul-petróleo',
-    subtitle: 'Ardósia clara minimalista com destaque verde-azulado (Teal)',
+    subtitle: 'Ardósia clara minimalista com destaque verde-azulado',
     category: 'light',
     section: 'light',
     soundTheme: 'light',
@@ -359,7 +359,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   {
     id: 'red-offwhite',
     name: 'Vermelho + Branco Gelo',
-    subtitle: 'Off-white rosado suave com contraste carvão e vermelho carmim executivo',
+    subtitle: 'Branco gelo rosado suave com contraste carvão e vermelho carmim executivo',
     category: 'light',
     section: 'light',
     soundTheme: 'light',
@@ -445,7 +445,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   {
     id: 'purple-yellow',
     name: '6. Roxo + Amarelo',
-    subtitle: 'Noturno violeta profundo com cards roxos vibrantes e destaque amarelo ouro',
+    subtitle: 'Noturno violeta profundo com cartões roxos vibrantes e destaque amarelo ouro',
     category: 'dark',
     section: 'dark',
     soundTheme: 'cyberpunk',
@@ -568,7 +568,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   {
     id: 'deepblue-teal',
     name: 'Azul Profundo + Turquesa',
-    subtitle: 'Azul oceânico profundo com ciano-esmeralda (Teal) luminoso',
+    subtitle: 'Azul oceânico profundo com ciano-esmeralda luminoso',
     category: 'dark',
     section: 'dark',
     soundTheme: 'nordic',
@@ -608,7 +608,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   },
   {
     id: 'darkslate-emerald',
-    name: '12. Slate Escuro + Esmeralda',
+    name: '12. Ardósia Escura + Esmeralda',
     subtitle: 'Ardósia escura equilibrada com acentos em verde esmeralda corporativo',
     category: 'dark',
     section: 'dark',
@@ -649,7 +649,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
   },
   {
     id: 'graphite-softpurple',
-    name: '13. Grafite + Roxo Soft',
+    name: '13. Grafite + Roxo Suave',
     subtitle: 'Grafite neutro sofisticado com destaque em lilás e roxo suave',
     category: 'dark',
     section: 'dark',
