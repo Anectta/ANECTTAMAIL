@@ -13,7 +13,7 @@ export const BrandWordmark: React.FC<{ className?: string; onLight?: boolean }> 
       alt="alloM@il"
       draggable={false}
       className="inline-block align-middle select-none"
-      style={{ height: '1.5em', width: 'auto' }}
+      style={{ height: '1.9em', width: 'auto' }}
     />
   );
   if (onLight) {
