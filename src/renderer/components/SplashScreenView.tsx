@@ -21,7 +21,7 @@ export const SplashScreenView: React.FC = () => {
       />
 
       <div className="w-full flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-slate-400/80 z-10">
-        <span>Corporate Desktop</span>
+        <span>PERSONAL &amp; CORPORATE : DESKTOP | MOBILE</span>
         <span className="flex items-center gap-1.5 text-sky-400">
           <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
           Versão Atual {appVersion ? `v${appVersion}` : ''}
