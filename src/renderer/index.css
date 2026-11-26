@@ -1524,12 +1524,12 @@ html body .accent-solid-btn:hover {
 
 /* ==========================================================================
    Barra de ações do e-mail (.action-tile)
-   - Ícone: cor FIXA da ação (--tile-color), preenchido. Borda neutra (clara no tema escuro,
-     cinza-clara no tema claro); ao passar o mouse, a borda fica na cor da ação.
+   - Ícone: cor FIXA da ação (--tile-color), preenchido. Borda fina (1px) cinza-clara (#d5dae3)
+     nos temas claro e escuro; ao passar o mouse, a borda fica na cor da ação.
    ========================================================================== */
 html body .action-tile {
   color: var(--tile-color) !important;
-  border: 1.5px solid rgba(226, 232, 240, 0.78) !important;
+  border: 1px solid #d5dae3 !important;
   background-color: transparent !important;
   background-image: none !important;
 }
@@ -1768,6 +1768,6 @@ button:hover > span > .shield-tile-danger { filter: brightness(1.08); }
 
 /* Escudo Anectta na barra de ações: mesmo botão das outras ações */
 .shield-toolbar .action-tile img { width: 16px; height: 16px; }
-.shield-pulse-tile { border-radius: 10px; }
+.shield-pulse-tile { border-radius: 8px; }
 .shield-badge-tile { top: -6px; right: -6px; }
 .shield-toolbar-sep { width: 1px; height: 22px; background: rgba(148, 163, 184, 0.35); }

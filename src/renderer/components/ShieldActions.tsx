@@ -75,7 +75,7 @@ export const ShieldActions: React.FC<{
               title={item.title || item.label}
               aria-label={item.label}
               aria-expanded={isOpen}
-              className={`action-tile${isOpen ? ' is-active' : ''} shield-tone-${item.tone} relative w-8 h-8 shrink-0 flex items-center justify-center rounded-[10px] border transition-all duration-150`}
+              className={`action-tile${isOpen ? ' is-active' : ''} shield-tone-${item.tone} relative w-8 h-8 shrink-0 flex items-center justify-center rounded-[8px] border transition-all duration-150`}
               style={{ ['--tile-color' as string]: 'var(--sc)' } as React.CSSProperties}
             >
               {(item.pulse ?? item.kind === 'danger') && pulseOn && (
