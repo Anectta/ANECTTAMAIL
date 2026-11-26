@@ -5230,9 +5230,18 @@ export const App: React.FC = () => {
         {/* Barra superior: cor de destaque do tema ativo (estilos em index.css → .mockup-header) */}
         <header className="mockup-header px-5 pt-2.5 pb-3 shrink-0 app-drag-region shadow-sm">
           <div className="flex items-center justify-between gap-4">
-            <h1 className="text-xl font-bold tracking-tight truncate">
+            <h1 className="text-xl font-bold tracking-tight truncate shrink-0 max-w-[45%]">
               {activeFolderTitle}
             </h1>
+
+            {/* Frase motivacional na linha do título (o espaço vazio continua arrastando a janela) */}
+            {activeModule === 'mail' && (
+              <div className="flex-1 min-w-0 flex">
+                <div className="app-no-drag min-w-0">
+                  <MotivationalBanner />
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center space-x-2 app-no-drag shrink-0">
               {activeModule !== 'mail' && toastMessage && (
@@ -5325,9 +5334,6 @@ export const App: React.FC = () => {
                     </button>
                   );
                 })()}
-
-                {/* Frase motivacional à direita da pesquisa */}
-                <MotivationalBanner />
               </div>
 
               {(toastMessage || isSyncing) && (
