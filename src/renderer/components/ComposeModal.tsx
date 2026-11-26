@@ -1236,9 +1236,6 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 <span className="text-sm font-bold text-white tracking-wide">
                   Dobrando envelope e decolando...
                 </span>
-                <span className="text-xs text-slate-400 font-mono">
-                  Despachando via servidor seguro SMTP
-                </span>
               </div>
             )}
 
@@ -1249,9 +1246,6 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 </div>
                 <span className="text-sm font-bold text-white tracking-wide">
                   Disparo Warp Speed ativado!
-                </span>
-                <span className="text-xs text-slate-400 font-mono">
-                  Prioridade máxima de transmissão
                 </span>
               </div>
             )}
@@ -1299,7 +1293,6 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 <span className="text-sm font-bold text-sky-200 tracking-wide">
                   O Astro está levando sua mensagem...
                 </span>
-                <span className="text-xs text-slate-400 font-mono">Despachando via servidor seguro SMTP</span>
               </div>
             )}
 
