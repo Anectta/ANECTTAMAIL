@@ -1977,7 +1977,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
         {/* Escudo Anectta: "Responder para" suspeito */}
         {replyRisk.level === 'warn' && (
           <div
-            className={`flex items-start gap-2 px-3.5 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs text-amber-100 ${isModalMode ? 'max-w-none' : 'max-w-3xl'}`}
+            className={`flex items-start gap-2 px-3.5 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs text-amber-100 max-w-none`}
           >
             <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <span>
@@ -2066,7 +2066,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
         {phishingReport.level !== 'none' && (
           <div
             role="alert"
-            className={`px-3.5 py-3 rounded-xl border text-xs space-y-2 ${isModalMode ? 'max-w-none' : 'max-w-3xl'} ${
+            className={`px-3.5 py-3 rounded-xl border text-xs space-y-2 max-w-none ${
               phishingReport.level === 'danger'
                 ? 'border-rose-500/50 bg-rose-500/15 text-rose-100'
                 : 'border-amber-500/40 bg-amber-500/10 text-amber-100'
@@ -2117,7 +2117,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
         {showAssistant && !['drafts', 'sent', 'outbox'].includes(String(email.folder)) && (
           <AssistantCard
             email={email}
-            wide={isModalMode}
+            wide
             onQuickReply={onAssistantQuickReply}
             onCreateEvent={onAssistantCreateEvent}
             onCreateReminder={onAssistantCreateReminder}
@@ -2127,7 +2127,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
 
         {/* Cartão Interativo de Convite de Reunião (.ics / RSVP) */}
         {email.calendarInvite && (
-          <div className={`p-4 rounded-xl border border-indigo-500/35 bg-indigo-500/10 space-y-3 ${isModalMode ? 'max-w-none' : 'max-w-3xl'}`}>
+          <div className={`p-4 rounded-xl border border-indigo-500/35 bg-indigo-500/10 space-y-3 max-w-none`}>
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div className="flex items-start space-x-3 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center shrink-0">
@@ -2277,7 +2277,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
           if (previousMessages.length === 0) return null;
 
           return (
-            <div className={`space-y-2 ${isModalMode ? 'max-w-none' : 'max-w-3xl'}`}>
+            <div className={`space-y-2 max-w-none`}>
               {previousMessages.map((msg) => {
                 const isExpanded = Boolean(expandedThreadIds[msg.id]);
                 const allowMsgImages = Boolean(revealedImagesEmailIds[msg.id]);
@@ -2442,7 +2442,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
           if (realAttachments.length === 0) return null;
 
           return (
-            <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/60 max-w-3xl space-y-2.5">
+            <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/60 max-w-none space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-1.5 font-semibold text-slate-300">
                   <Paperclip className="w-3.5 h-3.5 text-brand-400" />
@@ -2544,7 +2544,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
 
         {/* EML Toast Notification */}
         {emlToast && (
-          <div className="p-3 bg-brand-500/10 border border-brand-500/30 text-brand-300 rounded-xl text-xs flex items-center space-x-2 animate-in fade-in max-w-3xl">
+          <div className="p-3 bg-brand-500/10 border border-brand-500/30 text-brand-300 rounded-xl text-xs flex items-center space-x-2 animate-in fade-in max-w-none">
             <CheckCircle className="w-4 h-4 text-brand-400 shrink-0" />
             <span>{emlToast}</span>
           </div>
@@ -2654,7 +2654,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             : `Remetente ${rule} bloqueado`;
           return (
             <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-200 ${isModalMode ? 'max-w-none' : 'max-w-3xl'}`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-200 max-w-none`}
               title={`${how}. ${email.folder === 'junk' ? 'Para desbloquear, use o botão "Não é Spam" na barra acima.' : ''}`}
             >
               <UserX className="w-4 h-4 text-rose-400 shrink-0" />
@@ -2678,7 +2678,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
           return (
             <div className="space-y-2">
               {blockedPixelsCount > 0 && (
-                <div className={`flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-200 ${isModalMode ? 'max-w-none' : 'max-w-3xl'}`}>
+                <div className={`flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-200 max-w-none`}>
                   <div className="flex items-center space-x-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span
@@ -2690,7 +2690,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                 </div>
               )}
               {blockedImagesCount > 0 && (
-                <div className={`flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200 ${isModalMode ? 'max-w-none' : 'max-w-3xl'}`}>
+                <div className={`flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200 max-w-none`}>
                   <div className="flex items-center space-x-2">
                     <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
                     <span
@@ -2740,7 +2740,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                   color: '#111827',
                   borderColor: 'var(--border-subtle)',
                 }}
-                className={`email-body-sanitized text-sm leading-relaxed font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'} rounded-xl overflow-x-auto border shadow-md p-4`}
+                className={`email-body-sanitized text-sm leading-relaxed font-sans max-w-none rounded-xl overflow-x-auto border shadow-md p-4`}
                 dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
               />
             </div>
@@ -2761,7 +2761,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
               color: '#111827',
               borderColor: 'var(--border-subtle)',
             }}
-            className={`email-body-sanitized text-sm leading-relaxed whitespace-pre-wrap font-sans ${isModalMode ? 'max-w-none' : 'max-w-3xl'} rounded-xl border p-4`}
+            className={`email-body-sanitized text-sm leading-relaxed whitespace-pre-wrap font-sans max-w-none rounded-xl border p-4`}
           >
             {splitLinks(email.body || '').map((part, i) =>
               part.type === 'link' ? (
