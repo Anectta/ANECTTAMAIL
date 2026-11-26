@@ -2098,7 +2098,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     Aparência, Sons & Assistente Virtual
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Escolha um tema para aplicar instantaneamente em toda a interface do Anectta MAIL.
+                    Faça ajuste ou escolha um tema para aplicar instantaneamente em toda a interface do gerenciador.
                   </p>
                 </div>
 
