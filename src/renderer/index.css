@@ -1524,26 +1524,41 @@ html body .accent-solid-btn:hover {
 
 /* ==========================================================================
    Barra de ações do e-mail (.action-tile)
-   - Ícone e borda: cor FIXA da ação (--tile-color), igual em todos os temas.
-   - Fundo: acompanha o tema (mistura da cor da ação com --bg-surface).
+   - Ícone: cor FIXA da ação (--tile-color), preenchido. Borda neutra (clara no tema escuro,
+     cinza-clara no tema claro); ao passar o mouse, a borda fica na cor da ação.
    ========================================================================== */
 html body .action-tile {
   color: var(--tile-color) !important;
-  border-color: color-mix(in srgb, var(--tile-color) 45%, transparent) !important;
-  background-color: color-mix(in srgb, var(--tile-color) 10%, var(--bg-surface, #0f172a)) !important;
+  border: 1.5px solid rgba(226, 232, 240, 0.78) !important;
+  background-color: transparent !important;
   background-image: none !important;
 }
 html body .action-tile svg {
   color: var(--tile-color) !important;
 }
 html body .action-tile:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--tile-color) 75%, transparent) !important;
-  background-color: color-mix(in srgb, var(--tile-color) 20%, var(--bg-surface, #0f172a)) !important;
+  border-color: var(--tile-color) !important;
+  background-color: color-mix(in srgb, var(--tile-color) 12%, transparent) !important;
 }
 html body .action-tile.is-active {
   border-color: var(--tile-color) !important;
-  background-color: color-mix(in srgb, var(--tile-color) 26%, var(--bg-surface, #0f172a)) !important;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tile-color) 40%, transparent) !important;
+  background-color: color-mix(in srgb, var(--tile-color) 16%, transparent) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tile-color) 45%, transparent) !important;
+}
+/* Temas claros: botão branco com borda cinza-clara (:is com id inexistente só aumenta a prioridade) */
+.clean-white :is(.action-tile, #action-tile-prioridade) {
+  background-color: #ffffff !important;
+  border-color: #d5dae3 !important;
+  color: var(--tile-color) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+}
+.clean-white :is(.action-tile, #action-tile-prioridade):hover:not(:disabled) {
+  border-color: var(--tile-color) !important;
+  background-color: color-mix(in srgb, var(--tile-color) 8%, #ffffff) !important;
+}
+.clean-white :is(.action-tile, #action-tile-prioridade).is-active {
+  border-color: var(--tile-color) !important;
+  background-color: color-mix(in srgb, var(--tile-color) 12%, #ffffff) !important;
 }
 
 /* Temas claros: no item de pasta SELECIONADO, o número de não lidos (bolinha
@@ -1750,3 +1765,9 @@ button:hover > span > .shield-tile-danger { filter: brightness(1.08); }
 .brand-wm-dark { display: none; }
 .clean-white .brand-wm-white { display: none; }
 .clean-white .brand-wm-dark { display: inline-block; }
+
+/* Escudo Anectta na barra de ações: mesmo botão das outras ações */
+.shield-toolbar .action-tile img { width: 16px; height: 16px; }
+.shield-pulse-tile { border-radius: 10px; }
+.shield-badge-tile { top: -6px; right: -6px; }
+.shield-toolbar-sep { width: 1px; height: 22px; background: rgba(148, 163, 184, 0.35); }

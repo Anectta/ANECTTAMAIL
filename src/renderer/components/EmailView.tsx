@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Archive,
-  Trash2,
   Reply,
   ReplyAll,
   Forward,
@@ -18,7 +17,6 @@ import {
   FileText,
   File,
   AlertCircle,
-  AlertOctagon,
   UserPlus,
   UserCheck,
   ArrowLeft,
@@ -32,7 +30,6 @@ import {
   EyeOff,
   UserX,
   ImageOff,
-  Printer,
   Plus,
   MessagesSquare,
   ChevronDown,
@@ -43,8 +40,6 @@ import {
   Check,
   HelpCircle,
   X,
-  BellRing,
-  PanelRight,
   StickyNote,
   Lock,
   Unlock,
@@ -55,6 +50,17 @@ import {
 import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
 import { AssistantCard } from './AssistantCard';
+import {
+  FilledArchive,
+  FilledBellRing,
+  FilledCheckCircle,
+  FilledCheckSquare,
+  FilledClock,
+  FilledOctagonAlert,
+  FilledPanelRight,
+  FilledPrinter,
+  FilledTrash,
+} from './ActionIcons';
 import { ShieldActions, type ShieldActionItem } from './ShieldActions';
 import iconGolpe from '../assets/escudo/escudo-golpe.png';
 import iconSuspeito from '../assets/escudo/escudo-suspeito.png';
@@ -97,15 +103,15 @@ import { detectSmimeBlock, findOwnSmimeCertByEmail } from '../utils/smimeStore';
  */
 const ACTION_TONES = {
   slate: '#94a3b8',
-  blue: '#60a5fa',
+  blue: '#5b9cf6',
   sky: '#38bdf8',
   indigo: '#818cf8',
-  teal: '#2dd4bf',
-  rose: '#fb7185',
+  teal: '#2ec4b6',
+  rose: '#f05a8d',
   cyan: '#22d3ee',
-  amber: '#fbbf24',
-  orange: '#fb923c',
-  emerald: '#34d399',
+  amber: '#facc15',
+  orange: '#f97316',
+  emerald: '#22c55e',
   violet: '#a78bfa',
   yellow: '#facc15',
 } as const;
@@ -113,11 +119,11 @@ const ACTION_TONES = {
 type ActionTone = keyof typeof ACTION_TONES;
 
 const actionTile = (tone: ActionTone, active = false) => ({
-  className: `action-tile${active ? ' is-active' : ''} w-10 h-10 shrink-0 flex items-center justify-center rounded-xl border transition-all duration-150 disabled:opacity-60 disabled:cursor-wait`,
+  className: `action-tile${active ? ' is-active' : ''} w-8 h-8 shrink-0 flex items-center justify-center rounded-[10px] border transition-all duration-150 disabled:opacity-60 disabled:cursor-wait`,
   style: { ['--tile-color' as string]: ACTION_TONES[tone] } as React.CSSProperties,
 });
 
-const ACTION_ICON = 'w-[18px] h-[18px] shrink-0';
+const ACTION_ICON = 'w-[14px] h-[14px] shrink-0';
 
 /** Ícone do botão "Mais ações": grade 3x3 de pontos coloridos. */
 const MoreActionsDotsIcon: React.FC = () => {
@@ -937,7 +943,8 @@ export const EmailView: React.FC<EmailViewProps> = ({
     });
   }
 
-  const shieldIcons = shieldItems.length > 0 ? <ShieldActions items={shieldItems} resetKey={email.id} /> : null;
+  const shieldIcons =
+    shieldItems.length > 0 ? <ShieldActions items={shieldItems} resetKey={email.id} variant="toolbar" /> : null;
 
   return (
     <main className="flex-1 bg-slate-950 flex flex-col h-full overflow-hidden select-text">
@@ -994,6 +1001,13 @@ export const EmailView: React.FC<EmailViewProps> = ({
 
         {/* Grupo Direito: Arquivar, Excluir, Imprimir, Spam, Adiar, Follow-up, Tarefa, Traduzir, CRM e Mais */}
         <div className="ml-auto flex items-center flex-wrap gap-2">
+          {/* Escudo Anectta: só aparecem quando a situação existe */}
+          {shieldIcons && (
+            <>
+              {shieldIcons}
+              <span className="shield-toolbar-sep mx-0.5" aria-hidden="true" />
+            </>
+          )}
           <button
             type="button"
             onClick={() => onArchive(email.id)}
@@ -1001,7 +1015,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             title="Arquivar"
             aria-label="Arquivar"
           >
-            <Archive className={ACTION_ICON} />
+            <FilledArchive className={ACTION_ICON} />
           </button>
 
           <button
@@ -1017,7 +1031,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             }
             aria-label="Excluir"
           >
-            <Trash2 className={ACTION_ICON} />
+            <FilledTrash className={ACTION_ICON} />
           </button>
 
           <button
@@ -1028,7 +1042,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             title="Imprimir e-mail ou salvar em PDF"
             aria-label="Imprimir"
           >
-            {isPrinting ? <Loader2 className={`${ACTION_ICON} animate-spin`} /> : <Printer className={ACTION_ICON} />}
+            {isPrinting ? <Loader2 className={`${ACTION_ICON} animate-spin`} /> : <FilledPrinter className={ACTION_ICON} />}
           </button>
 
           {email.folder !== 'junk' && onMarkSpam && (
@@ -1039,7 +1053,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
               title="Marcar como Spam e mover futuros e-mails deste remetente para o Lixo Eletrônico"
               aria-label="Marcar como Spam"
             >
-              <AlertOctagon className={ACTION_ICON} />
+              <FilledOctagonAlert className={ACTION_ICON} />
             </button>
           )}
 
@@ -1051,7 +1065,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
               title="Desmarcar como Spam e retornar para Caixa de Entrada"
               aria-label="Não é Spam"
             >
-              <CheckCircle className={ACTION_ICON} />
+              <FilledCheckCircle className={ACTION_ICON} />
             </button>
           )}
 
@@ -1070,7 +1084,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
               title="Adiar e-mail para voltar à Caixa de Entrada depois"
               aria-label="Adiar"
             >
-              <Clock className={ACTION_ICON} />
+              <FilledClock className={ACTION_ICON} />
             </button>
             {isSnoozeMenuOpen && onSnoozeWithTime && (
               <>
@@ -1166,7 +1180,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
                 title={email.followUpAt ? 'Follow-up definido — alterar lembrete' : 'Definir lembrete se não houver resposta (Follow-up)'}
                 aria-label="Follow-up"
               >
-                <BellRing className={ACTION_ICON} />
+                <FilledBellRing className={ACTION_ICON} />
               </button>
               {isFollowUpMenuOpen && (
                 <>
@@ -1207,7 +1221,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
               title="Transformar este e-mail em tarefa no módulo Tarefas"
               aria-label="Criar tarefa"
             >
-              <CheckSquare className={ACTION_ICON} />
+              <FilledCheckSquare className={ACTION_ICON} />
             </button>
           )}
 
@@ -1234,7 +1248,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
               title="Abrir/Fechar Painel Lateral Mini-CRM, Histórico, Anexos e Notas Privadas"
               aria-label="CRM e Notas"
             >
-              <PanelRight className={ACTION_ICON} />
+              <FilledPanelRight className={ACTION_ICON} />
             </button>
           )}
         </div>
@@ -2254,9 +2268,8 @@ export const EmailView: React.FC<EmailViewProps> = ({
           </div>
         )}
 
-        {/* Astro (resumo rápido local + ações) com os ícones do Escudo Anectta à direita.
-            Sem o Astro, os ícones aparecem sozinhos no mesmo lugar. */}
-        {showAssistant && !['drafts', 'sent', 'outbox'].includes(String(email.folder)) ? (
+        {/* Astro (resumo rápido local + ações) */}
+        {showAssistant && !['drafts', 'sent', 'outbox'].includes(String(email.folder)) && (
           <AssistantCard
             email={email}
             wide
@@ -2264,10 +2277,7 @@ export const EmailView: React.FC<EmailViewProps> = ({
             onCreateEvent={onAssistantCreateEvent}
             onCreateReminder={onAssistantCreateReminder}
             onHide={onHideAssistant}
-            sideActions={shieldIcons}
           />
-        ) : (
-          shieldIcons && <div className="flex justify-end">{shieldIcons}</div>
         )}
 
         {/* Cartão Interativo de Convite de Reunião (.ics / RSVP) */}

@@ -27,7 +27,12 @@ export interface ShieldActionItem {
  * Escudo Anectta em ícones: cada aviso vira um ícone com nome curto embaixo,
  * que só aparece quando a situação existe. Ao clicar, abre um painel com detalhes e ações.
  */
-export const ShieldActions: React.FC<{ items: ShieldActionItem[]; resetKey?: string }> = ({ items, resetKey }) => {
+export const ShieldActions: React.FC<{
+  items: ShieldActionItem[];
+  resetKey?: string;
+  /** 'toolbar' = botões iguais aos da barra de ações (só o ícone; o nome aparece ao passar o mouse). */
+  variant?: 'card' | 'toolbar';
+}> = ({ items, resetKey, variant = 'card' }) => {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [pulseOn, setPulseOn] = useState(true);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -56,6 +61,46 @@ export const ShieldActions: React.FC<{ items: ShieldActionItem[]; resetKey?: str
 
   if (items.length === 0) return null;
   const open = items.find((i) => i.key === openKey) || null;
+
+  if (variant === 'toolbar') {
+    return (
+      <div ref={rootRef} className="shield-toolbar relative flex items-center gap-2" aria-label="Escudo Anectta">
+        {items.map((item) => {
+          const isOpen = openKey === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setOpenKey(isOpen ? null : item.key)}
+              title={item.title || item.label}
+              aria-label={item.label}
+              aria-expanded={isOpen}
+              className={`action-tile${isOpen ? ' is-active' : ''} shield-tone-${item.tone} relative w-8 h-8 shrink-0 flex items-center justify-center rounded-[10px] border transition-all duration-150`}
+              style={{ ['--tile-color' as string]: 'var(--sc)' } as React.CSSProperties}
+            >
+              {(item.pulse ?? item.kind === 'danger') && pulseOn && (
+                <span className="shield-pulse shield-pulse-tile animate-ping" aria-hidden="true" />
+              )}
+              {item.icon}
+              {typeof item.count === 'number' && item.count > 0 && (
+                <span className="shield-badge shield-badge-tile">{item.count > 99 ? '99+' : item.count}</span>
+              )}
+            </button>
+          );
+        })}
+
+        {open && (
+          <div
+            role="dialog"
+            aria-label={open.label}
+            className={`shield-tone-${open.tone} shield-panel absolute right-0 top-full mt-2 z-40 w-[340px] max-w-[80vw] rounded-xl border bg-slate-950 shadow-2xl p-3.5 text-xs text-slate-200 space-y-2.5`}
+          >
+            {open.render(() => setOpenKey(null))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div ref={rootRef} className="relative flex items-start gap-1" aria-label="Escudo Anectta">
