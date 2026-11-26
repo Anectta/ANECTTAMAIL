@@ -1618,7 +1618,7 @@ html.clean-white .filter-chip.is-on:hover {
 }
 
 /* ==========================================================================
-   Tema "Anectta Vidro" — painéis de vidro translúcidos sobre fundo azul luminoso.
+   Tema "Cinza Claro - Vítreo" — painéis de vidro translúcidos sobre fundo azul luminoso.
    Só os painéis grandes (pastas, lista, leitura, barra lateral de apps) ficam
    translúcidos; menus, janelas e campos continuam opacos (variáveis do tema)
    para não perder a leitura. Sem backdrop-filter nos painéis grandes: o fundo é

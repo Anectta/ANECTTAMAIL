@@ -67,7 +67,7 @@ export const AVAILABLE_SKINS: SkinDefinition[] = [
 
   {
     id: 'anectta-glass',
-    name: 'Anectta Vidro',
+    name: 'Cinza Claro - Vítreo',
     subtitle: 'Vidro azul-marinho translúcido com brilho ciano (painéis de vidro sobre fundo luminoso)',
     category: 'dark',
     section: 'default',
