@@ -56,6 +56,7 @@ import {
 import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
 import { AssistantCard } from './AssistantCard';
+import { ShieldActions, type ShieldActionItem } from './ShieldActions';
 import type { DateMention } from '../utils/assistantInsights';
 import { soundService } from '../services/soundService';
 import { filterRealAttachments } from '../utils/attachmentUtils';
@@ -326,6 +327,17 @@ export const EmailView: React.FC<EmailViewProps> = ({
       phishingTrusted
     );
   }, [email, phishingProtection, phishingTrusted, trustedSenders]);
+
+  // Corpo HTML já filtrado (rastreadores e imagens externas): usado no corpo e nos ícones do Escudo
+  const bodyScan = useMemo(() => {
+    if (!email?.bodyHtml) return { html: '', blockedImagesCount: 0, blockedPixelsCount: 0 };
+    const allowImages =
+      Boolean(revealedImagesEmailIds[email.id]) || senderInList(email.senderEmail, trustedSenders);
+    return sanitizeEmailHtml(email.bodyHtml, {
+      blockTrackingPixels,
+      blockExternalImages: blockExternalImages && !allowImages,
+    });
+  }, [email, revealedImagesEmailIds, trustedSenders, blockTrackingPixels, blockExternalImages]);
 
   const openUrlNow = (href: string) => {
     if (window.electronAPI?.openExternal) {
@@ -696,6 +708,221 @@ export const EmailView: React.FC<EmailViewProps> = ({
       </main>
     );
   }
+
+  // ===== Escudo Anectta em ícones (só aparecem quando a situação existe; perigos primeiro) =====
+  const shieldItems: ShieldActionItem[] = [];
+  const panelTitle = (text: string, cls: string) => <div className={`text-sm font-bold ${cls}`}>{text}</div>;
+  const panelBtn = 'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors';
+
+  if (phishingReport.level !== 'none') {
+    const danger = phishingReport.level === 'danger';
+    shieldItems.push({
+      key: 'golpe',
+      icon: <ShieldAlert className="w-5 h-5" />,
+      label: danger ? 'Possível golpe' : 'E-mail suspeito',
+      tone: danger ? 'red' : 'amber',
+      pulse: danger,
+      title: danger ? 'Escudo Anectta: possível golpe — clique para ver os motivos' : 'Escudo Anectta: e-mail suspeito',
+      render: (close) => (
+        <>
+          {panelTitle(danger ? 'Possível golpe' : 'E-mail suspeito', danger ? 'text-rose-300' : 'text-amber-300')}
+          <p>
+            {danger
+              ? 'Não clique em links, não abra anexos e não informe senhas ou dados.'
+              : 'Tenha cuidado com links e pedidos de dados.'}
+          </p>
+          <ul className="list-disc pl-5 space-y-0.5 text-slate-300">
+            {phishingReport.reasons.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {onMarkSpam && email.folder !== 'junk' && (
+              <button
+                type="button"
+                onClick={() => {
+                  close();
+                  onMarkSpam(email.id);
+                }}
+                className={`${panelBtn} bg-rose-600 hover:bg-rose-500 text-white`}
+              >
+                Mover para o Lixo eletrônico
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                const next = new Set(phishingTrusted);
+                next.add((email.senderEmail || '').toLowerCase());
+                savePhishingTrusted(next);
+                setPhishingTrusted(next);
+                close();
+              }}
+              className={`${panelBtn} border border-white/20 hover:bg-white/10`}
+              title="Não mostrar este aviso para mensagens deste remetente"
+            >
+              Não é golpe
+            </button>
+          </div>
+        </>
+      ),
+    });
+  }
+
+  if (replyRisk.level === 'warn') {
+    shieldItems.push({
+      key: 'resposta',
+      icon: <Reply className="w-5 h-5" />,
+      label: 'Resposta desviada',
+      tone: 'red',
+      pulse: true,
+      title: `Se você responder, a mensagem vai para ${replyRisk.replyTo}`,
+      render: () => (
+        <>
+          {panelTitle('Resposta desviada', 'text-rose-300')}
+          <p>
+            Se você responder, a mensagem vai para <strong className="text-rose-200 break-all">{replyRisk.replyTo}</strong>, e não
+            para <span className="break-all">{email.senderEmail}</span>.
+          </p>
+          {replyRisk.reason && <p className="text-slate-300">{replyRisk.reason}</p>}
+          <p className="text-slate-400">Ao clicar em Responder, o app ainda vai pedir sua confirmação.</p>
+        </>
+      ),
+    });
+  }
+
+  const senderBlockRule = blockBlockedSenders ? getSenderBlockRule?.(email.senderEmail) : null;
+  if (senderBlockRule) {
+    const how = senderBlockRule.startsWith('@') ? `Domínio ${senderBlockRule} bloqueado` : `Remetente ${senderBlockRule} bloqueado`;
+    shieldItems.push({
+      key: 'bloqueado',
+      icon: <UserX className="w-5 h-5" />,
+      label: 'Remetente bloqueado',
+      tone: 'red',
+      title: how,
+      render: () => (
+        <>
+          {panelTitle('Remetente bloqueado', 'text-rose-300')}
+          <p className="break-all">{how}.</p>
+          <p className="text-slate-400">
+            {email.folder === 'junk'
+              ? 'Para desbloquear, use o botão "Não é Spam" na barra acima.'
+              : 'Os próximos e-mails deste remetente vão para o Lixo eletrônico.'}
+          </p>
+        </>
+      ),
+    });
+  }
+
+  if (bodyScan.blockedPixelsCount > 0) {
+    const n = bodyScan.blockedPixelsCount;
+    shieldItems.push({
+      key: 'protecao',
+      icon: <ShieldCheck className="w-5 h-5" />,
+      label: 'Proteção ativa',
+      tone: 'green',
+      title: `${n} ${n === 1 ? 'rastreador de leitura bloqueado' : 'rastreadores de leitura bloqueados'}`,
+      render: () => (
+        <>
+          {panelTitle('Proteção ativa', 'text-emerald-300')}
+          <p>
+            {n} {n === 1 ? 'rastreador de leitura foi bloqueado' : 'rastreadores de leitura foram bloqueados'} nesta mensagem. O
+            remetente não fica sabendo que você abriu o e-mail.
+          </p>
+        </>
+      ),
+    });
+  }
+
+  if (bodyScan.blockedImagesCount > 0) {
+    const n = bodyScan.blockedImagesCount;
+    shieldItems.push({
+      key: 'imagens',
+      icon: <ImageIcon className="w-5 h-5" />,
+      label: 'Exibir imagem',
+      tone: 'amber',
+      title: `${n} ${n === 1 ? 'imagem externa bloqueada' : 'imagens externas bloqueadas'} para sua privacidade`,
+      render: (close) => (
+        <>
+          {panelTitle('Imagens bloqueadas', 'text-amber-300')}
+          <p>
+            {n} {n === 1 ? 'imagem externa foi bloqueada' : 'imagens externas foram bloqueadas'} para sua privacidade.
+          </p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setRevealedImagesEmailIds((prev) => ({ ...prev, [email.id]: true }));
+                close();
+              }}
+              className={`${panelBtn} bg-amber-600 hover:bg-amber-500 text-white`}
+            >
+              Exibir agora
+            </button>
+            {onTrustSender && email.senderEmail && phishingReport.level === 'none' && (
+              <button
+                type="button"
+                onClick={() => {
+                  onTrustSender(email.senderEmail);
+                  close();
+                }}
+                className={`${panelBtn} border border-amber-500/40 text-amber-100 hover:bg-amber-500/15`}
+                title="Adicionar aos remetentes confiáveis: imagens sempre visíveis e nunca vai para o Lixo eletrônico"
+              >
+                Sempre deste remetente
+              </button>
+            )}
+          </div>
+        </>
+      ),
+    });
+  }
+
+  const unsubInfo =
+    email.folder !== 'sent' && onUnsubscribe && !unsubscribedIds[email.id] ? parseUnsubscribeInfo(email) : null;
+  if (unsubInfo && onUnsubscribe) {
+    shieldItems.push({
+      key: 'inscricao',
+      icon: <MailX className="w-5 h-5" />,
+      label: 'Cancelar inscrição',
+      tone: 'amber',
+      title: 'Mensagem de lista ou newsletter',
+      render: (close) => (
+        <>
+          {panelTitle('Cancelar inscrição', 'text-amber-300')}
+          <p>
+            Deixar de receber os e-mails desta lista de{' '}
+            <strong className="break-all">{email.senderEmail || email.sender}</strong>?
+          </p>
+          {unsubInfo.supportsOneClickPost && <p className="text-slate-400">Esta lista aceita o cancelamento automático.</p>}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              type="button"
+              disabled={isUnsubscribing}
+              onClick={async () => {
+                setIsUnsubscribing(true);
+                try {
+                  await onUnsubscribe(email);
+                  setUnsubscribedIds((prev) => ({ ...prev, [email.id]: true }));
+                  close();
+                } finally {
+                  setIsUnsubscribing(false);
+                }
+              }}
+              className={`${panelBtn} bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white`}
+            >
+              {isUnsubscribing ? 'Cancelando...' : 'Sim, cancelar inscrição'}
+            </button>
+            <button type="button" onClick={close} className={`${panelBtn} border border-white/20 hover:bg-white/10`}>
+              Agora não
+            </button>
+          </div>
+        </>
+      ),
+    });
+  }
+
+  const shieldIcons = shieldItems.length > 0 ? <ShieldActions items={shieldItems} resetKey={email.id} /> : null;
 
   return (
     <main className="flex-1 bg-slate-950 flex flex-col h-full overflow-hidden select-text">
@@ -1513,42 +1740,6 @@ export const EmailView: React.FC<EmailViewProps> = ({
               </div>
             )}
 
-          {/* Banner de Cancelar Inscrição 1-Clique (List-Unsubscribe / Newsletters) */}
-          {email.folder !== 'sent' &&
-            onUnsubscribe &&
-            !unsubscribedIds[email.id] &&
-            (() => {
-              const unsub = parseUnsubscribeInfo(email);
-              if (!unsub) return null;
-              return (
-                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center space-x-2 text-xs text-amber-200">
-                    <MailX className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>
-                      Mensagem de lista ou newsletter detectada.
-                      {unsub.supportsOneClickPost ? ' Suporta descadastro automático em 1 clique.' : ''}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={isUnsubscribing}
-                    onClick={async () => {
-                      setIsUnsubscribing(true);
-                      try {
-                        await onUnsubscribe(email);
-                        setUnsubscribedIds((prev) => ({ ...prev, [email.id]: true }));
-                      } finally {
-                        setIsUnsubscribing(false);
-                      }
-                    }}
-                    className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors shrink-0"
-                  >
-                    {isUnsubscribing ? 'Cancelando...' : 'Cancelar inscrição'}
-                  </button>
-                </div>
-              );
-            })()}
-
           {/* Banner de Nota Privada (quando o usuário salvou nota para este e-mail) */}
           {privateNotePreview.trim() && (
             <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start justify-between gap-3">
@@ -1974,20 +2165,6 @@ export const EmailView: React.FC<EmailViewProps> = ({
           </div>
         </div>
 
-        {/* Escudo Anectta: "Responder para" suspeito */}
-        {replyRisk.level === 'warn' && (
-          <div
-            className={`flex items-start gap-2 px-3.5 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs text-amber-100 max-w-none`}
-          >
-            <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-            <span>
-              <strong>Escudo Anectta:</strong> se você responder, a mensagem vai para{' '}
-              <strong className="text-amber-200">{replyRisk.replyTo}</strong>, e não para {email.senderEmail}.{' '}
-              {replyRisk.reason}
-            </span>
-          </div>
-        )}
-
         {/* Janela: anexo que não abre direto (tipo perigoso ou programa disfarçado) */}
         {blockedAttachment && (
           <div
@@ -2062,59 +2239,9 @@ export const EmailView: React.FC<EmailViewProps> = ({
           </div>
         )}
 
-        {/* Escudo Anectta: possível golpe (phishing) */}
-        {phishingReport.level !== 'none' && (
-          <div
-            role="alert"
-            className={`px-3.5 py-3 rounded-xl border text-xs space-y-2 max-w-none ${
-              phishingReport.level === 'danger'
-                ? 'border-rose-500/50 bg-rose-500/15 text-rose-100'
-                : 'border-amber-500/40 bg-amber-500/10 text-amber-100'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <ShieldAlert className={`w-4 h-4 shrink-0 ${phishingReport.level === 'danger' ? 'text-rose-400' : 'text-amber-400'}`} />
-              <span className="flex-1">
-                <strong>Escudo Anectta:</strong>{' '}
-                {phishingReport.level === 'danger'
-                  ? 'Possível golpe. Não clique em links, não abra anexos e não informe senhas ou dados.'
-                  : 'E-mail suspeito. Tenha cuidado com links e pedidos de dados.'}
-              </span>
-            </div>
-            <ul className="list-disc pl-8 space-y-0.5 opacity-90">
-              {phishingReport.reasons.map((r) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
-            <div className="flex items-center gap-2 pl-6">
-              {onMarkSpam && email.folder !== 'junk' && (
-                <button
-                  type="button"
-                  onClick={() => onMarkSpam(email.id)}
-                  className="px-2.5 py-1 rounded-lg bg-rose-600/90 hover:bg-rose-500 text-white font-semibold"
-                >
-                  Mover para o Lixo eletrônico
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  const next = new Set(phishingTrusted);
-                  next.add((email.senderEmail || '').toLowerCase());
-                  savePhishingTrusted(next);
-                  setPhishingTrusted(next);
-                }}
-                className="px-2.5 py-1 rounded-lg border border-white/20 hover:bg-white/10 font-semibold"
-                title="Não mostrar este aviso para mensagens deste remetente"
-              >
-                Não é golpe
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Amoroso — Assistente Anectta (resumo rápido local + ações) */}
-        {showAssistant && !['drafts', 'sent', 'outbox'].includes(String(email.folder)) && (
+        {/* Astro (resumo rápido local + ações) com os ícones do Escudo Anectta à direita.
+            Sem o Astro, os ícones aparecem sozinhos no mesmo lugar. */}
+        {showAssistant && !['drafts', 'sent', 'outbox'].includes(String(email.folder)) ? (
           <AssistantCard
             email={email}
             wide
@@ -2122,7 +2249,10 @@ export const EmailView: React.FC<EmailViewProps> = ({
             onCreateEvent={onAssistantCreateEvent}
             onCreateReminder={onAssistantCreateReminder}
             onHide={onHideAssistant}
+            sideActions={shieldIcons}
           />
+        ) : (
+          shieldIcons && <div className="flex justify-end">{shieldIcons}</div>
         )}
 
         {/* Cartão Interativo de Convite de Reunião (.ics / RSVP) */}
@@ -2645,81 +2775,12 @@ export const EmailView: React.FC<EmailViewProps> = ({
           </div>
         )}
 
-        {/* Escudo Anectta: remetente bloqueado (segue o interruptor "Bloquear remetentes" do Escudo) */}
-        {(() => {
-          const rule = blockBlockedSenders ? getSenderBlockRule?.(email.senderEmail) : null;
-          if (!rule) return null;
-          const how = rule.startsWith('@')
-            ? `Domínio ${rule} bloqueado`
-            : `Remetente ${rule} bloqueado`;
-          return (
-            <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-200 max-w-none`}
-              title={`${how}. ${email.folder === 'junk' ? 'Para desbloquear, use o botão "Não é Spam" na barra acima.' : ''}`}
-            >
-              <UserX className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>
-                <strong>Escudo Anectta:</strong> Proteção Ativa (Remetente bloqueado)
-              </span>
-            </div>
-          );
-        })()}
-
         {/* Email Body (Renderiza HTML sanitizado com CSS inline ou texto plano) */}
         {email.bodyHtml ? (() => {
-          const allowImages =
-            Boolean(revealedImagesEmailIds[email.id]) || senderInList(email.senderEmail, trustedSenders);
-          const { html: rawSanitizedHtml, blockedImagesCount, blockedPixelsCount } = sanitizeEmailHtml(email.bodyHtml, {
-            blockTrackingPixels,
-            blockExternalImages: blockExternalImages && !allowImages,
-          });
           // Endereços escritos como texto (sem link) também ficam clicáveis
-          const sanitizedHtml = linkifyHtml(rawSanitizedHtml);
+          const sanitizedHtml = linkifyHtml(bodyScan.html);
           return (
             <div className="space-y-2">
-              {blockedPixelsCount > 0 && (
-                <div className={`flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-200 max-w-none`}>
-                  <div className="flex items-center space-x-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span
-                      title={`${blockedPixelsCount} ${blockedPixelsCount === 1 ? 'rastreador de leitura bloqueado' : 'rastreadores de leitura bloqueados'} nesta mensagem`}
-                    >
-                      <strong>Escudo Anectta:</strong> Proteção Ativa (Rastreamento de leitura bloqueado)
-                    </span>
-                  </div>
-                </div>
-              )}
-              {blockedImagesCount > 0 && (
-                <div className={`flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200 max-w-none`}>
-                  <div className="flex items-center space-x-2">
-                    <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span
-                      title={`${blockedImagesCount} ${blockedImagesCount === 1 ? 'imagem externa bloqueada' : 'imagens externas bloqueadas'} para sua privacidade`}
-                    >
-                      <strong>Escudo Anectta:</strong> Proteção Ativa (Exibição de imagens bloqueada)
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setRevealedImagesEmailIds((prev) => ({ ...prev, [email.id]: true }))
-                    }
-                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-100 font-medium shrink-0 transition-colors"
-                  >
-                    Exibir imagens
-                  </button>
-                  {onTrustSender && email.senderEmail && phishingReport.level === 'none' && (
-                    <button
-                      type="button"
-                      onClick={() => onTrustSender(email.senderEmail)}
-                      className="px-2.5 py-1 rounded-lg border border-amber-500/30 hover:bg-amber-500/15 text-amber-100/90 font-medium shrink-0 transition-colors"
-                      title="Adicionar aos remetentes confiáveis: imagens sempre visíveis e nunca vai para o Lixo eletrônico"
-                    >
-                      Sempre exibir deste remetente
-                    </button>
-                  )}
-                </div>
-              )}
               <div
                 onClick={(e) => {
                   const target = e.target as HTMLElement | null;

@@ -37,6 +37,8 @@ interface AssistantCardProps {
   /** Desliga o assistente (pode ser religado em Configurações → Aparência). */
   onHide?: () => void;
   wide?: boolean;
+  /** Ícones do Escudo Anectta, à direita das ações rápidas. */
+  sideActions?: React.ReactNode;
 }
 
 /**
@@ -50,6 +52,7 @@ export const AssistantCard: React.FC<AssistantCardProps> = ({
   onCreateReminder,
   onHide,
   wide = false,
+  sideActions,
 }) => {
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [copied, setCopied] = useState(false);
@@ -131,6 +134,7 @@ export const AssistantCard: React.FC<AssistantCardProps> = ({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {collapsed && sideActions && <div className="mr-2">{sideActions}</div>}
           {onHide && !collapsed && (
             <button
               type="button"
@@ -223,7 +227,8 @@ export const AssistantCard: React.FC<AssistantCardProps> = ({
             </div>
           </div>
 
-          {/* Ações rápidas */}
+          {/* Ações rápidas (à esquerda) e ícones do Escudo Anectta (à direita) */}
+          <div className="flex items-end justify-between gap-3 flex-wrap">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Ações rápidas</div>
             <div className="flex flex-wrap gap-1.5">
@@ -258,6 +263,8 @@ export const AssistantCard: React.FC<AssistantCardProps> = ({
                 </button>
               )}
             </div>
+          </div>
+          {sideActions && <div className="ml-auto">{sideActions}</div>}
           </div>
         </div>
       )}
