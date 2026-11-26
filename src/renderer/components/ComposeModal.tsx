@@ -1111,7 +1111,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
       // Pequeno delay suave para a animação cinematográfica decolar
       // O Astro Entregador precisa de um pouco mais para sair voando até o fim
       const animationDelay =
-        scheduledAt || outgoingAnimation === 'instant' ? 150 : outgoingAnimation === 'astro' ? 1200 : 900;
+        scheduledAt || outgoingAnimation === 'instant' ? 150 : outgoingAnimation === 'astro' ? 2000 : 900;
       await new Promise((res) => setTimeout(res, animationDelay));
 
       await onSend({
@@ -1259,10 +1259,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
             {outgoingAnimation === 'astro' && (
               <div className="flex flex-col items-center space-y-4 w-full">
                 <style>{`
-                  .astro-delivery { animation: astroFly .8s cubic-bezier(.55,0,.75,.4) .3s forwards; }
-                  .astro-delivery-bot { animation: astroArrive .3s ease-out both; }
+                  .astro-delivery { animation: astroFly 1.35s cubic-bezier(.55,0,.75,.4) .55s forwards; }
+                  .astro-delivery-bot { animation: astroArrive .45s ease-out both; }
                   .astro-delivery-trail { transform: scaleX(0); transform-origin: right center; opacity: 0;
-                    animation: astroTrail .8s ease-in .3s forwards; }
+                    animation: astroTrail 1.35s ease-in .55s forwards; }
                   @keyframes astroArrive { from { transform: translateY(14px) scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
                   @keyframes astroFly {
                     0% { transform: translateX(0) rotate(0); }
