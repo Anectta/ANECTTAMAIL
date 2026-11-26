@@ -1672,12 +1672,12 @@ html[data-theme="anectta-glass"] .assistant-card {
    Escudo Anectta — ícones no cartão do Astro (uma cor por situação).
    --sc: cor base (preenchimento) · --sd: desenho/nome em tema escuro · --sl: em tema claro
    ========================================================================== */
-.shield-tone-golpe { --sc: #E83838; --sd: #F87171; --sl: #B91C1C; }
+.shield-tone-golpe { --sc: #9F1D4A; --sd: #E8508A; --sl: #9F1D4A; }
 .shield-tone-suspeito { --sc: #F8A818; --sd: #FBBF24; --sl: #B45309; }
 .shield-tone-desvio { --sc: #08B8C8; --sd: #22D3EE; --sl: #0E7490; }
 .shield-tone-bloqueio { --sc: #F83838; --sd: #F87171; --sl: #B91C1C; }
 .shield-tone-protecao { --sc: #0EA5E9; --sd: #38BDF8; --sl: #0369A1; }
-.shield-tone-imagem { --sc: #48B8F8; --sd: #7DD3FC; --sl: #0369A1; }
+.shield-tone-imagem { --sc: #16A34A; --sd: #4ADE80; --sl: #15803D; }
 .shield-tone-inscricao { --sc: #F8B818; --sd: #FACC15; --sl: #A16207; }
 [class*="shield-tone-"] { --c: var(--sd); }
 .clean-white [class*="shield-tone-"] { --c: var(--sl); }
