@@ -34,7 +34,7 @@ interface AssistantCardProps {
   onQuickReply?: (email: EmailItem, kind: 'confirm' | 'thanks') => void;
   onCreateEvent?: (email: EmailItem, when?: DateMention) => void;
   onCreateReminder?: (email: EmailItem, when?: DateMention) => void;
-  /** Desliga o assistente (pode ser religado em Configurações → Aparência). */
+  /** Desliga o assistente (pode ser religado em Configurações → Aparência e Assistente). */
   onHide?: () => void;
   wide?: boolean;
   /** Ícones do Escudo Anectta, à direita das ações rápidas. */
@@ -142,7 +142,7 @@ export const AssistantCard: React.FC<AssistantCardProps> = ({
                 soundService.play('click');
                 onHide();
               }}
-              title="Ocultar o Astro (religue em Configurações → Aparência)"
+              title="Ocultar o Astro (religue em Configurações → Aparência e Assistente)"
               className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-slate-800/70 transition-colors cursor-pointer"
             >
               <EyeOff className="w-3.5 h-3.5" />

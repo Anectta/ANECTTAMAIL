@@ -3824,7 +3824,7 @@ export const App: React.FC = () => {
     };
     setSettings(updated);
     persistSettings(updated);
-    showToast('Astro ocultado. Para mostrar de novo: Configurações → Aparência.');
+    showToast('Astro ocultado. Para mostrar de novo: Configurações → Aparência e Assistente.');
   };
 
   // Astro — pendências: e-mails aguardando sua resposta e enviados sem resposta
