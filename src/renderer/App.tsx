@@ -5236,7 +5236,7 @@ export const App: React.FC = () => {
 
             {/* Frase motivacional na linha do título (o espaço vazio continua arrastando a janela) */}
             {activeModule === 'mail' && (
-              <div className="flex-1 min-w-0 flex">
+              <div className="flex-1 min-w-0 flex justify-center">
                 <div className="app-no-drag min-w-0">
                   <MotivationalBanner />
                 </div>
