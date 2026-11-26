@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Maximize, Minimize, Minus, Plus, Scan } from 'lucide-react';
+import { Check, ChevronDown, Maximize, Minimize, Minus, Plus } from 'lucide-react';
 
 /** Mesmos limites do zoom do processo principal (Ctrl + / Ctrl - / Ctrl 0). */
 const MIN = 0.7;
@@ -126,9 +126,6 @@ export const ZoomControls: React.FC = () => {
         )}
       </div>
 
-      <button type="button" className={btn} onClick={() => applyZoom(1)} title="Tamanho normal (100%) · Ctrl 0">
-        <Scan className="w-3.5 h-3.5" />
-      </button>
       <button
         type="button"
         className={btn}

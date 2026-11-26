@@ -163,7 +163,7 @@ export const AssistantCard: React.FC<AssistantCardProps> = ({
       {!collapsed && (
         <div className="px-4 pb-3.5 pt-2 space-y-3">
           {/* Fatos */}
-          <div className="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2.5 space-y-1.5 text-xs">
+          <div className="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2.5 space-y-1.5 text-xs min-w-0 [overflow-wrap:anywhere]">
             <div className="text-slate-200 leading-relaxed">
               <span className="font-semibold text-slate-400">Pontos-chave: </span>
               {insights.keyPoint}

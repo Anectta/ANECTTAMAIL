@@ -65,6 +65,28 @@ const stripAccents = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 const pad = (n: number) => String(n).padStart(2, '0');
 const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+/**
+ * Tira os "espaços invisíveis" que e-mails de divulgação usam para encher a prévia
+ * (&#8199;&#847;, &zwnj;, zero-width etc.): decodifica códigos numéricos e remove os invisíveis.
+ */
+export function cleanInvisible(text: string): string {
+  return text
+    .replace(/&#x([0-9a-f]{1,6});?/gi, (_m, hex: string) => safeChar(parseInt(hex, 16)))
+    .replace(/&#(\d{1,7});?/g, (_m, dec: string) => safeChar(parseInt(dec, 10)))
+    .replace(/&(zwnj|zwj|shy|lrm|rlm);/gi, '')
+    .replace(/&(ensp|emsp|thinsp|nbsp);/gi, ' ')
+    .replace(/[­͏؜ᅟᅠ឴឵᠋-᠎​-‏‪-‮⁠-⁤⁪-⁯﻿ㅤﾠ]/g, '')
+    .replace(/[  -   　]/g, ' ');
+}
+function safeChar(code: number): string {
+  if (!Number.isFinite(code) || code <= 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return '';
+  try {
+    return String.fromCodePoint(code);
+  } catch {
+    return '';
+  }
+}
+
 /** Converte HTML em texto simples (sem scripts/estilos). */
 export function htmlToText(html: string): string {
   return html
@@ -272,11 +294,29 @@ const isClosing = (s: string) =>
     stripAccents(s)
   );
 
+// Rótulos de rodapé/cabeçalho de newsletter que não dizem nada sobre o conteúdo
+const BOILERPLATE_RE =
+  /^(web version|view (it |this (e-?mail|message) )?(in|on) (your |a )?(web )?browser|vers[aã]o (web|online|para navegador)|(ver|visualizar|abrir) (este e-?mail |esta mensagem )?(no|na|em seu|pelo) navegador|clique aqui( para)?( ver)?|caso n[aã]o (esteja )?(consiga|visualizar))\b/i;
+
 const sentencesOf = (text: string) =>
   text
     .split(/\n+|(?<=[.!?])\s+/)
-    .map((s) => s.replace(/\s+/g, ' ').trim())
-    .filter((s) => s.length >= 12);
+    // Links não são "pontos-chave": saem da frase (e uma frase só de link é descartada)
+    .map((s) =>
+      s
+        .replace(/\bhttps?:\/\/\S+/gi, ' ')
+        .replace(/\bwww\.\S+/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/\s+([.,;:!?])/g, '$1')
+        .trim()
+    )
+    .filter(
+      (s) =>
+        s.length >= 12 &&
+        !BOILERPLATE_RE.test(s) &&
+        !/:\s*$/.test(s) && // rótulo sem conteúdo ("Web Version:")
+        (s.match(/[A-Za-zÀ-ÿ]{2,}/g) || []).length >= 3 // texto de verdade, não códigos
+    );
 
 const clip = (s: string, n = 170) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
@@ -295,7 +335,7 @@ export function buildInsights(src: InsightSource, now: Date = new Date()): Assis
       ? htmlToText(body)
       : src.snippet || ''
   );
-  const text = stripQuoted(rawText).slice(0, 12000);
+  const text = cleanInvisible(stripQuoted(rawText)).slice(0, 12000);
   const plain = stripAccents(`${subject}\n${text}`).toLowerCase();
 
   const refParsed = src.dateStr ? new Date(src.dateStr) : now;

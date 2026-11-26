@@ -141,3 +141,16 @@ describe('quickReplyText', () => {
     expect(quickReplyText('thanks', 'contato@x.com')).toMatch(/^Olá,\n\nMuito obrigado/);
   });
 });
+
+describe('newsletter com códigos invisíveis e links', () => {
+  it('não mostra &#8199;&#847; nem o link "Web Version" nos pontos-chave', () => {
+    const bodyHtml =
+      '<div style="display:none">Plus: side panel tabs and Code Mode &#8199;&#847; &#8199;&#847; &#8199;&#847; &#8199;&#847;</div>' +
+      '<p>Web Version: https://click.jornal.exemplo.com.br/?qs=ABp7ImQiOjUwNzIsInQiOjEyNjIsIm</p>' +
+      '<p>Assinatura digital por R$ 1,90 no primeiro mês para ler as principais notícias do dia.</p>';
+    const r = buildInsights({ subject: 'Ofertas', bodyHtml, senderEmail: 'news@jornal.exemplo.com.br' }, REF);
+    expect(r.keyPoint).not.toMatch(/&#|https?:|qs=|Web Version/);
+    expect(r.keyPoint).not.toMatch(/[͏ ]/);
+    expect(r.keyPoint).toContain('Plus: side panel tabs and Code Mode');
+  });
+});
