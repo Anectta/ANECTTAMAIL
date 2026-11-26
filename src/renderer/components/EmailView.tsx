@@ -44,7 +44,6 @@ import {
   HelpCircle,
   X,
   BellRing,
-  MailX,
   PanelRight,
   StickyNote,
   Lock,
@@ -57,6 +56,13 @@ import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
 import { AssistantCard } from './AssistantCard';
 import { ShieldActions, type ShieldActionItem } from './ShieldActions';
+import iconGolpe from '../assets/escudo/escudo-golpe.png';
+import iconSuspeito from '../assets/escudo/escudo-suspeito.png';
+import iconDesvio from '../assets/escudo/escudo-desvio.png';
+import iconBloqueio from '../assets/escudo/escudo-bloqueio.png';
+import iconProtecao from '../assets/escudo/escudo-protecao.png';
+import iconImagem from '../assets/escudo/escudo-imagem.png';
+import iconInscricao from '../assets/escudo/escudo-inscricao.png';
 import type { DateMention } from '../utils/assistantInsights';
 import { soundService } from '../services/soundService';
 import { filterRealAttachments } from '../utils/attachmentUtils';
@@ -711,21 +717,22 @@ export const EmailView: React.FC<EmailViewProps> = ({
 
   // ===== Escudo Anectta em ícones (só aparecem quando a situação existe; perigos primeiro) =====
   const shieldItems: ShieldActionItem[] = [];
-  const panelTitle = (text: string, cls: string) => <div className={`text-sm font-bold ${cls}`}>{text}</div>;
+  const panelTitle = (text: string) => <div className="shield-panel-title text-sm font-bold">{text}</div>;
   const panelBtn = 'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors';
 
   if (phishingReport.level !== 'none') {
     const danger = phishingReport.level === 'danger';
     shieldItems.push({
       key: 'golpe',
-      icon: <ShieldAlert className="w-2.5 h-2.5" />,
+      icon: <img src={danger ? iconGolpe : iconSuspeito} alt="" draggable={false} className="w-[18px] h-[18px] object-contain" />,
       label: danger ? 'Possível golpe' : 'E-mail suspeito',
-      tone: danger ? 'red' : 'amber',
+      tone: danger ? 'golpe' : 'suspeito',
+      kind: 'plain',
       pulse: danger,
       title: danger ? 'Escudo Anectta: possível golpe — clique para ver os motivos' : 'Escudo Anectta: e-mail suspeito',
       render: (close) => (
         <>
-          {panelTitle(danger ? 'Possível golpe' : 'E-mail suspeito', danger ? 'text-rose-300' : 'text-amber-300')}
+          {panelTitle(danger ? 'Possível golpe' : 'E-mail suspeito')}
           <p>
             {danger
               ? 'Não clique em links, não abra anexos e não informe senhas ou dados.'
@@ -772,14 +779,15 @@ export const EmailView: React.FC<EmailViewProps> = ({
   if (replyRisk.level === 'warn') {
     shieldItems.push({
       key: 'resposta',
-      icon: <Reply className="w-2.5 h-2.5" />,
+      icon: <img src={iconDesvio} alt="" draggable={false} className="w-[18px] h-[18px] object-contain" />,
       label: 'Resposta desviada',
-      tone: 'red',
+      tone: 'desvio',
+      kind: 'plain',
       pulse: true,
       title: `Se você responder, a mensagem vai para ${replyRisk.replyTo}`,
       render: () => (
         <>
-          {panelTitle('Resposta desviada', 'text-rose-300')}
+          {panelTitle('Resposta desviada')}
           <p>
             Se você responder, a mensagem vai para <strong className="text-rose-200 break-all">{replyRisk.replyTo}</strong>, e não
             para <span className="break-all">{email.senderEmail}</span>.
@@ -796,13 +804,15 @@ export const EmailView: React.FC<EmailViewProps> = ({
     const how = senderBlockRule.startsWith('@') ? `Domínio ${senderBlockRule} bloqueado` : `Remetente ${senderBlockRule} bloqueado`;
     shieldItems.push({
       key: 'bloqueado',
-      icon: <UserX className="w-2.5 h-2.5" />,
+      icon: <img src={iconBloqueio} alt="" draggable={false} className="w-[18px] h-[18px] object-contain" />,
       label: 'Remetente bloqueado',
-      tone: 'red',
+      tone: 'bloqueio',
+      kind: 'plain',
+      pulse: true,
       title: how,
       render: () => (
         <>
-          {panelTitle('Remetente bloqueado', 'text-rose-300')}
+          {panelTitle('Remetente bloqueado')}
           <p className="break-all">{how}.</p>
           <p className="text-slate-400">
             {email.folder === 'junk'
@@ -818,13 +828,15 @@ export const EmailView: React.FC<EmailViewProps> = ({
     const n = bodyScan.blockedPixelsCount;
     shieldItems.push({
       key: 'protecao',
-      icon: <ShieldCheck className="w-2.5 h-2.5" />,
+      icon: <img src={iconProtecao} alt="" draggable={false} className="w-[18px] h-[18px] object-contain" />,
       label: 'Proteção ativa',
-      tone: 'green',
+      tone: 'protecao',
+      kind: 'plain',
+      count: n,
       title: `${n} ${n === 1 ? 'rastreador de leitura bloqueado' : 'rastreadores de leitura bloqueados'}`,
       render: () => (
         <>
-          {panelTitle('Proteção ativa', 'text-emerald-300')}
+          {panelTitle('Proteção ativa')}
           <p>
             {n} {n === 1 ? 'rastreador de leitura foi bloqueado' : 'rastreadores de leitura foram bloqueados'} nesta mensagem. O
             remetente não fica sabendo que você abriu o e-mail.
@@ -838,13 +850,15 @@ export const EmailView: React.FC<EmailViewProps> = ({
     const n = bodyScan.blockedImagesCount;
     shieldItems.push({
       key: 'imagens',
-      icon: <ImageIcon className="w-2.5 h-2.5" />,
+      icon: <img src={iconImagem} alt="" draggable={false} className="w-[18px] h-[18px] object-contain" />,
       label: 'Exibir imagem',
-      tone: 'amber',
+      tone: 'imagem',
+      kind: 'plain',
+      count: n,
       title: `${n} ${n === 1 ? 'imagem externa bloqueada' : 'imagens externas bloqueadas'} para sua privacidade`,
       render: (close) => (
         <>
-          {panelTitle('Imagens bloqueadas', 'text-amber-300')}
+          {panelTitle('Imagens bloqueadas')}
           <p>
             {n} {n === 1 ? 'imagem externa foi bloqueada' : 'imagens externas foram bloqueadas'} para sua privacidade.
           </p>
@@ -883,13 +897,14 @@ export const EmailView: React.FC<EmailViewProps> = ({
   if (unsubInfo && onUnsubscribe) {
     shieldItems.push({
       key: 'inscricao',
-      icon: <MailX className="w-2.5 h-2.5" />,
+      icon: <img src={iconInscricao} alt="" draggable={false} className="w-[18px] h-[18px] object-contain" />,
       label: 'Cancelar inscrição',
-      tone: 'amber',
+      tone: 'inscricao',
+      kind: 'plain',
       title: 'Mensagem de lista ou newsletter',
       render: (close) => (
         <>
-          {panelTitle('Cancelar inscrição', 'text-amber-300')}
+          {panelTitle('Cancelar inscrição')}
           <p>
             Deixar de receber os e-mails desta lista de{' '}
             <strong className="break-all">{email.senderEmail || email.sender}</strong>?

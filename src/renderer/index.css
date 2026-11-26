@@ -1667,3 +1667,80 @@ html[data-theme="anectta-glass"] .assistant-card {
   border-color: rgba(56, 189, 248, 0.55) !important;
   box-shadow: 0 0 28px rgba(56, 189, 248, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
 }
+
+/* ==========================================================================
+   Escudo Anectta — ícones no cartão do Astro (uma cor por situação).
+   --sc: cor base (preenchimento) · --sd: desenho/nome em tema escuro · --sl: em tema claro
+   ========================================================================== */
+.shield-tone-golpe { --sc: #E83838; --sd: #F87171; --sl: #B91C1C; }
+.shield-tone-suspeito { --sc: #F8A818; --sd: #FBBF24; --sl: #B45309; }
+.shield-tone-desvio { --sc: #08B8C8; --sd: #22D3EE; --sl: #0E7490; }
+.shield-tone-bloqueio { --sc: #F83838; --sd: #F87171; --sl: #B91C1C; }
+.shield-tone-protecao { --sc: #0EA5E9; --sd: #38BDF8; --sl: #0369A1; }
+.shield-tone-imagem { --sc: #48B8F8; --sd: #7DD3FC; --sl: #0369A1; }
+.shield-tone-inscricao { --sc: #F8B818; --sd: #FACC15; --sl: #A16207; }
+[class*="shield-tone-"] { --c: var(--sd); }
+.clean-white [class*="shield-tone-"] { --c: var(--sl); }
+
+.shield-label { color: var(--c); }
+.shield-tile {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color .15s, box-shadow .15s;
+}
+/* Perigo: quadrado preenchido com desenho branco */
+.shield-tile-danger {
+  background: var(--sc);
+  color: #ffffff;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sc) 35%, transparent);
+}
+/* Atenção: contorno */
+.shield-tile-attention {
+  border: 1px solid var(--c);
+  background: color-mix(in srgb, var(--sc) 15%, transparent);
+  color: var(--c);
+}
+/* Informação/ação: só o desenho */
+.shield-tile-info { color: var(--c); }
+/* Ícone em imagem (desenho original da legenda) */
+.shield-tile-plain { background: transparent; }
+button:hover > span > .shield-tile-info,
+button:hover > span > .shield-tile-attention { background: color-mix(in srgb, var(--sc) 18%, transparent); }
+button:hover > span > .shield-tile-danger { filter: brightness(1.08); }
+.shield-tile-open { box-shadow: 0 0 0 2px color-mix(in srgb, var(--sc) 55%, transparent); }
+.shield-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 5px;
+  border: 1px solid var(--sc);
+}
+.shield-badge {
+  position: absolute;
+  top: -5px;
+  right: -8px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--sc);
+  color: #ffffff;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 12px;
+  text-align: center;
+}
+.shield-panel { border-color: color-mix(in srgb, var(--sc) 50%, transparent) !important; }
+.shield-panel-title { color: var(--c); }
+/* Temas claros: os ícones do Escudo não ganham a "caixa branca" dos botões das ações rápidas.
+   (:is com um id inexistente só aumenta a prioridade desta regra) */
+.clean-white :is(.shield-btn, #shield-btn-prioridade),
+.clean-white :is(.shield-btn, #shield-btn-prioridade):hover {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}

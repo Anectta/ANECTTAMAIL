@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-export type ShieldTone = 'green' | 'amber' | 'red';
+/** Cada situação tem a sua cor (definidas em index.css → .shield-tone-*, com versão para temas claros). */
+export type ShieldTone = 'golpe' | 'suspeito' | 'desvio' | 'bloqueio' | 'protecao' | 'imagem' | 'inscricao';
+/** Estilo por gravidade: perigo = quadrado preenchido · atenção = contorno · informação = só o desenho. */
+export type ShieldKind = 'danger' | 'attention' | 'info' | 'plain';
 
 export interface ShieldActionItem {
   key: string;
@@ -8,31 +11,17 @@ export interface ShieldActionItem {
   /** Nome curto mostrado embaixo do ícone. */
   label: string;
   tone: ShieldTone;
+  /** 'plain' = ícone em imagem (desenho original), sem quadrado. */
+  kind: ShieldKind;
   /** Pulsar ao abrir o e-mail (alertas de perigo). */
   pulse?: boolean;
+  /** Número pequeno no canto (ex.: quantas imagens foram bloqueadas). */
+  count?: number;
   /** Texto do tooltip. */
   title?: string;
   /** Conteúdo do painel aberto ao clicar (recebe a função para fechar). */
   render: (close: () => void) => React.ReactNode;
 }
-
-const TONE: Record<ShieldTone, { tile: string; label: string; panel: string }> = {
-  green: {
-    tile: 'border-emerald-500/45 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20',
-    label: 'text-emerald-300',
-    panel: 'border-emerald-500/40',
-  },
-  amber: {
-    tile: 'border-amber-500/45 text-amber-400 bg-amber-500/10 hover:bg-amber-500/20',
-    label: 'text-amber-300',
-    panel: 'border-amber-500/40',
-  },
-  red: {
-    tile: 'border-rose-500/60 text-rose-400 bg-rose-500/15 hover:bg-rose-500/25',
-    label: 'text-rose-300',
-    panel: 'border-rose-500/50',
-  },
-};
 
 /**
  * Escudo Anectta em ícones: cada aviso vira um ícone com nome curto embaixo,
@@ -69,9 +58,8 @@ export const ShieldActions: React.FC<{ items: ShieldActionItem[]; resetKey?: str
   const open = items.find((i) => i.key === openKey) || null;
 
   return (
-    <div ref={rootRef} className="relative flex items-start gap-2" aria-label="Escudo Anectta">
+    <div ref={rootRef} className="relative flex items-start gap-1" aria-label="Escudo Anectta">
       {items.map((item) => {
-        const tone = TONE[item.tone];
         const isOpen = openKey === item.key;
         return (
           <button
@@ -80,19 +68,20 @@ export const ShieldActions: React.FC<{ items: ShieldActionItem[]; resetKey?: str
             onClick={() => setOpenKey(isOpen ? null : item.key)}
             title={item.title || item.label}
             aria-expanded={isOpen}
-            className="flex flex-col items-center gap-1 w-[74px] cursor-pointer group"
+            className={`shield-btn shield-tone-${item.tone} flex flex-col items-center gap-1 w-[70px] cursor-pointer`}
           >
-            <span
-              className={`relative w-[18px] h-[18px] rounded-[5px] border flex items-center justify-center transition-colors ${tone.tile} ${
-                isOpen ? 'ring-1 ring-white/30' : ''
-              }`}
-            >
-              {item.pulse && pulseOn && (
-                <span className="absolute inset-0 rounded-[5px] border border-rose-400/70 animate-ping" aria-hidden="true" />
+            <span className="relative inline-flex">
+              <span className={`shield-tile shield-tile-${item.kind} ${isOpen ? 'shield-tile-open' : ''}`}>
+                {(item.pulse ?? item.kind === 'danger') && pulseOn && (
+                  <span className="shield-pulse animate-ping" aria-hidden="true" />
+                )}
+                {item.icon}
+              </span>
+              {typeof item.count === 'number' && item.count > 0 && (
+                <span className="shield-badge">{item.count > 99 ? '99+' : item.count}</span>
               )}
-              {item.icon}
             </span>
-            <span className={`text-[10px] font-semibold leading-tight text-center ${tone.label}`}>{item.label}</span>
+            <span className="shield-label text-[10px] font-semibold leading-tight text-center">{item.label}</span>
           </button>
         );
       })}
@@ -101,7 +90,7 @@ export const ShieldActions: React.FC<{ items: ShieldActionItem[]; resetKey?: str
         <div
           role="dialog"
           aria-label={open.label}
-          className={`absolute right-0 top-full mt-2 z-40 w-[340px] max-w-[80vw] rounded-xl border bg-slate-950 shadow-2xl p-3.5 text-xs text-slate-200 space-y-2.5 ${TONE[open.tone].panel}`}
+          className={`shield-tone-${open.tone} shield-panel absolute right-0 top-full mt-2 z-40 w-[340px] max-w-[80vw] rounded-xl border bg-slate-950 shadow-2xl p-3.5 text-xs text-slate-200 space-y-2.5`}
         >
           {open.render(() => setOpenKey(null))}
         </div>
