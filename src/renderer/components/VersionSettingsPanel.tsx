@@ -121,8 +121,8 @@ export const VersionSettingsPanel: React.FC = () => {
             <img src={logoImg} alt="Anectta MAIL" className="w-8 h-8 object-contain" />
           </div>
           <div>
-            <div className="text-sm text-white">
-              <BrandWordmark className="text-[15px] text-white" />{' '}
+            <div className="text-sm text-white flex items-center gap-1.5">
+              <BrandWordmark className="text-[15px]" />
               <span className="font-semibold tracking-normal">Corporate Desktop</span>
             </div>
             <div className="text-xs text-slate-400 mt-0.5">
