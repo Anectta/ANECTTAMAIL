@@ -275,6 +275,8 @@ export interface AppsSettings {
   enableOneDriveApp?: boolean;
   /** Google Drive (app web pronto). Padrão: desligado. */
   enableGoogleDriveApp?: boolean;
+  /** iCloud Drive (app web pronto). Padrão: desligado. */
+  enableICloudApp?: boolean;
   customApps: CustomWebApp[];
 }
 

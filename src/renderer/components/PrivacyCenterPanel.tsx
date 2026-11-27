@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { SecuritySettings } from '@/types/settings';
 import { normalizeSenderEntry } from '../utils/mailHygiene';
+import { SenderListManager, SenderListSummary } from './SenderListManager';
 import { AppLockSettings } from './AppLockSettings';
 import {
   ContactPgpKey,
@@ -328,6 +329,8 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
 
   const trustedSenders = security.trustedSenders ?? [];
   const [newTrustedInput, setNewTrustedInput] = useState('');
+  // Janela de gerenciamento das listas (bloqueados / confiáveis)
+  const [openSenderList, setOpenSenderList] = useState<'blocked' | 'trusted' | null>(null);
   const handleAddTrustedSender = () => {
     const clean = normalizeSenderEntry(newTrustedInput);
     if (!clean) return;
@@ -336,19 +339,12 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
   };
 
   const handleAddBlockedSender = () => {
-    const clean = newBlockedInput.trim().toLowerCase();
+    const clean = normalizeSenderEntry(newBlockedInput);
     if (!clean) return;
     if (!blockedSenders.includes(clean)) {
       updateField('blockedSenders', [...blockedSenders, clean]);
     }
     setNewBlockedInput('');
-  };
-
-  const handleRemoveBlockedSender = (target: string) => {
-    updateField(
-      'blockedSenders',
-      blockedSenders.filter((item) => item !== target)
-    );
   };
 
   return (
@@ -1025,30 +1021,13 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
           </button>
         </div>
 
-        {blockedSenders.length > 0 ? (
-          <div className="max-h-32 overflow-y-auto space-y-1.5 pt-1">
-            {blockedSenders.map((entry) => (
-              <div
-                key={entry}
-                className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-xs text-slate-300"
-              >
-                <span className="truncate font-mono text-[11px]">{entry}</span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveBlockedSender(entry)}
-                  title="Desbloquear remetente"
-                  className="text-slate-500 hover:text-rose-400 transition-colors p-0.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-[11px] text-slate-500 italic">
-            Nenhum remetente bloqueado no momento.
-          </div>
-        )}
+        <SenderListSummary
+          count={blockedSenders.length}
+          emptyText="Nenhum remetente bloqueado no momento."
+          label="Remetentes bloqueados"
+          tone="rose"
+          onOpen={() => setOpenSenderList('blocked')}
+        />
       </div>
 
       {/* Bloqueio do Anectta com PIN (desligado por padrão) */}
@@ -1086,29 +1065,37 @@ export const PrivacyCenterPanel: React.FC<PrivacyCenterPanelProps> = ({
             <span>Confiar</span>
           </button>
         </div>
-        {trustedSenders.length > 0 ? (
-          <div className="max-h-32 overflow-y-auto space-y-1.5 pt-1">
-            {trustedSenders.map((entry) => (
-              <div
-                key={entry}
-                className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-900/90 border border-emerald-500/20 text-xs text-slate-300"
-              >
-                <span className="truncate font-mono text-[11px]">{entry}</span>
-                <button
-                  type="button"
-                  onClick={() => updateField('trustedSenders', trustedSenders.filter((s) => s !== entry))}
-                  title="Remover dos confiáveis"
-                  className="text-slate-500 hover:text-rose-400 transition-colors p-0.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-[11px] text-slate-500 italic">Nenhum remetente confiável ainda.</div>
-        )}
+        <SenderListSummary
+          count={trustedSenders.length}
+          emptyText="Nenhum remetente confiável ainda."
+          label="Remetentes confiáveis"
+          tone="emerald"
+          onOpen={() => setOpenSenderList('trusted')}
+        />
       </div>
+
+      <SenderListManager
+        open={openSenderList === 'blocked'}
+        title="Remetentes Bloqueados"
+        description="E-mails destes endereços ou domínios vão automaticamente para o Lixo eletrônico."
+        entries={blockedSenders}
+        tone="rose"
+        addLabel="Bloquear"
+        placeholder="Ex: remetente@exemplo.com ou @dominio.com"
+        onChange={(next) => updateField('blockedSenders', next)}
+        onClose={() => setOpenSenderList(null)}
+      />
+      <SenderListManager
+        open={openSenderList === 'trusted'}
+        title="Remetentes Confiáveis"
+        description="E-mails destes endereços ou domínios nunca vão para o Lixo eletrônico, sempre mostram imagens e não recebem aviso de golpe."
+        entries={trustedSenders}
+        tone="emerald"
+        addLabel="Confiar"
+        placeholder="Ex: contato@cliente.com ou @empresa.com"
+        onChange={(next) => updateField('trustedSenders', next)}
+        onClose={() => setOpenSenderList(null)}
+      />
 
       {/* Limpeza automática da Lixeira e do Lixo eletrônico */}
       <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">

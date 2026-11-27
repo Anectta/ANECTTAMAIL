@@ -10,7 +10,7 @@ export interface BuiltInApp {
   url: string;
   description: string;
   /** Chave da opção em Configurações → Aplicativos. */
-  settingKey: 'enableDropboxApp' | 'enableOneDriveApp' | 'enableGoogleDriveApp';
+  settingKey: 'enableDropboxApp' | 'enableOneDriveApp' | 'enableGoogleDriveApp' | 'enableICloudApp';
   /** Classe de cor do ícone. */
   iconClass: string;
   /** Classes do quadrado do ícone nas Configurações. */
@@ -47,6 +47,16 @@ export const GOOGLE_DRIVE_APP: BuiltInApp = {
   tileClass: 'bg-emerald-500/15 border-emerald-500/30',
 };
 
-export const BUILT_IN_APPS: BuiltInApp[] = [DROPBOX_APP, ONEDRIVE_APP, GOOGLE_DRIVE_APP];
+export const ICLOUD_APP: BuiltInApp = {
+  id: 'builtin-icloud',
+  name: 'iCloud Drive',
+  url: 'https://www.icloud.com/iclouddrive/',
+  description: 'Seus arquivos do iCloud Drive dentro do app, em uma área separada.',
+  settingKey: 'enableICloudApp',
+  iconClass: 'text-slate-300',
+  tileClass: 'bg-slate-500/15 border-slate-500/30',
+};
+
+export const BUILT_IN_APPS: BuiltInApp[] = [DROPBOX_APP, ONEDRIVE_APP, GOOGLE_DRIVE_APP, ICLOUD_APP];
 
 export const isBuiltInAppEnabled = (apps: AppsSettings | undefined, app: BuiltInApp) => Boolean(apps?.[app.settingKey]);

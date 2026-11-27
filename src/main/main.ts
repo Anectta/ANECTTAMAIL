@@ -3478,6 +3478,7 @@ const CLOUD_SERVICE_DOMAINS: Record<string, string[]> = {
   dropbox: ['dropbox.com', 'dropboxusercontent.com', 'dropboxstatic.com'],
   microsoft: ['live.com', 'onedrive.com', 'microsoftonline.com', 'microsoft.com', 'office.com', 'sharepoint.com', 'msauth.net', 'msftauth.net', 'live.net'],
   google: ['google.com', 'googleusercontent.com', 'gstatic.com'],
+  apple: ['icloud.com', 'apple.com', 'icloud-content.com', 'apple-cloudkit.com', 'cdn-apple.com'],
 };
 function cloudServiceFamily(hostname: string): string | null {
   const h = hostname.toLowerCase();
