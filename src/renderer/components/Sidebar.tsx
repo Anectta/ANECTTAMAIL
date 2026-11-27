@@ -46,6 +46,8 @@ import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount } from
 import { AccountSettings, AppsSettings } from '@/types/settings';
 import logoImg from '../assets/logo.png';
 import { BrandWordmark } from './BrandLogo';
+import { DROPBOX_APP } from '../utils/builtInApps';
+import { Cloud } from 'lucide-react';
 import { EMAIL_DRAG_MIME } from '../utils/emailDrag';
 
 const QUICK_NAV_COLLAPSED_KEY = 'anectta_sidebar_quicknav_collapsed';
@@ -874,6 +876,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }`}
                 >
                   <MessageCircle className="w-4 h-4 text-emerald-400" />
+                </button>
+              )}
+              {appsSettings?.enableDropboxApp && (
+                <button
+                  type="button"
+                  onClick={() => onSelectWebApp?.({ ...DROPBOX_APP })}
+                  title={DROPBOX_APP.name}
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                    activeModule === 'webapp' && activeWebAppId === DROPBOX_APP.id
+                      ? 'bg-white/10 text-white'
+                      : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Cloud className="w-4 h-4 text-sky-400" />
                 </button>
               )}
               {(appsSettings?.customApps || [])
@@ -1747,6 +1763,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 iconClass: 'text-emerald-400',
                 active: !!isWhatsAppOpen,
                 onClick: () => onToggleWhatsApp?.(),
+              }]
+            : []),
+          ...(appsSettings?.enableDropboxApp
+            ? [{
+                key: 'dropbox',
+                label: DROPBOX_APP.name,
+                icon: Cloud,
+                iconClass: 'text-sky-400',
+                active: activeModule === 'webapp' && activeWebAppId === DROPBOX_APP.id,
+                onClick: () => onSelectWebApp?.({ ...DROPBOX_APP }),
               }]
             : []),
           ...(appsSettings?.customApps || [])

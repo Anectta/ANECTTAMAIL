@@ -269,6 +269,8 @@ export interface AppsSettings {
   enableCalendarApp: boolean;
   enableContactsApp: boolean;
   enableWhatsAppApp: boolean;
+  /** Dropbox (app web pronto, em painel isolado). Padrão: desligado. */
+  enableDropboxApp?: boolean;
   customApps: CustomWebApp[];
 }
 

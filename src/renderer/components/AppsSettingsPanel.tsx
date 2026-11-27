@@ -11,6 +11,7 @@ import {
   Check,
 } from 'lucide-react';
 import { AppsSettings, CustomWebApp } from '@/types/settings';
+import { Cloud } from 'lucide-react';
 
 interface AppsSettingsPanelProps {
   apps: AppsSettings;
@@ -220,6 +221,27 @@ export const AppsSettingsPanel: React.FC<AppsSettingsPanelProps> = ({
             type="checkbox"
             checked={apps.enableWhatsAppApp}
             onChange={(e) => onChangeApps({ ...apps, enableWhatsAppApp: e.target.checked })}
+            className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 bg-slate-900 border-slate-700 shrink-0"
+          />
+        </label>
+
+        {/* Dropbox (app web pronto) */}
+        <label className="flex items-center justify-between gap-3 p-3 rounded-lg bg-slate-900/60 border border-slate-800/80 cursor-pointer hover:border-slate-700 transition-colors">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center shrink-0">
+              <Cloud className="w-4 h-4 text-sky-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-slate-100">Dropbox</div>
+              <div className="text-[11px] text-slate-400 truncate">
+                Seus arquivos do Dropbox dentro do app, em uma área separada e segura.
+              </div>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            checked={apps.enableDropboxApp ?? false}
+            onChange={(e) => onChangeApps({ ...apps, enableDropboxApp: e.target.checked })}
             className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 bg-slate-900 border-slate-700 shrink-0"
           />
         </label>
