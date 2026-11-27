@@ -46,7 +46,7 @@ import { CustomFolder, EmailItem, FavoriteFolder, MailFolder, UserAccount } from
 import { AccountSettings, AppsSettings } from '@/types/settings';
 import logoImg from '../assets/logo.png';
 import { BrandWordmark } from './BrandLogo';
-import { DROPBOX_APP } from '../utils/builtInApps';
+import { BUILT_IN_APPS, isBuiltInAppEnabled } from '../utils/builtInApps';
 import { Cloud } from 'lucide-react';
 import { EMAIL_DRAG_MIME } from '../utils/emailDrag';
 
@@ -878,20 +878,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <MessageCircle className="w-4 h-4 text-emerald-400" />
                 </button>
               )}
-              {appsSettings?.enableDropboxApp && (
+              {BUILT_IN_APPS.filter((app) => isBuiltInAppEnabled(appsSettings, app)).map((app) => (
                 <button
+                  key={app.id}
                   type="button"
-                  onClick={() => onSelectWebApp?.({ ...DROPBOX_APP })}
-                  title={DROPBOX_APP.name}
+                  onClick={() => onSelectWebApp?.({ id: app.id, name: app.name, url: app.url })}
+                  title={app.name}
                   className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
-                    activeModule === 'webapp' && activeWebAppId === DROPBOX_APP.id
+                    activeModule === 'webapp' && activeWebAppId === app.id
                       ? 'bg-white/10 text-white'
                       : 'text-slate-300 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  <Cloud className="w-4 h-4 text-sky-400" />
+                  <Cloud className={`w-4 h-4 ${app.iconClass}`} />
                 </button>
-              )}
+              ))}
               {(appsSettings?.customApps || [])
                 .filter((app) => app.enabled)
                 .map((app) => (
@@ -1765,16 +1766,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick: () => onToggleWhatsApp?.(),
               }]
             : []),
-          ...(appsSettings?.enableDropboxApp
-            ? [{
-                key: 'dropbox',
-                label: DROPBOX_APP.name,
-                icon: Cloud,
-                iconClass: 'text-sky-400',
-                active: activeModule === 'webapp' && activeWebAppId === DROPBOX_APP.id,
-                onClick: () => onSelectWebApp?.({ ...DROPBOX_APP }),
-              }]
-            : []),
+          ...BUILT_IN_APPS.filter((app) => isBuiltInAppEnabled(appsSettings, app)).map((app) => ({
+            key: app.id,
+            label: app.name,
+            icon: Cloud,
+            iconClass: app.iconClass,
+            active: activeModule === 'webapp' && activeWebAppId === app.id,
+            onClick: () => onSelectWebApp?.({ id: app.id, name: app.name, url: app.url }),
+          })),
           ...(appsSettings?.customApps || [])
             .filter((app) => app.enabled)
             .map((app) => ({

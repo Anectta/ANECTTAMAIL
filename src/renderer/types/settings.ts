@@ -271,6 +271,10 @@ export interface AppsSettings {
   enableWhatsAppApp: boolean;
   /** Dropbox (app web pronto, em painel isolado). Padrão: desligado. */
   enableDropboxApp?: boolean;
+  /** OneDrive (app web pronto). Padrão: desligado. */
+  enableOneDriveApp?: boolean;
+  /** Google Drive (app web pronto). Padrão: desligado. */
+  enableGoogleDriveApp?: boolean;
   customApps: CustomWebApp[];
 }
 

@@ -3473,6 +3473,20 @@ app.on('window-all-closed', () => {
 const isWhatsAppWebviewUrl = (targetUrl: string): boolean =>
   /^https:\/\/([a-z0-9-]+\.)?(whatsapp\.com|whatsapp\.net)(\/|$)/i.test(targetUrl);
 
+/** Domínios de cada serviço de nuvem pronto (para o login não sair do app). */
+const CLOUD_SERVICE_DOMAINS: Record<string, string[]> = {
+  dropbox: ['dropbox.com', 'dropboxusercontent.com', 'dropboxstatic.com'],
+  microsoft: ['live.com', 'onedrive.com', 'microsoftonline.com', 'microsoft.com', 'office.com', 'sharepoint.com', 'msauth.net', 'msftauth.net', 'live.net'],
+  google: ['google.com', 'googleusercontent.com', 'gstatic.com'],
+};
+function cloudServiceFamily(hostname: string): string | null {
+  const h = hostname.toLowerCase();
+  for (const [family, domains] of Object.entries(CLOUD_SERVICE_DOMAINS)) {
+    if (domains.some((d) => h === d || h.endsWith('.' + d))) return family;
+  }
+  return null;
+}
+
 app.on('web-contents-created', (_event, contents) => {
   // Menu de contexto nativo com corretor ortográfico em campos editáveis (janela principal e webviews, fora do WhatsApp Web)
   contents.on('context-menu', (ctxEvent, params) => {
@@ -3556,6 +3570,12 @@ app.on('web-contents-created', (_event, contents) => {
       const from = new URL(currentUrl);
       const to = new URL(url);
       if (to.protocol === 'https:' && from.hostname === to.hostname) {
+        return;
+      }
+      // Apps de nuvem prontos (Dropbox, OneDrive, Google Drive): o login passa por outros
+      // domínios do MESMO serviço; isso fica dentro do app. Outros sites abrem no navegador.
+      const fromFamily = cloudServiceFamily(from.hostname);
+      if (to.protocol === 'https:' && fromFamily && fromFamily === cloudServiceFamily(to.hostname)) {
         return;
       }
     } catch {
