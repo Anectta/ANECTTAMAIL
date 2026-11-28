@@ -22,6 +22,10 @@ export interface AstroReplyConfig {
   maxAgeHours: number;
   /** Envios automáticos pausados manualmente ("Pausar envios automáticos"). */
   paused: boolean;
+  /** Ajuste manual do estilo: saudação preferida (pode usar {nome}). Vazio = a aprendida. */
+  greetingOverride?: string;
+  /** Ajuste manual do estilo: despedida preferida. Vazio = a aprendida. */
+  closingOverride?: string;
 }
 
 export const DEFAULT_ASTRO_REPLY_CONFIG: Omit<AstroReplyConfig, 'activatedAtMs'> = {
@@ -62,5 +66,14 @@ export function normalizeAstroReplyConfig(raw: Partial<AstroReplyConfig> | null 
     maxAutoPerDay: Math.floor(num(raw?.maxAutoPerDay, 0, 500, d.maxAutoPerDay)),
     maxAgeHours: num(raw?.maxAgeHours, 1, 24 * 7, d.maxAgeHours),
     paused: raw?.paused === true,
+    greetingOverride: cleanStyleText(raw?.greetingOverride),
+    closingOverride: cleanStyleText(raw?.closingOverride),
   };
+}
+
+/** Texto curto de uma linha (saudação/despedida preferida). Vazio vira undefined. */
+function cleanStyleText(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const t = v.replace(/[\r\n]+/g, ' ').trim().slice(0, 80);
+  return t || undefined;
 }

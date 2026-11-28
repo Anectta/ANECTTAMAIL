@@ -171,6 +171,13 @@ describe('motor do Astro', () => {
     expect(d.estilo_aplicado).toBe(false);
   });
 
+  it('ajuste manual do estilo tem prioridade sobre o aprendido', () => {
+    const cfg = { ...DEFAULT_ASTRO_REPLY_CONFIG, autonomy: 'rascunho' as const, activatedAtMs: 0, greetingOverride: 'Bom dia, {nome}!', closingOverride: 'Um forte abraço,' };
+    const d = decideReply(input({ ctx: ctx({ config: cfg }) }));
+    expect(d.resposta_sugerida?.corpo).toBe('Bom dia, Joana!\n\nAtendemos de segunda a sexta, das 9h às 18h.\n\nUm forte abraço,');
+    expect(decideReply(input({ profile: null, ctx: ctx({ config: cfg }) })).estilo_aplicado).toBe(true);
+  });
+
   it('sem casos parecidos → precisa de você (sem rascunho)', () => {
     const d = decideReply(input({ similar: [] }));
     expect(d.acao).toBe('escalar_humano');

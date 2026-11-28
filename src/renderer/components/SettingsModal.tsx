@@ -52,6 +52,7 @@ import type { MailImportResult } from '../../types/electron';
 import { CalendarSettingsPanel } from './CalendarSettingsPanel';
 import { AppsSettingsPanel } from './AppsSettingsPanel';
 import { SkinGalleryPanel } from './SkinGalleryPanel';
+import { AstroRepliesSettings } from './AstroRepliesSettings';
 import { SpellcheckSettingsPanel } from './SpellcheckSettingsPanel';
 import { BackupSettingsPanel } from './BackupSettingsPanel';
 import { StorageSettingsPanel } from './StorageSettingsPanel';
@@ -2354,6 +2355,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* Astro Respostas Inteligentes (por conta; salva na hora) */}
+                <AstroRepliesSettings
+                  accounts={(formData.accounts && formData.accounts.length > 0 ? formData.accounts : [formData.account]).filter(Boolean)}
+                />
 
                 <SkinGalleryPanel />
               </div>

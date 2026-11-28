@@ -8,7 +8,8 @@
 import { categorizeEmail, type AstroCategory } from './categorize';
 import { sanitizeAnswer, type SensitiveItem } from './leakGuard';
 import { cosineSimilarity, tokenize, type SimilarPair } from './patternSearch';
-import { MIN_APPROVED_DRAFTS_FOR_AUTO, MIN_PAIRS_FOR_HISTORY, MIN_STYLE_SAMPLES } from './replyConfig';
+import { MIN_PAIRS_FOR_HISTORY, MIN_STYLE_SAMPLES, type AstroReplyConfig } from './replyConfig';
+import { TRIGGER_LABELS } from './labels';
 import {
   applyGuards,
   computeThreadKey,
@@ -67,31 +68,7 @@ export interface EngineInput {
   ownContext?: string;
 }
 
-/** Nomes das travas para mostrar ao usuário. */
-export const TRIGGER_LABELS: Record<AstroTrigger, string> = {
-  desligado: 'Astro Respostas Inteligentes desligado nesta conta',
-  pausado: 'envios automáticos pausados',
-  autonomia: 'nível de autonomia escolhido',
-  no_reply: 'remetente "não responda"',
-  marketing: 'newsletter ou e-mail promocional',
-  mensagem_automatica: 'mensagem automática',
-  remetente_proprio: 'enviado por você mesmo',
-  remetente_bloqueado: 'remetente bloqueado',
-  golpe: 'possível golpe',
-  fora_da_entrada: 'fora da Caixa de Entrada',
-  anexo: 'tem anexo para conferir',
-  grupo_cc: 'conversa em grupo (CC ou vários destinatários)',
-  anti_loop: 'o Astro já respondeu automaticamente nesta conversa',
-  temporal: 'e-mail antigo ou anterior à ativação',
-  reply_to_suspeito: '"Responder para" suspeito',
-  complexidade: 'resposta precisa ser pensada',
-  confianca_baixa: 'confiança abaixo do mínimo',
-  limite_diario: 'limite diário de envios atingido',
-  vazamento: 'a resposta antiga tinha dados de outro cliente',
-  sem_padrao: 'sem casos parecidos no seu histórico',
-  historico_insuficiente: 'o Astro ainda está aprendendo com o seu histórico',
-  aprovacoes_insuficientes: `envio automático liberado após ${MIN_APPROVED_DRAFTS_FOR_AUTO} rascunhos aprovados`,
-};
+export { TRIGGER_LABELS };
 
 const AUTOMATION: AstroTrigger[] = ['no_reply', 'marketing', 'mensagem_automatica'];
 /** Categorias que envolvem dinheiro, contrato ou problema: sempre resposta pensada. */
@@ -128,10 +105,12 @@ export function composeReply(
   email: EngineEmail,
   body: string,
   profile: StyleProfile | null,
-  styleReady: boolean
+  styleReady: boolean,
+  config?: Pick<AstroReplyConfig, 'greetingOverride' | 'closingOverride'>
 ): AstroSuggestedReply {
-  const greetingTpl = (styleReady && profile?.greetings[0]?.text) || DEFAULT_GREETING;
-  const closing = (styleReady && profile?.closings[0]?.text) || DEFAULT_CLOSING;
+  // Ordem: ajuste manual do usuário → estilo aprendido → padrão neutro
+  const greetingTpl = config?.greetingOverride || (styleReady && profile?.greetings[0]?.text) || DEFAULT_GREETING;
+  const closing = config?.closingOverride || (styleReady && profile?.closings[0]?.text) || DEFAULT_CLOSING;
   const greeting = fillGreeting(greetingTpl, firstNameOf(email.sender));
   const subject = (email.subject || '').trim();
   return {
@@ -216,7 +195,7 @@ export function decideReply(input: EngineInput): AstroDecision {
     if (clean.leak || !clean.text) {
       proposal = { action: 'escalar_humano', complexity: 'pensada', confidence, leakDetected: clean.leak };
     } else {
-      draft = composeReply(email, clean.text, profile, styleReady);
+      draft = composeReply(email, clean.text, profile, styleReady, ctx.config);
       usedIds = similar.map((s) => s.pair.id);
       proposal = { action: 'enviar_automatico', complexity: simple ? 'simples' : 'pensada', confidence };
     }
@@ -244,6 +223,6 @@ export function decideReply(input: EngineInput): AstroDecision {
     pares_utilizados_ids: usedIds,
     resposta_sugerida: draft,
     dados_removidos: removed,
-    estilo_aplicado: !!draft && styleReady,
+    estilo_aplicado: !!draft && (styleReady || !!ctx.config.greetingOverride || !!ctx.config.closingOverride),
   };
 }

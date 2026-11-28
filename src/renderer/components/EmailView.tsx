@@ -50,6 +50,8 @@ import {
 import { CustomFolder, EmailItem, MailFolder } from '@/types/email';
 import { SenderAvatar } from './SenderAvatar';
 import { AssistantCard } from './AssistantCard';
+import { AstroReplySuggestion } from './AstroReplySuggestion';
+import type { AstroDecisionView } from '../../types/electron';
 import { adaptHtmlForDark, isSimpleEmailHtml } from '../utils/smartDarkEmail';
 import {
   FilledArchive,
@@ -252,6 +254,11 @@ interface EmailViewProps {
   onAssistantCreateEvent?: (email: EmailItem, when?: DateMention) => void;
   onAssistantCreateReminder?: (email: EmailItem, when?: DateMention) => void;
   onHideAssistant?: () => void;
+  /** Astro Respostas Inteligentes: conta deste e-mail e endereços do usuário. */
+  astroAccountEmail?: string;
+  astroMyAddresses?: string[];
+  onUseAstroDraft?: (email: EmailItem, decision: AstroDecisionView) => void;
+  onOpenEmailById?: (id: string) => void;
 }
 
 export const EmailView: React.FC<EmailViewProps> = ({
@@ -305,6 +312,10 @@ export const EmailView: React.FC<EmailViewProps> = ({
   onAssistantCreateEvent,
   onAssistantCreateReminder,
   onHideAssistant,
+  astroAccountEmail,
+  astroMyAddresses = [],
+  onUseAstroDraft,
+  onOpenEmailById,
 }) => {
   const [revealedImagesEmailIds, setRevealedImagesEmailIds] = useState<Record<string, boolean>>({});
   // Modo escuro inteligente: e-mails em que o usuário pediu "Ver original" (fundo branco)
@@ -2304,6 +2315,19 @@ export const EmailView: React.FC<EmailViewProps> = ({
             onHide={onHideAssistant}
           />
         )}
+
+        {/* Astro Respostas Inteligentes: sugestão com selo de transparência (só onde a opção está ligada) */}
+        <AstroReplySuggestion
+          email={email}
+          accountEmail={astroAccountEmail}
+          myAddresses={astroMyAddresses}
+          senderBlocked={Boolean(senderBlockRule)}
+          phishingDanger={phishingReport.level === 'danger'}
+          replyToSuspicious={replyRisk.level === 'warn'}
+          onUseDraft={onUseAstroDraft}
+          onOpenEmailById={onOpenEmailById}
+          wide
+        />
 
         {/* Cartão Interativo de Convite de Reunião (.ics / RSVP) */}
         {email.calendarInvite && (

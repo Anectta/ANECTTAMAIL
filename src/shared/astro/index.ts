@@ -17,3 +17,4 @@ export * from './leakGuard';
 export * from './categorize';
 export * from './feedback';
 export * from './replyEngine';
+export * from './labels';

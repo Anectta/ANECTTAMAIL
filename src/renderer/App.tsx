@@ -14,6 +14,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useImapServerSync } from '@/hooks/useImapServerSync';
 import { useMailBackfill } from '@/hooks/useMailBackfill';
 import { useMailPersistence, isMailStoreAvailable } from '@/hooks/useMailPersistence';
+import { useAstroAutoLearning } from '@/hooks/useAstroAutoLearning';
 import { ensureEmailBody, useHydratedEmails } from '@/services/emailBodyCache';
 import { isBodyStripped } from './utils/emailBodyStrip';
 import { quickReplyText, type DateMention } from './utils/assistantInsights';
@@ -110,7 +111,7 @@ import { saveSettingsLocal, loadSettingsLocal } from './utils/secureSettingsStor
 import { themeService } from './services/themeService';
 import { applyRulesToEmails, loadMailRules, MailRule, saveMailRules } from './services/rulesService';
 import { getEmailTimestampMs } from './utils/dateSortUtils';
-import type { MailImportResult } from '../types/electron';
+import type { AstroDecisionView, MailImportResult } from '../types/electron';
 import { getThreadMessagesForEmail } from './utils/threadUtils';
 import {
   buildIcsRsvpReply,
@@ -3744,6 +3745,40 @@ export const App: React.FC = () => {
     };
   };
 
+  // ===== Astro Respostas Inteligentes: usar o rascunho e aprender com a sua edição =====
+  const astroDraftRef = useRef<{ accountEmail: string; inboundId: string; suggested: string; inReplyTo?: string; subject: string } | null>(null);
+
+  const handleUseAstroDraft = (baseEmail: EmailItem, decision: AstroDecisionView) => {
+    const draft = decision.resposta_sugerida;
+    if (!draft) return;
+    const account = settings.accounts?.find((acc) => isEmailForAccount(baseEmail, acc));
+    const { inReplyTo, references } = buildReplyThreadingHeaders(baseEmail);
+    soundService.play('click');
+    setComposeDraftId(undefined);
+    setComposeDefaults({ recipient: draft.para, subject: draft.assunto, body: draft.corpo, inReplyTo, references });
+    astroDraftRef.current = account?.email
+      ? { accountEmail: account.email, inboundId: baseEmail.id, suggested: draft.corpo, inReplyTo, subject: draft.assunto }
+      : null;
+    setIsComposeOpen(true);
+  };
+
+  /** Ao enviar a resposta que começou de um rascunho do Astro, registra o sugerido x enviado. */
+  const recordAstroFeedback = (emailData: OutgoingEmailPayload) => {
+    const ref = astroDraftRef.current;
+    if (!ref || !window.electronAPI?.astroRecordFeedback) return;
+    const sameThread = ref.inReplyTo ? emailData.inReplyTo === ref.inReplyTo : emailData.subject === ref.subject;
+    if (!sameThread) return;
+    astroDraftRef.current = null;
+    void window.electronAPI
+      .astroRecordFeedback({ accountEmail: ref.accountEmail, inboundId: ref.inboundId, suggested: ref.suggested, sent: emailData.body || '' })
+      .then((res) => {
+        if (res?.approved && res.approvedDrafts === res.minApprovedDrafts) {
+          showToast(`Astro: ${res.minApprovedDrafts} rascunhos aprovados — o envio automático já pode ser ativado nas Configurações.`);
+        }
+      })
+      .catch(() => {});
+  };
+
   /**
    * Para quem a resposta vai: o "Responder para" (Reply-To) do e-mail, quando houver.
    * Se ele for suspeito, pergunta antes. Devolve null quando o usuário desiste.
@@ -3839,6 +3874,8 @@ export const App: React.FC = () => {
       ),
     [settings.accounts, settings.account?.email]
   );
+  // Astro Respostas Inteligentes: atualiza o aprendizado uma vez por dia (só contas com a opção ligada)
+  useAstroAutoLearning(astroMyAddresses);
   const astroFollowUpDays = settings.appearance?.astroFollowUpDays ?? 3;
   // Contatos VIP: e-mails vão para o topo dos Prioritários, com selo ⭐ e aviso especial
   const [vips, setVips] = useState<Set<string>>(() => loadVips());
@@ -4967,6 +5004,9 @@ export const App: React.FC = () => {
   };
 
   const handleSendEmail = async (emailData: OutgoingEmailPayload) => {
+    // Astro: aprende com a diferença entre o rascunho sugerido e o que você enviou
+    recordAstroFeedback(emailData);
+
     // 1. Se for envio agendado (Send Later)
     if (emailData.scheduledAt && emailData.scheduledAt > Date.now()) {
       const schedId = `sched-${Date.now()}`;
@@ -5551,6 +5591,12 @@ export const App: React.FC = () => {
                   onAssistantCreateEvent={handleAssistantCreateEvent}
                   onAssistantCreateReminder={handleAssistantCreateReminder}
                   onHideAssistant={handleHideAssistant}
+                  astroAccountEmail={
+                    readerEmail ? settings.accounts?.find((acc) => isEmailForAccount(readerEmail, acc))?.email : undefined
+                  }
+                  astroMyAddresses={astroMyAddresses}
+                  onUseAstroDraft={handleUseAstroDraft}
+                  onOpenEmailById={handleOpenEmailInTab}
                   onComposeNewEmail={() => {
                     const defaultAcc =
                       settings.accounts?.find((a) => a.isDefault) ||

@@ -54,6 +54,8 @@ export interface AstroReplyConfigView {
   maxAutoPerDay: number;
   maxAgeHours: number;
   paused: boolean;
+  greetingOverride?: string;
+  closingOverride?: string;
 }
 
 /** Astro Respostas Inteligentes — decisão estruturada (contrato JSON). */
@@ -363,7 +365,16 @@ export interface ElectronAPI {
   astroClearLearning?: (accountEmail: string) => Promise<boolean>;
   /** Casos parecidos do histórico (pergunta → sua resposta) para um e-mail. */
   astroFindSimilar?: (payload: { accountEmail: string; emailId: string; k?: number }) => Promise<
-    Array<{ pairId: number; similarity: number; subject: string; question: string; answer: string; answeredAtMs: number }> | null
+    Array<{
+      pairId: number;
+      inboundId: string;
+      outboundId: string;
+      similarity: number;
+      subject: string;
+      question: string;
+      answer: string;
+      answeredAtMs: number;
+    }> | null
   >;
   onAstroLearnProgress?: (callback: (status: AstroLearningStatus) => void) => () => void;
   saveLocalMailboxIds?: (payload: { accountEmail: string; protocol?: string; ids: string[] }) => Promise<any>;

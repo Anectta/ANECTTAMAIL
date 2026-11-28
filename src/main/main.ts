@@ -1687,6 +1687,8 @@ ipcMain.handle('astro:find-similar', (event, payload: { accountEmail?: string; e
     .findSimilar(email.subject || '', text, { k: payload?.k, excludeInboundId: emailId })
     .map(({ pair, similarity }) => ({
       pairId: pair.id,
+      inboundId: pair.inboundId,
+      outboundId: pair.outboundId,
       similarity,
       subject: pair.subject,
       question: preview(pair.question),
