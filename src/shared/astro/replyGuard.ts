@@ -7,7 +7,7 @@
  * Ordem das ações (da mais "forte" para a mais "fraca"):
  *   enviar_automatico > salvar_rascunho > escalar_humano > apenas_classificar
  */
-import { AstroReplyConfig, MAX_AUTO_REPLIES_PER_THREAD } from './replyConfig';
+import { AstroReplyConfig, MAX_AUTO_REPLIES_PER_THREAD, MIN_APPROVED_DRAFTS_FOR_AUTO } from './replyConfig';
 
 export type AstroAction = 'enviar_automatico' | 'salvar_rascunho' | 'escalar_humano' | 'apenas_classificar';
 
@@ -31,7 +31,9 @@ export type AstroTrigger =
   | 'confianca_baixa'
   | 'limite_diario'
   | 'vazamento'
-  | 'sem_padrao';
+  | 'sem_padrao'
+  | 'historico_insuficiente'
+  | 'aprovacoes_insuficientes';
 
 /** Dados do e-mail recebido usados pelas travas (subconjunto do EmailItem). */
 export interface GuardEmail {
@@ -73,6 +75,8 @@ export interface GuardContext {
   autoRepliesInThread: number;
   /** Quantas respostas automáticas já foram enviadas hoje nesta conta. */
   autoRepliesToday: number;
+  /** Rascunhos do Astro que o usuário aprovou (enviou com poucas mudanças) nesta conta. */
+  approvedDrafts?: number;
 }
 
 /** O que o motor do Astro pretende fazer (antes das travas). */
@@ -269,6 +273,10 @@ export function applyGuards(email: GuardEmail, ctx: GuardContext, proposal: Guar
   if (!(proposal.confidence >= ctx.config.minConfidence)) capToDraft('confianca_baixa');
   if (ctx.autoRepliesToday >= ctx.config.maxAutoPerDay) capToDraft('limite_diario');
   if (ctx.config.paused) capToDraft('pausado');
+  // "Modo sombra": envio automático só depois de N rascunhos aprovados pelo usuário
+  if (ctx.config.autonomy === 'automatico' && (ctx.approvedDrafts ?? 0) < MIN_APPROVED_DRAFTS_FOR_AUTO) {
+    capToDraft('aprovacoes_insuficientes');
+  }
 
   return { action, triggers, classifyOnly: false };
 }

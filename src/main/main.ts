@@ -32,6 +32,16 @@ import { AstroStore } from './services/astro/astroStore';
 import { runLearning, type LearningStatus } from './services/astro/astroLearning';
 import { PairIndexCache } from '../shared/astro/patternSearch';
 import { cleanEmailText } from '../shared/astro/textClean';
+import {
+  MIN_APPROVED_DRAFTS_FOR_AUTO,
+  MIN_PAIRS_FOR_HISTORY,
+  MIN_STYLE_SAMPLES,
+  normalizeAstroReplyConfig,
+  type AstroReplyConfig,
+} from '../shared/astro/replyConfig';
+import { computeThreadKey } from '../shared/astro/replyGuard';
+import { decideReply } from '../shared/astro/replyEngine';
+import { compareDraft } from '../shared/astro/feedback';
 import { EmlExporterService } from './services/emlExporterService';
 import { OAuthService, OAuthProvider } from './services/oauthService';
 import { CloudSyncService } from './services/cloudSyncService';
@@ -1528,7 +1538,125 @@ ipcMain.handle('astro:get-profile', (event, accountEmail: string) => {
   const store = getAstroStore();
   const acc = astroAccountKey(accountEmail);
   if (!store || !acc) return null;
-  return { profile: store.getProfile(acc), pairCount: store.countPairs(acc) };
+  const profile = store.getProfile(acc);
+  return {
+    profile,
+    pairCount: store.countPairs(acc),
+    approvedDrafts: store.countApprovedDrafts(acc),
+    // "Cold start" e "modo sombra": quanto falta para cada etapa (barra de progresso na tela)
+    minPairs: MIN_PAIRS_FOR_HISTORY,
+    minStyleSamples: MIN_STYLE_SAMPLES,
+    minApprovedDrafts: MIN_APPROVED_DRAFTS_FOR_AUTO,
+  };
+});
+
+/** Configuração da conta, já validada (desligada por padrão). */
+function astroConfigFor(store: AstroStore, acc: string, nowMs: number): AstroReplyConfig {
+  return normalizeAstroReplyConfig(store.getConfigRaw(acc), nowMs);
+}
+
+ipcMain.handle('astro:get-config', (event, accountEmail: string) => {
+  if (!isTrustedRendererSender(event)) return null;
+  const store = getAstroStore();
+  const acc = astroAccountKey(accountEmail);
+  if (!store || !acc) return null;
+  return astroConfigFor(store, acc, Date.now());
+});
+
+ipcMain.handle('astro:set-config', (event, payload: { accountEmail?: string; patch?: Partial<AstroReplyConfig> }) => {
+  if (!isTrustedRendererSender(event)) return null;
+  const store = getAstroStore();
+  const acc = astroAccountKey(payload?.accountEmail);
+  if (!store || !acc) return null;
+  const now = Date.now();
+  const current = astroConfigFor(store, acc, now);
+  const patch = payload?.patch || {};
+  const next = normalizeAstroReplyConfig({ ...current, ...patch, engine: 'local' }, now);
+  // Ao ligar (sair de "Desligado"), a ativação passa a contar agora: nada anterior é respondido
+  if (current.autonomy === 'desligado' && next.autonomy !== 'desligado') next.activatedAtMs = now;
+  if (patch.activatedAtMs !== undefined && current.autonomy !== 'desligado') next.activatedAtMs = current.activatedAtMs;
+  store.saveConfig(acc, next, now);
+  return next;
+});
+
+ipcMain.handle(
+  'astro:evaluate',
+  (
+    event,
+    payload: {
+      accountEmail?: string;
+      emailId?: string;
+      myAddresses?: string[];
+      senderBlocked?: boolean;
+      phishingDanger?: boolean;
+      replyToSuspicious?: boolean;
+    }
+  ) => {
+    if (!isTrustedRendererSender(event)) return null;
+    const store = getAstroStore();
+    const acc = astroAccountKey(payload?.accountEmail);
+    const emailId = typeof payload?.emailId === 'string' ? payload.emailId : '';
+    if (!store || !acc || !emailId) return null;
+    const [email] = MailStore.get().getFullEmails([emailId]);
+    if (!email) return null;
+
+    const now = Date.now();
+    const config = astroConfigFor(store, acc, now);
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const text = cleanEmailText({ body: email.body, bodyHtml: email.bodyHtml });
+    const pairCount = store.countPairs(acc);
+    const profile = store.getProfile(acc);
+    const similar =
+      pairCount > 0
+        ? astroPairIndexCache.get(acc, pairCount, () => store.listPairs(acc)).findSimilar(email.subject || '', text, { excludeInboundId: emailId })
+        : [];
+    const threadKey = computeThreadKey(email);
+    const myAddresses = Array.from(
+      new Set([acc, ...(Array.isArray(payload?.myAddresses) ? payload!.myAddresses! : [])].filter((a) => typeof a === 'string'))
+    );
+
+    const decision = decideReply({
+      email,
+      text,
+      profile,
+      similar,
+      pairCount,
+      ownContext: (profile?.signatureLines || []).join('\n'),
+      ctx: {
+        nowMs: now,
+        config,
+        myAddresses,
+        senderBlocked: payload?.senderBlocked === true,
+        phishingDanger: payload?.phishingDanger === true,
+        replyToSuspicious: payload?.replyToSuspicious === true,
+        autoRepliesInThread: store.countAutoSentInThread(acc, threadKey),
+        autoRepliesToday: store.countAutoSentSince(acc, startOfDay.getTime()),
+        approvedDrafts: store.countApprovedDrafts(acc),
+      },
+    });
+    if (config.autonomy !== 'desligado') {
+      try {
+        // Nesta etapa nada é enviado: "enviar_automatico" fica registrado como decisão, não como envio
+        const logged = decision.acao === 'enviar_automatico' ? 'apto_envio' : decision.acao;
+        store.logDecision(acc, decision.thread_key, emailId, logged, decision.travas_acionadas, now);
+      } catch {}
+    }
+    return decision;
+  }
+);
+
+ipcMain.handle('astro:record-feedback', (event, payload: { accountEmail?: string; inboundId?: string; suggested?: string; sent?: string }) => {
+  if (!isTrustedRendererSender(event)) return null;
+  const store = getAstroStore();
+  const acc = astroAccountKey(payload?.accountEmail);
+  const inboundId = typeof payload?.inboundId === 'string' ? payload.inboundId : '';
+  const suggested = typeof payload?.suggested === 'string' ? payload.suggested : '';
+  const sent = typeof payload?.sent === 'string' ? payload.sent : '';
+  if (!store || !acc || !inboundId || !suggested) return null;
+  const comparison = compareDraft(suggested, sent);
+  const approvedDrafts = store.insertFeedback(acc, inboundId, { suggested, sent, comparison }, comparison.approved, Date.now());
+  return { ...comparison, approvedDrafts, minApprovedDrafts: MIN_APPROVED_DRAFTS_FOR_AUTO };
 });
 
 ipcMain.handle('astro:clear-learning', (event, accountEmail: string) => {

@@ -29,6 +29,7 @@ const ctx = (over: Partial<GuardContext> = {}): GuardContext => ({
   myAddresses: ['eu@empresa.com.br', 'vendas@empresa.com.br'],
   autoRepliesInThread: 0,
   autoRepliesToday: 0,
+  approvedDrafts: 20,
   ...over,
 });
 
@@ -202,6 +203,17 @@ describe('autonomia, confiança e limites', () => {
     expect(applyGuards(email(), ctx({ autoRepliesToday: 29 }), good).action).toBe('enviar_automatico');
     expect(applyGuards(email(), ctx({ autoRepliesToday: 30 }), good).triggers).toContain('limite_diario');
     expect(applyGuards(email(), ctx({ config: config({ paused: true }) }), good).triggers).toContain('pausado');
+  });
+  it('modo sombra: envio automático só depois de 20 rascunhos aprovados', () => {
+    const r = applyGuards(email(), ctx({ approvedDrafts: 19 }), good);
+    expect(r.action).toBe('salvar_rascunho');
+    expect(r.triggers).toContain('aprovacoes_insuficientes');
+    expect(applyGuards(email(), ctx({ approvedDrafts: undefined }), good).triggers).toContain('aprovacoes_insuficientes');
+    expect(applyGuards(email(), ctx({ approvedDrafts: 20 }), good).action).toBe('enviar_automatico');
+    // Em "Sugerir rascunho" essa trava não aparece (não há envio a liberar)
+    expect(applyGuards(email(), ctx({ approvedDrafts: 0, config: config({ autonomy: 'rascunho' }) }), good).triggers).not.toContain(
+      'aprovacoes_insuficientes'
+    );
   });
   it('"Responder para" suspeito → rascunho', () => {
     expect(applyGuards(email(), ctx({ replyToSuspicious: true }), good).triggers).toContain('reply_to_suspeito');

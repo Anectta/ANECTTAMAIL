@@ -7,6 +7,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { StyleProfile } from '../../../shared/astro/styleProfile';
 import type { PairContent, StoredPair } from '../../../shared/astro/types';
+import type { AstroReplyConfig } from '../../../shared/astro/replyConfig';
 
 export type { PairContent, StoredPair };
 
@@ -64,6 +65,13 @@ export const ASTRO_SCHEMA_SQL = `
     enc           INTEGER NOT NULL,
     data          BLOB NOT NULL
   );
+
+  -- Configuração por conta (sem texto de e-mail: não precisa de cifra)
+  CREATE TABLE IF NOT EXISTS astro_account_settings (
+    account_email TEXT PRIMARY KEY,
+    data          TEXT NOT NULL,
+    updated_ms    INTEGER NOT NULL
+  );
 `;
 
 const acc = (email: string) => email.trim().toLowerCase();
@@ -71,6 +79,77 @@ const acc = (email: string) => email.trim().toLowerCase();
 export class AstroStore {
   constructor(private readonly db: DatabaseSync, private readonly cipher: AstroCipher) {
     db.exec(ASTRO_SCHEMA_SQL);
+    // Bancos criados pela v1.0.341–1.0.343 não têm a coluna "approved"
+    const cols = db.prepare('PRAGMA table_info(astro_feedback)').all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'approved')) {
+      db.exec('ALTER TABLE astro_feedback ADD COLUMN approved INTEGER NOT NULL DEFAULT 0');
+    }
+  }
+
+  // ---------------------------------------------------------------- configuração
+
+  getConfigRaw(accountEmail: string): Partial<AstroReplyConfig> | null {
+    const row = this.db.prepare('SELECT data FROM astro_account_settings WHERE account_email = ?').get(acc(accountEmail)) as any;
+    if (!row) return null;
+    try {
+      return JSON.parse(String(row.data));
+    } catch {
+      return null;
+    }
+  }
+
+  saveConfig(accountEmail: string, config: AstroReplyConfig, nowMs: number): void {
+    this.db
+      .prepare('INSERT OR REPLACE INTO astro_account_settings (account_email, data, updated_ms) VALUES (?, ?, ?)')
+      .run(acc(accountEmail), JSON.stringify(config), nowMs);
+  }
+
+  // ---------------------------------------------------------------- registro de decisões
+
+  /** Registra o que o Astro decidiu (não registra envios: isso fica para o envio automático). */
+  logDecision(accountEmail: string, threadKey: string, inboundId: string, action: string, triggers: string[], nowMs: number): void {
+    if (action === 'enviado') throw new Error('Use o registro de envio para ações "enviado".');
+    // Uma linha por e-mail e ação (abrir o mesmo e-mail várias vezes não repete o registro)
+    const exists = this.db
+      .prepare('SELECT 1 FROM astro_auto_reply_log WHERE account_email = ? AND inbound_id = ? AND action = ? LIMIT 1')
+      .get(acc(accountEmail), inboundId, action);
+    if (exists) return;
+    this.db
+      .prepare('INSERT INTO astro_auto_reply_log (account_email, thread_key, inbound_id, action, triggers, created_ms) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(acc(accountEmail), threadKey, inboundId, action, JSON.stringify(triggers), nowMs);
+  }
+
+  countAutoSentSince(accountEmail: string, sinceMs: number): number {
+    const row = this.db
+      .prepare("SELECT count(*) AS c FROM astro_auto_reply_log WHERE account_email = ? AND action = 'enviado' AND created_ms >= ?")
+      .get(acc(accountEmail), sinceMs) as any;
+    return Number(row?.c || 0);
+  }
+
+  countAutoSentInThread(accountEmail: string, threadKey: string): number {
+    const row = this.db
+      .prepare("SELECT count(*) AS c FROM astro_auto_reply_log WHERE account_email = ? AND thread_key = ? AND action = 'enviado'")
+      .get(acc(accountEmail), threadKey) as any;
+    return Number(row?.c || 0);
+  }
+
+  // ---------------------------------------------------------------- aprendizado com edições
+
+  /** Guarda (cifrado) o sugerido x enviado. Retorna o total de rascunhos aprovados da conta. */
+  insertFeedback(accountEmail: string, inboundId: string, content: unknown, approved: boolean, nowMs: number): number {
+    const { enc, data } = this.cipher.encode(content);
+    this.db
+      .prepare('INSERT INTO astro_feedback (account_email, inbound_id, created_ms, enc, data, approved) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(acc(accountEmail), inboundId, nowMs, enc, data, approved ? 1 : 0);
+    return this.countApprovedDrafts(accountEmail);
+  }
+
+  /** Rascunhos do Astro aprovados (um por e-mail, mesmo que registrado mais de uma vez). */
+  countApprovedDrafts(accountEmail: string): number {
+    const row = this.db
+      .prepare('SELECT count(DISTINCT inbound_id) AS c FROM astro_feedback WHERE account_email = ? AND approved = 1')
+      .get(acc(accountEmail)) as any;
+    return Number(row?.c || 0);
   }
 
   /** IDs das respostas já transformadas em par (para não reprocessar). */

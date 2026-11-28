@@ -13,3 +13,7 @@ export * from './textClean';
 export * from './pairing';
 export * from './styleProfile';
 export * from './patternSearch';
+export * from './leakGuard';
+export * from './categorize';
+export * from './feedback';
+export * from './replyEngine';

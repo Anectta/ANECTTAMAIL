@@ -36,6 +36,18 @@ export const DEFAULT_ASTRO_REPLY_CONFIG: Omit<AstroReplyConfig, 'activatedAtMs'>
 /** Máximo de respostas automáticas por conversa (anti-loop). Fixo — não é configurável. */
 export const MAX_AUTO_REPLIES_PER_THREAD = 1;
 
+/**
+ * "Modo sombra": o envio automático só é liberado depois de o usuário aprovar (enviar com
+ * poucas mudanças) esta quantidade de rascunhos do Astro nesta conta.
+ */
+export const MIN_APPROVED_DRAFTS_FOR_AUTO = 20;
+
+/** "Cold start": mínimo de pares (recebido → sua resposta) para o Astro usar o histórico. */
+export const MIN_PAIRS_FOR_HISTORY = 20;
+
+/** "Cold start": mínimo de e-mails enviados analisados para o Astro imitar o seu estilo. */
+export const MIN_STYLE_SAMPLES = 10;
+
 /** Normaliza uma configuração vinda do disco (valores fora da faixa voltam ao padrão). */
 export function normalizeAstroReplyConfig(raw: Partial<AstroReplyConfig> | null | undefined, nowMs: number): AstroReplyConfig {
   const d = DEFAULT_ASTRO_REPLY_CONFIG;

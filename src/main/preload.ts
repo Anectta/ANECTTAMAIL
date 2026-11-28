@@ -425,6 +425,18 @@ const electronAPI = {
   astroGetProfile: (accountEmail: string) => ipcRenderer.invoke('astro:get-profile', accountEmail),
   astroClearLearning: (accountEmail: string) => ipcRenderer.invoke('astro:clear-learning', accountEmail),
   astroFindSimilar: (payload: { accountEmail: string; emailId: string; k?: number }) => ipcRenderer.invoke('astro:find-similar', payload),
+  astroGetConfig: (accountEmail: string) => ipcRenderer.invoke('astro:get-config', accountEmail),
+  astroSetConfig: (payload: { accountEmail: string; patch: Record<string, unknown> }) => ipcRenderer.invoke('astro:set-config', payload),
+  astroEvaluate: (payload: {
+    accountEmail: string;
+    emailId: string;
+    myAddresses: string[];
+    senderBlocked?: boolean;
+    phishingDanger?: boolean;
+    replyToSuspicious?: boolean;
+  }) => ipcRenderer.invoke('astro:evaluate', payload),
+  astroRecordFeedback: (payload: { accountEmail: string; inboundId: string; suggested: string; sent: string }) =>
+    ipcRenderer.invoke('astro:record-feedback', payload),
   onAstroLearnProgress: (callback: (status: any) => void) => {
     const listener = (_event: any, status: any) => callback(status);
     ipcRenderer.on('astro:learn-progress', listener);

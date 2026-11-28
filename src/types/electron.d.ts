@@ -45,6 +45,34 @@ export interface AstroStyleProfile {
   updatedMs: number;
 }
 
+/** Astro Respostas Inteligentes — configuração por conta. */
+export interface AstroReplyConfigView {
+  autonomy: 'desligado' | 'classificar' | 'rascunho' | 'automatico';
+  engine: 'local';
+  activatedAtMs: number;
+  minConfidence: number;
+  maxAutoPerDay: number;
+  maxAgeHours: number;
+  paused: boolean;
+}
+
+/** Astro Respostas Inteligentes — decisão estruturada (contrato JSON). */
+export interface AstroDecisionView {
+  versao: 1;
+  email_id: string;
+  thread_key: string;
+  categoria: string;
+  complexidade: 'simples' | 'pensada';
+  score_confianca: number;
+  acao: 'enviar_automatico' | 'salvar_rascunho' | 'escalar_humano' | 'apenas_classificar';
+  travas_acionadas: string[];
+  justificativa: string;
+  pares_utilizados_ids: number[];
+  resposta_sugerida: { para: string; assunto: string; corpo: string } | null;
+  dados_removidos: Array<{ kind: string; value: string }>;
+  estilo_aplicado: boolean;
+}
+
 export interface MailImportFolder {
   id: string;
   name: string;
@@ -306,7 +334,32 @@ export interface ElectronAPI {
   /** Astro Respostas Inteligentes: inicia o aprendizado de uma conta (pares + estilo). */
   astroLearnStart?: (payload: { accountEmail: string; myAddresses: string[] }) => Promise<AstroLearningStatus | null>;
   astroLearnStatus?: (accountEmail: string) => Promise<AstroLearningStatus | null>;
-  astroGetProfile?: (accountEmail: string) => Promise<{ profile: AstroStyleProfile | null; pairCount: number } | null>;
+  astroGetProfile?: (accountEmail: string) => Promise<{
+    profile: AstroStyleProfile | null;
+    pairCount: number;
+    approvedDrafts: number;
+    minPairs: number;
+    minStyleSamples: number;
+    minApprovedDrafts: number;
+  } | null>;
+  astroGetConfig?: (accountEmail: string) => Promise<AstroReplyConfigView | null>;
+  astroSetConfig?: (payload: { accountEmail: string; patch: Partial<AstroReplyConfigView> }) => Promise<AstroReplyConfigView | null>;
+  /** Decisão do Astro para um e-mail (classificação, rascunho, travas). Nada é enviado. */
+  astroEvaluate?: (payload: {
+    accountEmail: string;
+    emailId: string;
+    myAddresses: string[];
+    senderBlocked?: boolean;
+    phishingDanger?: boolean;
+    replyToSuspicious?: boolean;
+  }) => Promise<AstroDecisionView | null>;
+  /** Registra o rascunho sugerido x o texto enviado (aprendizado e liberação do envio automático). */
+  astroRecordFeedback?: (payload: { accountEmail: string; inboundId: string; suggested: string; sent: string }) => Promise<{
+    similarity: number;
+    approved: boolean;
+    approvedDrafts: number;
+    minApprovedDrafts: number;
+  } | null>;
   astroClearLearning?: (accountEmail: string) => Promise<boolean>;
   /** Casos parecidos do histórico (pergunta → sua resposta) para um e-mail. */
   astroFindSimilar?: (payload: { accountEmail: string; emailId: string; k?: number }) => Promise<
