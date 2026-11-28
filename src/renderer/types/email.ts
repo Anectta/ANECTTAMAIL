@@ -129,6 +129,10 @@ export interface EmailItem {
   replyTo?: string;
   listId?: string;
   precedence?: string;
+  /** Cabeçalho Auto-Submitted (RFC 3834): diferente de "no" = mensagem automática. */
+  autoSubmitted?: string;
+  /** Cabeçalho X-Auto-Response-Suppress (Outlook/Exchange): não responder automaticamente. */
+  autoResponseSuppress?: string;
   snoozedUntil?: number; // epoch ms
   followUpAt?: number; // epoch ms
   followUpNote?: string;

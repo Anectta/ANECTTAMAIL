@@ -147,6 +147,10 @@ function extractListHeaders(headers: any): {
   listUnsubscribePost?: string;
   listId?: string;
   precedence?: string;
+  /** RFC 3834: "auto-generated" / "auto-replied" indicam mensagem automática. */
+  autoSubmitted?: string;
+  /** Outlook/Exchange: pede que não haja resposta automática a esta mensagem. */
+  autoResponseSuppress?: string;
 } {
   if (!headers || typeof headers.get !== 'function') return {};
   const toStr = (val: any): string | undefined => {
@@ -170,6 +174,8 @@ function extractListHeaders(headers: any): {
     listUnsubscribePost: toStr(headers.get('list-unsubscribe-post')),
     listId: toStr(headers.get('list-id')),
     precedence: toStr(headers.get('precedence')),
+    autoSubmitted: toStr(headers.get('auto-submitted')),
+    autoResponseSuppress: toStr(headers.get('x-auto-response-suppress')),
   };
 }
 
@@ -802,7 +808,7 @@ export class MailService {
     let readReceiptRequestedBy: string | undefined = undefined;
     let parsedCc: string | undefined = undefined;
     let calendarInvite: any = undefined;
-    let listHeaders: { listUnsubscribe?: string; listUnsubscribePost?: string; listId?: string; precedence?: string } = {};
+    let listHeaders: ReturnType<typeof extractListHeaders> = {};
     let securityHeaders: { authResults?: AuthResults; replyTo?: string } = {};
 
     if (message.source) {
@@ -927,6 +933,8 @@ export class MailService {
       listUnsubscribePost: listHeaders.listUnsubscribePost,
       listId: listHeaders.listId,
       precedence: listHeaders.precedence,
+      autoSubmitted: listHeaders.autoSubmitted,
+      autoResponseSuppress: listHeaders.autoResponseSuppress,
       authResults: securityHeaders.authResults,
       replyTo: securityHeaders.replyTo,
     };
@@ -2282,6 +2290,8 @@ export class MailService {
             listUnsubscribePost: popListHeaders.listUnsubscribePost,
             listId: popListHeaders.listId,
             precedence: popListHeaders.precedence,
+            autoSubmitted: popListHeaders.autoSubmitted,
+            autoResponseSuppress: popListHeaders.autoResponseSuppress,
           });
         } catch (fetchErr) {
           console.warn(`Erro ao baixar mensagem POP3 #${i}:`, fetchErr);
