@@ -8,7 +8,7 @@
  * O índice fica SÓ em memória: gravado em disco, exporia palavras dos e-mails sem cifra.
  */
 import MiniSearch from 'minisearch';
-import type { StoredPair } from './astroStore';
+import type { StoredPair } from './types';
 
 /** Palavras muito comuns (pt/en/es) que não ajudam a comparar assuntos. */
 const STOPWORDS = new Set(

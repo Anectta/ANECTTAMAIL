@@ -6,11 +6,11 @@
  * 3) Extrai o "DNA de escrita" dos últimos e-mails enviados.
  * Tudo em lotes pequenos com pausas entre eles, para não travar a interface.
  */
-import { buildHistoryPairs, type PairableMeta } from './pairing';
+import { buildHistoryPairs, type PairableMeta } from '../../../shared/astro/pairing';
 import { AstroStore } from './astroStore';
-import { cleanEmailText, splitGreetingAndClosing } from './textClean';
-import { extractStyleProfile, type StyleProfile } from './styleProfile';
-import { normalizeSubject } from './replyGuard';
+import { cleanEmailText, splitGreetingAndClosing } from '../../../shared/astro/textClean';
+import { extractStyleProfile, type StyleProfile } from '../../../shared/astro/styleProfile';
+import { normalizeSubject } from '../../../shared/astro/replyGuard';
 
 export interface LearningSource {
   listMetas: (accountEmail: string, sinceMs: number) => PairableMeta[];

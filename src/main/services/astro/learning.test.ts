@@ -7,9 +7,9 @@ import {
   splitGreetingAndClosing,
   stripQuotedText,
   stripSignature,
-} from './textClean';
-import { buildHistoryPairs, type PairableMeta } from './pairing';
-import { detectSignatureLines, extractStyleProfile, isSafePhrase, templateGreeting } from './styleProfile';
+} from '../../../shared/astro/textClean';
+import { buildHistoryPairs, type PairableMeta } from '../../../shared/astro/pairing';
+import { detectSignatureLines, extractStyleProfile, isSafePhrase, templateGreeting } from '../../../shared/astro/styleProfile';
 import { AstroStore, type AstroCipher } from './astroStore';
 import { runLearning, type LearningStatus } from './astroLearning';
 

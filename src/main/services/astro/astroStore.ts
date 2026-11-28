@@ -5,35 +5,15 @@
  * conteúdo dos e-mails: proteção do Windows via safeStorage). Só IDs e datas ficam abertos.
  */
 import type { DatabaseSync } from 'node:sqlite';
-import type { StyleProfile } from './styleProfile';
+import type { StyleProfile } from '../../../shared/astro/styleProfile';
+import type { PairContent, StoredPair } from '../../../shared/astro/types';
+
+export type { PairContent, StoredPair };
 
 export interface AstroCipher {
   /** Cifra um objeto (JSON). enc = 1 quando cifrado, 0 quando a cifra não está disponível. */
   encode: (value: unknown) => { enc: number; data: Uint8Array };
   decode: (enc: number, data: Uint8Array) => unknown;
-}
-
-/** Conteúdo cifrado de um par histórico. */
-export interface PairContent {
-  /** Pergunta pura (texto do e-mail recebido, sem citação/assinatura). */
-  question: string;
-  /** Resposta pura (seu texto, sem saudação/despedida/assinatura/citação). */
-  answer: string;
-  /** Assunto normalizado. */
-  subject: string;
-  /** Endereço de quem perguntou (usado só para o anti-vazamento). */
-  counterpart: string;
-}
-
-export interface StoredPair extends PairContent {
-  id: number;
-  inboundId: string;
-  outboundId: string;
-  threadKey: string;
-  category: string | null;
-  inDateMs: number;
-  outDateMs: number;
-  uses: number;
 }
 
 export const ASTRO_SCHEMA_SQL = `

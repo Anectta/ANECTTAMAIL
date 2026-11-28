@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { cosineSimilarity, PairIndex, PairIndexCache, tokenize } from './patternSearch';
-import type { StoredPair } from './astroStore';
+import type { StoredPair } from './types';
 
 let nextId = 1;
 const pair = (subject: string, question: string, answer = 'Resposta', over: Partial<StoredPair> = {}): StoredPair => {

@@ -4,7 +4,7 @@
  * Isola o que a pessoa realmente escreveu: sem HTML, sem o histórico citado da conversa,
  * sem assinatura / avisos legais / "Enviado do meu iPhone". Funções puras (texto → texto).
  */
-import { cleanInvisible, htmlToText, stripCss } from '../../../renderer/utils/assistantInsights';
+import { cleanInvisible, htmlToText, stripCss } from '../text/htmlText';
 
 /** Marcadores em HTML a partir dos quais começa a citação da conversa anterior. */
 const HTML_QUOTE_MARKERS: RegExp[] = [
