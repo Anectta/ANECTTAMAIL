@@ -12,6 +12,39 @@ export type MailFolder =
 
 export type TimePeriod = 'today' | 'yesterday' | 'last_week' | 'older';
 
+/** Astro Respostas Inteligentes — progresso do aprendizado de uma conta. */
+export interface AstroLearningStatus {
+  accountEmail: string;
+  running: boolean;
+  phase: 'parado' | 'pareando' | 'lendo_pares' | 'estilo' | 'concluido' | 'erro';
+  done?: number;
+  total?: number;
+  pairsAdded?: number;
+  pairsTotal?: number;
+  styleSamples?: number;
+  startedMs?: number;
+  finishedMs?: number;
+  error?: string;
+}
+
+/** Astro Respostas Inteligentes — "DNA de escrita" aprendido. */
+export interface AstroStyleProfile {
+  version: 1;
+  sampleCount: number;
+  greetings: Array<{ text: string; count: number }>;
+  closings: Array<{ text: string; count: number }>;
+  signatureLines: string[];
+  formality: number;
+  formalityLabel: 'informal' | 'neutro' | 'formal';
+  avgWords: number;
+  medianWords: number;
+  avgParagraphs: number;
+  avgSentenceWords: number;
+  emojiRate: number;
+  frequentPhrases: Array<{ text: string; count: number }>;
+  updatedMs: number;
+}
+
 export interface MailImportFolder {
   id: string;
   name: string;
@@ -270,6 +303,12 @@ export interface ElectronAPI {
   ) => Promise<number>;
   storeRemoveEmails?: (ids: string[]) => Promise<number>;
   storeGetBodies?: (ids: string[]) => Promise<Record<string, { body?: string; bodyHtml?: string }>>;
+  /** Astro Respostas Inteligentes: inicia o aprendizado de uma conta (pares + estilo). */
+  astroLearnStart?: (payload: { accountEmail: string; myAddresses: string[] }) => Promise<AstroLearningStatus | null>;
+  astroLearnStatus?: (accountEmail: string) => Promise<AstroLearningStatus | null>;
+  astroGetProfile?: (accountEmail: string) => Promise<{ profile: AstroStyleProfile | null; pairCount: number } | null>;
+  astroClearLearning?: (accountEmail: string) => Promise<boolean>;
+  onAstroLearnProgress?: (callback: (status: AstroLearningStatus) => void) => () => void;
   saveLocalMailboxIds?: (payload: { accountEmail: string; protocol?: string; ids: string[] }) => Promise<any>;
   getRecentDownloads: () => Promise<RecentFileItem[]>;
   openFileDialog: () => Promise<RecentFileItem[]>;

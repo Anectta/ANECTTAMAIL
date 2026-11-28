@@ -28,6 +28,8 @@ import { testAccount } from './services/connectionTest';
 import { implicitTls } from './services/mailSecurity';
 import { importIntoAccount } from './services/mailImport';
 import { AIAssistantService } from './services/aiAssistantService';
+import { AstroStore } from './services/astro/astroStore';
+import { runLearning, type LearningStatus } from './services/astro/astroLearning';
 import { EmlExporterService } from './services/emlExporterService';
 import { OAuthService, OAuthProvider } from './services/oauthService';
 import { CloudSyncService } from './services/cloudSyncService';
@@ -1470,6 +1472,72 @@ ipcMain.handle(
     return await saveMailboxToDisk(payload.accountEmail, emails, payload.protocol || 'pop3');
   }
 );
+
+// ===== Astro Respostas Inteligentes: aprendizado (pares + "DNA de escrita") =====
+let astroStoreInstance: AstroStore | null = null;
+let astroStoreDb: unknown = null;
+const astroLearningStatus = new Map<string, LearningStatus>();
+
+/** Tabelas do Astro no mesmo banco dos e-mails (recriado se o banco for reaberto em outra pasta). */
+function getAstroStore(): AstroStore | null {
+  const backend = MailStore.get().getAstroBackend();
+  if (!backend) return null;
+  if (!astroStoreInstance || astroStoreDb !== backend.db) {
+    astroStoreInstance = new AstroStore(backend.db, { encode: backend.encode, decode: backend.decode });
+    astroStoreDb = backend.db;
+  }
+  return astroStoreInstance;
+}
+
+const astroAccountKey = (v: unknown) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+
+ipcMain.handle('astro:learn-start', async (event, payload: { accountEmail?: string; myAddresses?: string[] }) => {
+  if (!isTrustedRendererSender(event)) return null;
+  const accountEmail = astroAccountKey(payload?.accountEmail);
+  const store = getAstroStore();
+  if (!accountEmail || !store) return { accountEmail, running: false, phase: 'erro', error: 'Banco local indisponível.' };
+  const current = astroLearningStatus.get(accountEmail);
+  if (current?.running) return current;
+  const myAddresses = Array.isArray(payload?.myAddresses) ? payload!.myAddresses!.filter((a) => typeof a === 'string') : [];
+  const sender = event.sender;
+  void runLearning(
+    accountEmail,
+    myAddresses,
+    {
+      listMetas: (acc, since) => MailStore.get().listMetasForAccount(acc, since),
+      getBodies: (ids) => MailStore.get().getBodies(ids),
+    },
+    store,
+    (s) => {
+      astroLearningStatus.set(accountEmail, s);
+      if (!sender.isDestroyed()) sender.send('astro:learn-progress', s);
+    }
+  );
+  return astroLearningStatus.get(accountEmail) || null;
+});
+
+ipcMain.handle('astro:learn-status', (event, accountEmail: string) => {
+  if (!isTrustedRendererSender(event)) return null;
+  return astroLearningStatus.get(astroAccountKey(accountEmail)) || null;
+});
+
+ipcMain.handle('astro:get-profile', (event, accountEmail: string) => {
+  if (!isTrustedRendererSender(event)) return null;
+  const store = getAstroStore();
+  const acc = astroAccountKey(accountEmail);
+  if (!store || !acc) return null;
+  return { profile: store.getProfile(acc), pairCount: store.countPairs(acc) };
+});
+
+ipcMain.handle('astro:clear-learning', (event, accountEmail: string) => {
+  if (!isTrustedRendererSender(event)) return false;
+  const store = getAstroStore();
+  const acc = astroAccountKey(accountEmail);
+  if (!store || !acc || astroLearningStatus.get(acc)?.running) return false;
+  store.clearLearning(acc);
+  astroLearningStatus.delete(acc);
+  return true;
+});
 
 ipcMain.on('cache:load-messages-sync', (event) => {
   let reply: any[] | null = null;

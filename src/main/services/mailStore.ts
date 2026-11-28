@@ -359,6 +359,41 @@ export class MailStore {
     return (this.db!.prepare('SELECT id FROM emails ORDER BY date_ms DESC').all() as any[]).map((r) => String(r.id));
   }
 
+  /**
+   * Resumos (sem conteúdo) de uma conta — usados pelo Astro Respostas Inteligentes.
+   * Inclui linhas sem conta gravada (versões antigas), que o pareamento filtra pelos cabeçalhos.
+   */
+  listMetasForAccount(accountEmail: string, sinceMs = 0): any[] {
+    if (!this.isAvailable()) return [];
+    const rows = this.db!
+      .prepare('SELECT meta FROM emails WHERE (account_email = ? OR account_email IS NULL) AND date_ms >= ? ORDER BY date_ms DESC')
+      .all(accountEmail.trim().toLowerCase(), sinceMs) as any[];
+    const out: any[] = [];
+    for (const r of rows) {
+      try {
+        out.push(JSON.parse(r.meta));
+      } catch {}
+    }
+    return out;
+  }
+
+  /** Acesso do Astro ao mesmo banco, com a mesma cifra do conteúdo dos e-mails. */
+  getAstroBackend(): { db: DatabaseSync; encode: (value: unknown) => { enc: number; data: Uint8Array }; decode: (enc: number, data: Uint8Array) => unknown } | null {
+    if (!this.isAvailable()) return null;
+    return {
+      db: this.db!,
+      encode: (value) => {
+        const json = JSON.stringify(value);
+        if (this.crypto && this.crypto.available()) return { enc: 1, data: this.crypto.encrypt(json) };
+        return { enc: 0, data: Buffer.from(json, 'utf-8') };
+      },
+      decode: (enc, data) => {
+        const buf = Buffer.from(data);
+        return JSON.parse(enc === 1 && this.crypto ? this.crypto.decrypt(buf) : buf.toString('utf-8'));
+      },
+    };
+  }
+
   /** Substitui todo o conteúdo do banco (restauração de backup). */
   replaceAll(emails: any[]): number {
     if (!this.isAvailable()) return 0;

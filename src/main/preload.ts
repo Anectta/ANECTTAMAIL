@@ -419,6 +419,16 @@ const electronAPI = {
   storeUpsertEmails: (records: any[]) => ipcRenderer.invoke('store:upsert', records),
   storeRemoveEmails: (ids: string[]) => ipcRenderer.invoke('store:remove', ids),
   storeGetBodies: (ids: string[]) => ipcRenderer.invoke('store:get-bodies', ids),
+  // Astro Respostas Inteligentes — aprendizado
+  astroLearnStart: (payload: { accountEmail: string; myAddresses: string[] }) => ipcRenderer.invoke('astro:learn-start', payload),
+  astroLearnStatus: (accountEmail: string) => ipcRenderer.invoke('astro:learn-status', accountEmail),
+  astroGetProfile: (accountEmail: string) => ipcRenderer.invoke('astro:get-profile', accountEmail),
+  astroClearLearning: (accountEmail: string) => ipcRenderer.invoke('astro:clear-learning', accountEmail),
+  onAstroLearnProgress: (callback: (status: any) => void) => {
+    const listener = (_event: any, status: any) => callback(status);
+    ipcRenderer.on('astro:learn-progress', listener);
+    return () => ipcRenderer.removeListener('astro:learn-progress', listener);
+  },
   saveLocalMailboxIds: (payload: { accountEmail: string; protocol?: string; ids: string[] }) =>
     ipcRenderer.invoke('storage:save-mailbox-ids', payload),
 
