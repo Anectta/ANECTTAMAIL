@@ -30,6 +30,8 @@ import { importIntoAccount } from './services/mailImport';
 import { AIAssistantService } from './services/aiAssistantService';
 import { AstroStore } from './services/astro/astroStore';
 import { runLearning, type LearningStatus } from './services/astro/astroLearning';
+import { PairIndexCache } from './services/astro/patternSearch';
+import { cleanEmailText } from './services/astro/textClean';
 import { EmlExporterService } from './services/emlExporterService';
 import { OAuthService, OAuthProvider } from './services/oauthService';
 import { CloudSyncService } from './services/cloudSyncService';
@@ -1536,7 +1538,33 @@ ipcMain.handle('astro:clear-learning', (event, accountEmail: string) => {
   if (!store || !acc || astroLearningStatus.get(acc)?.running) return false;
   store.clearLearning(acc);
   astroLearningStatus.delete(acc);
+  astroPairIndexCache.invalidate(acc);
   return true;
+});
+
+// Casos parecidos (RAG local): índice só em memória, refeito quando os pares mudam
+const astroPairIndexCache = new PairIndexCache();
+ipcMain.handle('astro:find-similar', (event, payload: { accountEmail?: string; emailId?: string; k?: number }) => {
+  if (!isTrustedRendererSender(event)) return null;
+  const store = getAstroStore();
+  const acc = astroAccountKey(payload?.accountEmail);
+  const emailId = typeof payload?.emailId === 'string' ? payload.emailId : '';
+  if (!store || !acc || !emailId) return [];
+  const [email] = MailStore.get().getFullEmails([emailId]);
+  if (!email) return [];
+  const index = astroPairIndexCache.get(acc, store.countPairs(acc), () => store.listPairs(acc));
+  const text = cleanEmailText({ body: email.body, bodyHtml: email.bodyHtml });
+  const preview = (s: string) => (s.length > 280 ? `${s.slice(0, 279).trimEnd()}…` : s);
+  return index
+    .findSimilar(email.subject || '', text, { k: payload?.k, excludeInboundId: emailId })
+    .map(({ pair, similarity }) => ({
+      pairId: pair.id,
+      similarity,
+      subject: pair.subject,
+      question: preview(pair.question),
+      answer: preview(pair.answer),
+      answeredAtMs: pair.outDateMs,
+    }));
 });
 
 ipcMain.on('cache:load-messages-sync', (event) => {
